@@ -11,7 +11,9 @@ from classy import Class
 COLAEXEC = os.path.expanduser("~/FML/FML/COLASolver/nbody")
 
 def luastr(var):
-    if isinstance(var, str):
+    if isinstance(var, bool):
+        return str(var).lower() # Lua uses true, not True
+    elif isinstance(var, str):
         return '"' + str(var) + '"' # enclose in ""
     elif isinstance(var, list):
         return "{" + ", ".join(luastr(el) for el in var) + "}" # Lua uses {} for lists
@@ -35,7 +37,7 @@ class ParameterSpace:
 class Simulation:
     def __init__(self, params):
         self.name = "test"
-        self.directory = "sims/sim_" + self.name + "/"
+        self.directory = "sims/" + self.name + "/"
 
         # jump into simulation directory
         os.makedirs(self.directory, exist_ok=True)
@@ -85,7 +87,7 @@ class Simulation:
         self.cosmology.set(params_class)
         self.cosmology.compute()
 
-        z1, z2 = 10.0, 0.0
+        z1, z2 = params["zinit"]+0.1, 0.0 # TODO: FML warns about starting before zinit if z1=zinit
         a1, a2 = 1/(z1+1), 1/(z2+1)
         as_ = 10 ** np.linspace(np.log10(a1), np.log10(a2), 100)
         zs  = 1/as_ - 1
@@ -103,35 +105,40 @@ class Simulation:
             transfer_filenames.append(transfer_filename)
 
         # write accumulating transfer file
-        transferfile  = "transfer.txt"
+        self.transferfile  = "transfer.txt"
         transferlist  = f". {nsnaps}\n"
         transferlist += "\n".join(f"{transfer_filenames[i]} {zs[i]}" for i in range(0, nsnaps))
-        self.write_file(transferfile, transferlist)
-        
-    def run_cola(self, params, z0=10):
-        # write cola transferinfo file
+        self.write_file(self.transferfile, transferlist)
+
+    def config_cola(self, params):
+        # common parameters
         params_cola = {
             "simulation_name": self.name,
             "simulation_boxsize": 350.0,
             "simulation_use_cola": True,
+            "simulation_use_scaledependent_cola": False,
 
-            "cosmology_model": "LCDM",
             "cosmology_h": params["h"],
             "cosmology_Omegab": params["Ωb0"],
             "cosmology_OmegaCDM": params["Ωc0"],
+            "cosmology_OmegaMNu": params["Ωnc0"],
+            "cosmology_OmegaK": params["Ωk0"],
             "cosmology_OmegaLambda": params["ΩΛ0"],
             "cosmology_Neffective": params["Neff"],
             "cosmology_TCMB_kelvin": params["Tγ0"],
+            "cosmology_As": params["As"],
+            "cosmology_ns": params["ns"],
+            "cosmology_kpivot_mpc": params["kpivot"],
 
             "particle_Npart_1D": 64, # TODO: increase
 
             "timestep_nsteps": [30],
 
             "ic_random_seed": 1234,
-            "ic_initial_redshift": z0,
+            "ic_initial_redshift": params["zinit"],
             "ic_nmesh" : 64,
             "ic_type_of_input": "transferinfofile", # TODO: do i need to use this, or is initial enough?
-            "ic_input_filename": transferfile,
+            "ic_input_filename": self.transferfile,
             "ic_input_redshift": 0.0, # TODO: ???
 
             "force_nmesh": 64,
@@ -140,8 +147,34 @@ class Simulation:
             "output_redshifts": [0.0],
         }
 
+        # specific parameters
+        # TODO: branch into derived classes
+        if params["GR"]:
+            params_cola |= {
+                "cosmology_model": "LCDM",
+
+                "gravity_model": "GR",
+            }
+        else:
+            params_cola |= {
+                "cosmology_model": "JBD",
+                "cosmology_JBD_wBD": params["wBD"],
+                "cosmology_JBD_GeffG_today": 1.0,
+                "cosmology_JBD_Omegabh2": params["Ωb0"] * params["h"]**2,
+                "cosmology_JBD_OmegaCDMh2": params["Ωc0"] * params["h"]**2,
+                "cosmology_JBD_OmegaMNuh2": params["Ωnc0"] * params["h"]**2,
+                "cosmology_JBD_OmegaLambdah2": params["ΩΛ0"] * params["h"]**2,
+                "cosmology_JBD_OmegaKh2": params["Ωk0"] * params["h"]**2,
+
+                "gravity_model": "JBD",
+            }
+
+        return params_cola
+
+    def run_cola(self, params):
         colainfile = "cola_input.lua"
-        self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}\n" for param, val in params_cola.items()))
+        params_cola = self.config_cola(params)
+        self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}" for param, val in params_cola.items()))
 
         colalogfile = "cola.log"
         with open(colalogfile, "w") as logf:
@@ -150,16 +183,22 @@ class Simulation:
 
 #if __name__ == "__main__":
 params0 = {
-    "h":          0.67,
-    "Ωb0":        0.05,
-    "Ωc0":        0.267,
-    "Ωk0":        0.0,
-    "Tγ0":        2.7255,
-    #"Omega_ncdm":      0.0012, # TODO: non-cold dark matter???
-    "Neff":       3.046,
-    "kpivot":    0.05,
-    "As":        2.1e-9,
-    "ns":        0.965,
+    "h":      0.67,
+    "Ωb0":    0.05,
+    "Ωc0":    0.267,
+    "Ωnc0":   0.0012, # non-cold dark matter
+    "Ωk0":    0.0,
+    "Tγ0":    2.7255,
+    "Neff":   3.046,
+    "kpivot": 0.05,
+    "As":     2.1e-9,
+    "ns":     0.965,
+
+    "zinit": 10,
+
+    "GR": False,
+
+    "wBD": 1e3,
     #"w0":         -1.0, 
     #"wa":         0.0,
     #"mu0":        0.0,     # Only for Geff
