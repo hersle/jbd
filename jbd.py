@@ -103,9 +103,10 @@ class Simulation:
             transfer_filenames.append(transfer_filename)
 
         # write accumulating transfer file
+        transferfile  = "transfer.txt"
         transferlist  = f". {nsnaps}\n"
         transferlist += "\n".join(f"{transfer_filenames[i]} {zs[i]}" for i in range(0, nsnaps))
-        self.write_file("transfer.txt", transferlist)
+        self.write_file(transferfile, transferlist)
         
     def run_cola(self, params, z0=10):
         # write cola transferinfo file
@@ -129,8 +130,8 @@ class Simulation:
             "ic_random_seed": 1234,
             "ic_initial_redshift": z0,
             "ic_nmesh" : 64,
-            "ic_type_of_input": "transferinfofile",
-            "ic_input_filename": "transfer.txt",
+            "ic_type_of_input": "transferinfofile", # TODO: do i need to use this, or is initial enough?
+            "ic_input_filename": transferfile,
             "ic_input_redshift": 0.0, # TODO: ???
 
             "force_nmesh": 64,
