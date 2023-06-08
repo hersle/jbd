@@ -34,11 +34,12 @@ class ParameterSpace:
 
 class Simulation:
     def __init__(self, params):
-        self.name = "testsim"
-        self.directory = self.name + "/"
+        self.name = "test"
+        self.directory = "sims/sim_" + self.name + "/"
 
         # jump into simulation directory
         os.makedirs(self.directory, exist_ok=True)
+        cwd = os.getcwd()
         os.chdir(self.directory)
 
         if not self.completed():
@@ -47,7 +48,7 @@ class Simulation:
             self.run_cola(params)
 
         # jump out of simulation directory
-        os.chdir("..")
+        os.chdir(cwd)
 
     def completed(self):
         return os.path.isfile(f"pofk_{self.name}_cb_z0.000.txt")
