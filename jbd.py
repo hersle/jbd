@@ -10,6 +10,14 @@ from classy import Class
 
 COLAEXEC = os.path.expanduser("~/FML/FML/COLASolver/nbody")
 
+def luastr(var):
+    if isinstance(var, str):
+        return '"' + str(var) + '"' # enclose in ""
+    elif isinstance(var, list):
+        return "{" + ", ".join(luastr(el) for el in var) + "}" # Lua uses {} for lists
+    else:
+        return str(var) # go with python's string representation
+
 class ParameterSpace:
     def __init__(self, params):
         self.param_names = list(params.keys())
@@ -87,7 +95,7 @@ class Simulation:
         transfer_filenames = []
         for i, z in enumerate(zs):
             transfer = self.cosmology.get_transfer(z=z, output_format="camb")
-            while len(transfer) < 13:
+            while len(transfer) < 13: # FML parses exactly 13 columns
                 transfer[f"dummy{len(transfer)}"] = np.zeros_like(list(transfer.values())[0])
             transfer_filename = f"transfer_z{z:.3f}.txt"
             self.write_data(transfer_filename, transfer)
@@ -125,33 +133,21 @@ class Simulation:
             "ic_input_redshift": 0.0, # TODO: ???
 
             "force_nmesh": 64,
+
             "output_folder": ".",
             "output_redshifts": [0.0],
         }
 
-        # TODO: use some lua library for this?
-        colafile = "cola_input.lua"
-        contents = ""
-        for param in params_cola:
-            contents += f"{param} = "
-            value = params_cola[param]
-            if isinstance(value, str):
-                contents += f"\"{value}\""
-            elif isinstance(value, list):
-                contents += f"{{{str(value)[1:-1]}}}"
-            else:
-                contents += f"{value}"
-            contents += "\n"
-        self.write_file(colafile, contents)
+        colainfile = "cola_input.lua"
+        self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}\n" for param, val in params_cola.items()))
 
-        cmd = [COLAEXEC, colafile]
-        with open("cola_log.txt", "w") as colalog:
-            proc = subprocess.run(cmd, stdout=colalog, stderr=colalog)
-        print()
+        colalogfile = "cola.log"
+        with open(colalogfile, "w") as logf:
+            proc = subprocess.run([COLAEXEC, colainfile], stdout=logf, stderr=logf)
+        assert proc.returncode == 0, f"ERROR: see {colalogfile} for details"
 
 #if __name__ == "__main__":
 params0 = {
-    # TODO: use unicode names
     "h":          0.67,
     "Ωb0":        0.05,
     "Ωc0":        0.267,
