@@ -4,6 +4,7 @@ import os
 import shutil
 import subprocess
 import numpy as np
+import matplotlib.pyplot as plt
 
 from scipy.stats import qmc
 from classy import Class
@@ -36,24 +37,23 @@ class ParameterSpace:
 
 class Simulation:
     def __init__(self, params):
-        self.name = "test"
+        self.name = self.name(params)
         self.directory = "sims/" + self.name + "/"
 
-        # jump into simulation directory
-        os.makedirs(self.directory, exist_ok=True)
-        cwd = os.getcwd()
-        os.chdir(self.directory)
-
+        # make simulation directory
         if not self.completed():
-            print(f"Simulating \"{self.name}\"")
+            os.makedirs(self.directory, exist_ok=True)
             self.run_class(params)
             self.run_cola(params)
 
-        # jump out of simulation directory
-        os.chdir(cwd)
+        if self.completed():
+            print(f"Simulated {self.name}")
+
+    def name(self, params):
+        return f"N{params['N']}"
 
     def completed(self):
-        return os.path.isfile(f"pofk_{self.name}_cb_z0.000.txt")
+        return os.path.isfile(self.directory + f"pofk_{self.name}_cb_z0.000.txt")
 
     def write_data(self, filename, cols, colnames=None):
         if isinstance(cols, dict):
@@ -62,11 +62,16 @@ class Simulation:
             return self.write_data(filename, cols, colnames)
 
         header = None if colnames is None else " ".join(colnames)
-        np.savetxt(filename, np.transpose(cols), header=header)
+        np.savetxt(self.directory + filename, np.transpose(cols), header=header)
 
     def write_file(self, filename, string):
-        with open(filename, "w") as file:
+        with open(self.directory + filename, "w") as file:
             file.write(string)
+
+    def read_data(self, filename):
+        data = np.loadtxt(self.directory + filename)
+        data = np.transpose(data)
+        return data
 
     def run_class(self, params):
         params_class = {
@@ -110,7 +115,7 @@ class Simulation:
         transferlist += "\n".join(f"{transfer_filenames[i]} {zs[i]}" for i in range(0, nsnaps))
         self.write_file(self.transferfile, transferlist)
 
-    def params_cola(self, params):
+    def params_cola(self, params, seed=1234):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
             "simulation_boxsize": 350.0,
@@ -129,18 +134,18 @@ class Simulation:
             "cosmology_ns": params["ns"],
             "cosmology_kpivot_mpc": params["kpivot"],
 
-            "particle_Npart_1D": 64, # TODO: increase
+            "particle_Npart_1D": params["N"], # TODO: increase
 
             "timestep_nsteps": [30],
 
-            "ic_random_seed": 1234,
+            "ic_random_seed": seed,
             "ic_initial_redshift": params["zinit"],
-            "ic_nmesh" : 64,
+            "ic_nmesh" : params["N"],
             "ic_type_of_input": "transferinfofile", # TODO: do i need to use this, or is initial enough?
             "ic_input_filename": self.transferfile,
             "ic_input_redshift": 0.0, # TODO: ???
 
-            "force_nmesh": 64,
+            "force_nmesh": params["N"],
 
             "output_folder": ".",
             "output_redshifts": [0.0],
@@ -150,12 +155,27 @@ class Simulation:
         colainfile = "cola_input.lua"
         self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola(params).items()))
 
+        #with open(colalogfile, "w") as logf:
+        proc = subprocess.run([COLAEXEC, colainfile], capture_output=True, cwd=self.directory)
         colalogfile = "cola.log"
-        with open(colalogfile, "w") as logf:
-            proc = subprocess.run([COLAEXEC, colainfile], stdout=logf, stderr=logf)
+        self.write_file(colalogfile, proc.stdout.decode())
         assert proc.returncode == 0, f"ERROR: see {colalogfile} for details"
 
+    def power_spectrum(self):
+        assert self.completed()
+
+        # pk: "total matter"
+        # pk_cb: "cdm+b"
+        # pk_lin: "total matter" (linear?)
+
+        data = self.read_data(f"pofk_{self.name}_cb_z0.000.txt")
+        k, P, Plin = data[0], data[1], data[2]
+        return k, P, Plin
+
 class GRSimulation(Simulation):
+    def name(self, params):
+        return "GR_" + Simulation.name(self, params)
+
     def params_cola(self, params):
         return Simulation.params_cola(self, params) | { # combine dictionaries
             "cosmology_model": "LCDM",
@@ -163,6 +183,9 @@ class GRSimulation(Simulation):
         }
 
 class JBDSimulation(Simulation):
+    def name(self, params):
+        return "JBD_" + Simulation.name(self, params)
+
     def params_cola(self, params):
         return Simulation.params_cola(self, params) | { # combine dictionaries
             "cosmology_model": "JBD",
@@ -176,7 +199,18 @@ class JBDSimulation(Simulation):
             "gravity_model": "JBD",
         }
 
+def plot_power_spectrum(filename, k, Ps, labels):
+    fig, ax = plt.subplots()
+    ax.set_xlabel("$\log_{10} [k / (h/Mpc)]$")
+    ax.set_ylabel("$\log_{10} [P / (Mpc/h)^3]$")
+    for (P, label) in zip(Ps, labels):
+        ax.plot(np.log10(k), np.log10(P), label=label)
+    ax.legend()
+    fig.savefig(filename)
+    print(f"Plotted {filename}")
+
 params0 = {
+    # common
     "h":      0.67,
     "Ωb0":    0.05,
     "Ωc0":    0.267,
@@ -188,11 +222,11 @@ params0 = {
     "As":     2.1e-9,
     "ns":     0.965,
 
-    "zinit": 10,
-
-    "GR": False,
-
     "wBD": 1e3,
+
+    "zinit": 10,
+    "N": 64,
+    "GR": False,
 }
 params0["ΩΛ0"] = 1 - params0["Ωb0"] - params0["Ωc0"] - params0["Ωk0"]
 params_varying = {
@@ -204,3 +238,5 @@ params_varying = {
 paramspace = ParameterSpace(params_varying)
 params = params0
 sim = JBDSimulation(params)
+k, P, Plin = sim.power_spectrum()
+plot_power_spectrum("plots/power_spectrum.pdf", k, [P, Plin], ["full (\"Pcb\")", "linear (\"Pcb_linear\")"])
