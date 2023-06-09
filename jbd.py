@@ -199,6 +199,20 @@ class JBDSimulation(Simulation):
             "gravity_model": "JBD",
         }
 
+class SimulationPair:
+    def __init__(self, params):
+        self.sim_gr = GRSimulation(params)
+        self.sim_bd = JBDSimulation(params)
+
+    def power_spectrum_ratio(self):
+        k_gr, P_gr, _ = self.sim_gr.power_spectrum()
+        k_bd, P_bd, _ = self.sim_bd.power_spectrum()
+
+        assert np.all(k_gr == k_bd), "simulations output different k-values"
+        k = k_gr
+
+        return k, P_bd / P_gr
+
 def plot_power_spectrum(filename, k, Ps, labels):
     fig, ax = plt.subplots()
     ax.set_xlabel("$\log_{10} [k / (h/Mpc)]$")
@@ -226,7 +240,6 @@ params0 = {
 
     "zinit": 10,
     "N": 64,
-    "GR": False,
 }
 params0["ΩΛ0"] = 1 - params0["Ωb0"] - params0["Ωc0"] - params0["Ωk0"]
 params_varying = {
@@ -237,6 +250,11 @@ params_varying = {
 
 paramspace = ParameterSpace(params_varying)
 params = params0
-sim = JBDSimulation(params)
-k, P, Plin = sim.power_spectrum()
-plot_power_spectrum("plots/power_spectrum.pdf", k, [P, Plin], ["full (\"Pcb\")", "linear (\"Pcb_linear\")"])
+
+#sim = JBDSimulation(params)
+#k, P, Plin = sim.power_spectrum()
+#plot_power_spectrum("plots/power_spectrum.pdf", k, [P, Plin], ["full (\"Pcb\")", "linear (\"Pcb_linear\")"])
+
+sims = SimulationPair(params)
+k, Pbd_Pgr = sims.power_spectrum_ratio()
+plot_power_spectrum("plots/power_spectrum_ratio.pdf", k, [Pbd_Pgr], ["ratio"]) # TODO: function for ratio
