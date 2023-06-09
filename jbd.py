@@ -110,9 +110,8 @@ class Simulation:
         transferlist += "\n".join(f"{transfer_filenames[i]} {zs[i]}" for i in range(0, nsnaps))
         self.write_file(self.transferfile, transferlist)
 
-    def config_cola(self, params):
-        # common parameters
-        params_cola = {
+    def params_cola(self, params):
+        return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
             "simulation_boxsize": 350.0,
             "simulation_use_cola": True,
@@ -147,41 +146,36 @@ class Simulation:
             "output_redshifts": [0.0],
         }
 
-        # specific parameters
-        # TODO: branch into derived classes
-        if params["GR"]:
-            params_cola |= {
-                "cosmology_model": "LCDM",
-
-                "gravity_model": "GR",
-            }
-        else:
-            params_cola |= {
-                "cosmology_model": "JBD",
-                "cosmology_JBD_wBD": params["wBD"],
-                "cosmology_JBD_GeffG_today": 1.0,
-                "cosmology_JBD_Omegabh2": params["Ωb0"] * params["h"]**2,
-                "cosmology_JBD_OmegaCDMh2": params["Ωc0"] * params["h"]**2,
-                "cosmology_JBD_OmegaMNuh2": params["Ωnc0"] * params["h"]**2,
-                "cosmology_JBD_OmegaLambdah2": params["ΩΛ0"] * params["h"]**2,
-                "cosmology_JBD_OmegaKh2": params["Ωk0"] * params["h"]**2,
-
-                "gravity_model": "JBD",
-            }
-
-        return params_cola
-
     def run_cola(self, params):
         colainfile = "cola_input.lua"
-        params_cola = self.config_cola(params)
-        self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}" for param, val in params_cola.items()))
+        self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola(params).items()))
 
         colalogfile = "cola.log"
         with open(colalogfile, "w") as logf:
             proc = subprocess.run([COLAEXEC, colainfile], stdout=logf, stderr=logf)
         assert proc.returncode == 0, f"ERROR: see {colalogfile} for details"
 
-#if __name__ == "__main__":
+class GRSimulation(Simulation):
+    def params_cola(self, params):
+        return Simulation.params_cola(self, params) | { # combine dictionaries
+            "cosmology_model": "LCDM",
+            "gravity_model": "GR",
+        }
+
+class JBDSimulation(Simulation):
+    def params_cola(self, params):
+        return Simulation.params_cola(self, params) | { # combine dictionaries
+            "cosmology_model": "JBD",
+            "cosmology_JBD_wBD": params["wBD"],
+            "cosmology_JBD_GeffG_today": 1.0,
+            "cosmology_JBD_Omegabh2": params["Ωb0"] * params["h"]**2,
+            "cosmology_JBD_OmegaCDMh2": params["Ωc0"] * params["h"]**2,
+            "cosmology_JBD_OmegaMNuh2": params["Ωnc0"] * params["h"]**2,
+            "cosmology_JBD_OmegaLambdah2": params["ΩΛ0"] * params["h"]**2,
+            "cosmology_JBD_OmegaKh2": params["Ωk0"] * params["h"]**2,
+            "gravity_model": "JBD",
+        }
+
 params0 = {
     "h":      0.67,
     "Ωb0":    0.05,
@@ -199,20 +193,6 @@ params0 = {
     "GR": False,
 
     "wBD": 1e3,
-    #"w0":         -1.0, 
-    #"wa":         0.0,
-    #"mu0":        0.0,     # Only for Geff
-    #"log10wBD":   3,       # Only for JBD
-    #"log10fofr0": -5.0,    # Only for f(R)
-    #"kmax_hmpc":  20.0,
-    #"use_physical_parameters": False, " True: specify Ωs0*h^2, h is derived; False: specify Ωs0 and h, ΩΛ0 is derived
-    #"cosmology_model": "w0waCDM",
-    #"gravity_model": "Geff",
-    #"omega_b":    0.05    * 0.67**2,
-    #"omega_cdm":  0.267   * 0.67**2,
-    #"omega_ncdm": 0.0012  * 0.67**2,
-    #"omega_k":    0.0     * 0.67**2,
-    #"omega_fld":  0.0     * 0.67**2, # Only needed for JBD
 }
 params0["ΩΛ0"] = 1 - params0["Ωb0"] - params0["Ωc0"] - params0["Ωk0"]
 params_varying = {
@@ -223,4 +203,4 @@ params_varying = {
 
 paramspace = ParameterSpace(params_varying)
 params = params0
-sim = Simulation(params)
+sim = JBDSimulation(params)
