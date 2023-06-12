@@ -145,7 +145,7 @@ class Simulation:
         self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola(params).items()))
 
         #with open(colalogfile, "w") as logf:
-        proc = subprocess.run([COLAEXEC, colainfile], capture_output=True, cwd=self.directory)
+        proc = subprocess.run([COLAEXEC, colainfile], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.directory)
         colalogfile = "cola.log"
         self.write_file(colalogfile, proc.stdout.decode())
         assert proc.returncode == 0, f"ERROR: see {colalogfile} for details"
