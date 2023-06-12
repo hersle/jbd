@@ -76,6 +76,7 @@ class Simulation:
 
     def run_class(self, params):
         # TODO: use hi_class for generating JBD initial conditions?
+        # TODO: which k-values to choose? see https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/explanatory.ini#L1102
         params_class = {
             "output": "mTk,mPk", # needed for Class to compute transfer function # TODO: only mPk?
             "z_pk": 100, # redshift after which Class should compute transfer function
@@ -142,17 +143,26 @@ class Simulation:
             "output_redshifts": [0.0],
         }
 
-    def run_cola(self, params, np=1):
+    def run_cola(self, params, np=1, verbose=True):
         colainfile = "cola_input.lua"
         self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola(params).items()))
 
-        cmd = [COLAEXEC, colainfile]
-        if np > 1:
-            cmd = ["mpirun", "-np", str(np)]
-        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.directory)
+        # pythonize "run_simulation | tee logfile"
+        # TODO: measure time
         colalogfile = "cola.log"
-        self.write_file(colalogfile, proc.stdout.decode())
-        assert proc.returncode == 0, f"ERROR: see {colalogfile} for details"
+        teecmd = ["tee", colalogfile]
+        teecmd = subprocess.Popen(teecmd, stdin=subprocess.PIPE, stdout=None if verbose else subprocess.DEVNULL, cwd=self.directory)
+
+        simcmd = [COLAEXEC, colainfile]
+        if np > 1:
+            simcmd = ["mpirun", "-np", str(np)]
+        simcmd = subprocess.Popen(simcmd, stdout=teecmd.stdin, stderr=subprocess.STDOUT, cwd=self.directory)
+
+        # wait for command to finish and close stream
+        simcmd.wait()
+        teecmd.stdin.close()
+
+        assert self.completed(), f"ERROR: see {colalogfile} for details"
 
     def power_spectrum(self):
         assert self.completed()
