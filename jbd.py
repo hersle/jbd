@@ -41,6 +41,7 @@ class Simulation:
         self.directory = "sims/" + self.name + "/"
 
         # make simulation directory
+        print(f"Simulating {self.name}")
         if not self.completed():
             os.makedirs(self.directory, exist_ok=True)
             self.run_class(params)
@@ -99,11 +100,19 @@ class Simulation:
         zs  = np.flip(zs) # TODO: from 0 ???
         nsnaps = len(zs)
 
-        transfer = self.cosmology.get_transfer(output_format="camb")
-        ks = np.array(transfer["k (h/Mpc)"]) * params["h"] # k / (1/Mpc)
-        Ps = np.array([self.cosmology.pk(k, z=0) for k in ks]) # P / (Mpc)^3
-        self.pspecfile = "initial_power_spectrum.txt"
-        self.write_data(self.pspecfile, {"k/(h/Mpc)": ks / params["h"], "P/(Mpc/h)^3": Ps * params["h"]**3}) # COLA wants "h-units"
+        # for each redshift snapshot, write transfer function
+        transfer_filenames = []
+        for i, z in enumerate(zs):
+            transfer = self.cosmology.get_transfer(z=z, output_format="camb")
+            while len(transfer) < 13: # FML parses exactly 13 columns
+                transfer[f"dummy{len(transfer)}"] = np.zeros_like(list(transfer.values())[0])
+            transfer_filename = f"transfer_z{z:.3f}.txt"
+            self.write_data(transfer_filename, transfer)
+            transfer_filenames.append(transfer_filename)
+
+        # write accumulating transfer file
+        self.transferfile = "transfer.txt"
+        self.write_file(self.transferfile, "\n".join([f". {nsnaps}"] + [f"{transfer_filenames[i]} {zs[i]}" for i in range(0, nsnaps)]))
 
     def params_cola(self, params, seed=1234):
         return { # common parameters (for any derived simulation)
@@ -112,13 +121,13 @@ class Simulation:
             "simulation_use_cola": True,
             "simulation_use_scaledependent_cola": False,
 
-            "cosmology_h": params["h"],
             "cosmology_Omegab": params["Ωb0"],
             "cosmology_OmegaCDM": params["Ωc0"],
             "cosmology_OmegaK": params["Ωk0"],
             "cosmology_OmegaLambda": params["ΩΛ0"],
             "cosmology_Neffective": params["Neff"],
             "cosmology_TCMB_kelvin": params["Tγ0"],
+            "cosmology_OmegaMNu": params["Ωnc0"],
             "cosmology_As": params["As"],
             "cosmology_ns": params["ns"],
             "cosmology_kpivot_mpc": params["kpivot"],
@@ -130,8 +139,8 @@ class Simulation:
             "ic_random_seed": seed,
             "ic_initial_redshift": params["zinit"],
             "ic_nmesh" : params["N"],
-            "ic_type_of_input": "powerspectrum", # TODO: do i need to use this, or is initial enough?
-            "ic_input_filename": self.pspecfile,
+            "ic_type_of_input": "transferinfofile", # TODO: do i need to use this, or is initial enough?
+            "ic_input_filename": self.transferfile,
             "ic_input_redshift": 0.0, # TODO: ???
 
             "force_nmesh": params["N"],
@@ -140,7 +149,7 @@ class Simulation:
             "output_redshifts": [0.0],
         }
 
-    def run_cola(self, params):
+    def run_cola(self, params, np=16):
         colainfile = "cola_input.lua"
         self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola(params).items()))
 
@@ -167,6 +176,7 @@ class GRSimulation(Simulation):
 
     def params_cola(self, params):
         return Simulation.params_cola(self, params) | { # combine dictionaries
+            "cosmology_h": params["h"],
             "cosmology_model": "LCDM",
             "gravity_model": "GR",
         }
@@ -178,12 +188,14 @@ class JBDSimulation(Simulation):
     def params_cola(self, params):
         return Simulation.params_cola(self, params) | { # combine dictionaries
             "cosmology_model": "JBD",
+            "cosmology_h": params["h"], # h is a derived quantity in JBD cosmology, but FML needs an arbitrary nonzero value for initial calculations
             "cosmology_JBD_wBD": params["wBD"],
-            "cosmology_JBD_GeffG_today": 1.0,
+            "cosmology_JBD_GeffG_today": params["h"],
             "cosmology_JBD_Omegabh2": params["Ωb0"] * params["h"]**2,
             "cosmology_JBD_OmegaCDMh2": params["Ωc0"] * params["h"]**2,
             "cosmology_JBD_OmegaLambdah2": params["ΩΛ0"] * params["h"]**2,
             "cosmology_JBD_OmegaKh2": params["Ωk0"] * params["h"]**2,
+            "cosmology_JBD_OmegaMNuh2": params["Ωnc0"] * params["h"]**2,
             "gravity_model": "JBD",
         }
 
@@ -227,6 +239,7 @@ params0 = {
     "Ωb0":    0.05,
     "Ωc0":    0.267,
     "Ωk0":    0.0,
+    "Ωnc0":   0.0012,
     "Tγ0":    2.7255,
     "Neff":   3.046,
     "kpivot": 0.05,
