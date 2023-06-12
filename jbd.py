@@ -101,26 +101,18 @@ class Simulation:
         zs  = np.flip(zs) # TODO: from 0 ???
         nsnaps = len(zs)
 
-        # for each redshift snapshot, write transfer function
-        transfer_filenames = []
-        for i, z in enumerate(zs):
-            transfer = self.cosmology.get_transfer(z=z, output_format="camb")
-            while len(transfer) < 13: # FML parses exactly 13 columns
-                transfer[f"dummy{len(transfer)}"] = np.zeros_like(list(transfer.values())[0])
-            transfer_filename = f"transfer_z{z:.3f}.txt"
-            self.write_data(transfer_filename, transfer)
-            transfer_filenames.append(transfer_filename)
-
-        # write accumulating transfer file
-        self.transferfile = "transfer.txt"
-        self.write_file(self.transferfile, "\n".join([f". {nsnaps}"] + [f"{transfer_filenames[i]} {zs[i]}" for i in range(0, nsnaps)]))
+        transfer = self.cosmology.get_transfer(output_format="camb")
+        ks = np.array(transfer["k (h/Mpc)"]) * params["h"] # k / (1/Mpc)
+        Ps = np.array([self.cosmology.pk(k, z=0) for k in ks]) # P / (Mpc)^3
+        self.pspecfile = "initial_power_spectrum.txt"
+        self.write_data(self.pspecfile, {"k/(h/Mpc)": ks / params["h"], "P/(Mpc/h)^3": Ps * params["h"]**3}) # COLA wants "h-units"
 
     def params_cola(self, params, seed=1234):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
             "simulation_boxsize": params["L"],
             "simulation_use_cola": True,
-            "simulation_use_scaledependent_cola": params["Ωnc0"] > 0,
+            "simulation_use_scaledependent_cola": False, # only relevant with massive neutrinos?
 
             "cosmology_Omegab": params["Ωb0"],
             "cosmology_OmegaCDM": params["Ωc0"],
@@ -128,10 +120,10 @@ class Simulation:
             "cosmology_OmegaLambda": params["ΩΛ0"],
             "cosmology_Neffective": params["Neff"],
             "cosmology_TCMB_kelvin": params["Tγ0"],
-            "cosmology_OmegaMNu": params["Ωnc0"],
             "cosmology_As": params["As"],
             "cosmology_ns": params["ns"],
             "cosmology_kpivot_mpc": params["kpivot"],
+            "cosmology_OmegaMNu": 0.0,
 
             "particle_Npart_1D": params["Npart"],
 
@@ -140,8 +132,8 @@ class Simulation:
             "ic_random_seed": seed,
             "ic_initial_redshift": params["zinit"],
             "ic_nmesh" : params["Npart"],
-            "ic_type_of_input": "transferinfofile", # TODO: do i need to use this, or is initial enough?
-            "ic_input_filename": self.transferfile,
+            "ic_type_of_input": "powerspectrum", # transferinfofile only relevant with massive neutrinos?
+            "ic_input_filename": self.pspecfile,
             "ic_input_redshift": 0.0, # TODO: feed initial power spectrum directly instead of backscaling?
 
             "force_nmesh": params["Nmesh"],
@@ -198,7 +190,7 @@ class JBDSimulation(Simulation):
             "cosmology_JBD_OmegaCDMh2": params["Ωc0"] * params["h"]**2,
             "cosmology_JBD_OmegaLambdah2": params["ΩΛ0"] * params["h"]**2,
             "cosmology_JBD_OmegaKh2": params["Ωk0"] * params["h"]**2,
-            "cosmology_JBD_OmegaMNuh2": params["Ωnc0"] * params["h"]**2,
+            "cosmology_JBD_OmegaMNuh2": 0.0,
             "gravity_model": "JBD",
         }
 
@@ -242,7 +234,6 @@ params0 = {
     "Ωb0":    0.05,
     "Ωc0":    0.267,
     "Ωk0":    0.0,
-    "Ωnc0":   0.0012,
     "Tγ0":    2.7255,
     "Neff":   3.046,
     "kpivot": 0.05,
