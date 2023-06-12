@@ -218,10 +218,12 @@ def plot_power_spectrum(filename, k, Ps, labels):
     fig.savefig(filename)
     print(f"Plotted {filename}")
 
-def plot_power_spectrum_ratio(filename, k, P1P2s, labels):
+def plot_power_spectrum_ratio(filename, k, P1P2s, labels, ylabel=r"$P_\mathrm{JBD} / P_\mathrm{\Lambda CDM}$"):
     fig, ax = plt.subplots()
     ax.set_xlabel("$\log_{10} [k / (h/Mpc)]$")
-    ax.set_ylabel("$P_1 / P_2$")
+    ax.set_ylabel(ylabel)
+    ax.set_ylim(0.99, 1.01)
+    ax.axhline(1.0, color="gray", linestyle="dashed")
     for (P1P2, label) in zip(P1P2s, labels):
         ax.plot(np.log10(k), P1P2, label=label)
     ax.legend()
