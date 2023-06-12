@@ -51,7 +51,7 @@ class Simulation:
             print(f"Simulated {self.name}")
 
     def name(self, params):
-        return f"N{params['N']}"
+        return f"N{params['Npart']}"
 
     def completed(self):
         return os.path.isfile(self.directory + f"pofk_{self.name}_cb_z0.000.txt")
@@ -75,6 +75,7 @@ class Simulation:
         return data
 
     def run_class(self, params):
+        # TODO: use hi_class for generating JBD initial conditions?
         params_class = {
             "output": "mTk,mPk", # needed for Class to compute transfer function # TODO: only mPk?
             "z_pk": 100, # redshift after which Class should compute transfer function
@@ -117,9 +118,9 @@ class Simulation:
     def params_cola(self, params, seed=1234):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
-            "simulation_boxsize": 350.0,
+            "simulation_boxsize": params["L"],
             "simulation_use_cola": True,
-            "simulation_use_scaledependent_cola": False,
+            "simulation_use_scaledependent_cola": params["Ωnc0"] > 0,
 
             "cosmology_Omegab": params["Ωb0"],
             "cosmology_OmegaCDM": params["Ωc0"],
@@ -132,29 +133,31 @@ class Simulation:
             "cosmology_ns": params["ns"],
             "cosmology_kpivot_mpc": params["kpivot"],
 
-            "particle_Npart_1D": params["N"], # TODO: increase
+            "particle_Npart_1D": params["Npart"],
 
-            "timestep_nsteps": [30],
+            "timestep_nsteps": [params["NT"]],
 
             "ic_random_seed": seed,
             "ic_initial_redshift": params["zinit"],
-            "ic_nmesh" : params["N"],
+            "ic_nmesh" : params["Npart"],
             "ic_type_of_input": "transferinfofile", # TODO: do i need to use this, or is initial enough?
             "ic_input_filename": self.transferfile,
-            "ic_input_redshift": 0.0, # TODO: ???
+            "ic_input_redshift": 0.0, # TODO: feed initial power spectrum directly instead of backscaling?
 
-            "force_nmesh": params["N"],
+            "force_nmesh": params["Nmesh"],
 
             "output_folder": ".",
             "output_redshifts": [0.0],
         }
 
-    def run_cola(self, params, np=16):
+    def run_cola(self, params, np=1):
         colainfile = "cola_input.lua"
         self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola(params).items()))
 
-        #with open(colalogfile, "w") as logf:
-        proc = subprocess.run([COLAEXEC, colainfile], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.directory)
+        cmd = [COLAEXEC, colainfile]
+        if np > 1:
+            cmd = ["mpirun", "-np", str(np)]
+        proc = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, cwd=self.directory)
         colalogfile = "cola.log"
         self.write_file(colalogfile, proc.stdout.decode())
         assert proc.returncode == 0, f"ERROR: see {colalogfile} for details"
@@ -234,7 +237,7 @@ def plot_power_spectrum_ratio(filename, k, P1P2s, labels):
     print(f"Plotted {filename}")
 
 params0 = {
-    # common
+    # physical parameters
     "h":      0.67,
     "Ωb0":    0.05,
     "Ωc0":    0.267,
@@ -246,10 +249,21 @@ params0 = {
     "As":     2.1e-9,
     "ns":     0.965,
 
-    "wBD": 1e3,
+    "wBD": 1e3, # for JBD
 
+    # computational parameters (cheap, for testing)
     "zinit": 10,
-    "N": 64,
+    "L": 256,
+    "Npart": 64,
+    "Nmesh": 64,
+    "NT": 30,
+
+    # computational parameters (expensive, for results)
+    #"zinit": 30,
+    #"L": 350.0,
+    #"Npart": 128,
+    #"Nmesh": 128,
+    #"NT": 30,
 }
 params0["ΩΛ0"] = 1 - params0["Ωb0"] - params0["Ωc0"] - params0["Ωk0"]
 params_varying = {
@@ -267,4 +281,4 @@ params = params0
 
 sims = SimulationPair(params)
 k, Pbd_Pgr = sims.power_spectrum_ratio()
-plot_power_spectrum_ratio("plots/power_spectrum_ratio.pdf", k, [Pbd_Pgr], ["ratio"]) # TODO: function for ratio
+plot_power_spectrum_ratio("plots/power_spectrum_ratio.pdf", k, [Pbd_Pgr], ["ratio"])
