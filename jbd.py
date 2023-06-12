@@ -75,7 +75,7 @@ class Simulation:
 
     def run_class(self, params):
         params_class = {
-            "output": "mTk", # needed for Class to compute transfer function
+            "output": "mTk,mPk", # needed for Class to compute transfer function # TODO: only mPk?
             "z_pk": 100, # redshift after which Class should compute transfer function
 
             "h": params["h"],
@@ -99,21 +99,11 @@ class Simulation:
         zs  = np.flip(zs) # TODO: from 0 ???
         nsnaps = len(zs)
 
-        # for each redshift snapshot, write transfer function
-        transfer_filenames = []
-        for i, z in enumerate(zs):
-            transfer = self.cosmology.get_transfer(z=z, output_format="camb")
-            while len(transfer) < 13: # FML parses exactly 13 columns
-                transfer[f"dummy{len(transfer)}"] = np.zeros_like(list(transfer.values())[0])
-            transfer_filename = f"transfer_z{z:.3f}.txt"
-            self.write_data(transfer_filename, transfer)
-            transfer_filenames.append(transfer_filename)
-
-        # write accumulating transfer file
-        self.transferfile  = "transfer.txt"
-        transferlist  = f". {nsnaps}\n"
-        transferlist += "\n".join(f"{transfer_filenames[i]} {zs[i]}" for i in range(0, nsnaps))
-        self.write_file(self.transferfile, transferlist)
+        transfer = self.cosmology.get_transfer(output_format="camb")
+        ks = transfer["k (h/Mpc)"] # TODO: set myself? # k/(Mpc)^(-1)
+        Ps = [self.cosmology.pk(k*params["h"], z=0) * params["h"]**3 for k in ks]
+        self.pspecfile = "initial_power_spectrum.txt"
+        self.write_data(self.pspecfile, {"k/(h/Mpc)": ks / params["h"], "P/(Mpc/h)^3": Ps})
 
     def params_cola(self, params, seed=1234):
         return { # common parameters (for any derived simulation)
@@ -125,7 +115,6 @@ class Simulation:
             "cosmology_h": params["h"],
             "cosmology_Omegab": params["Ωb0"],
             "cosmology_OmegaCDM": params["Ωc0"],
-            "cosmology_OmegaMNu": params["Ωnc0"],
             "cosmology_OmegaK": params["Ωk0"],
             "cosmology_OmegaLambda": params["ΩΛ0"],
             "cosmology_Neffective": params["Neff"],
@@ -141,8 +130,8 @@ class Simulation:
             "ic_random_seed": seed,
             "ic_initial_redshift": params["zinit"],
             "ic_nmesh" : params["N"],
-            "ic_type_of_input": "transferinfofile", # TODO: do i need to use this, or is initial enough?
-            "ic_input_filename": self.transferfile,
+            "ic_type_of_input": "powerspectrum", # TODO: do i need to use this, or is initial enough?
+            "ic_input_filename": self.pspecfile,
             "ic_input_redshift": 0.0, # TODO: ???
 
             "force_nmesh": params["N"],
@@ -193,7 +182,6 @@ class JBDSimulation(Simulation):
             "cosmology_JBD_GeffG_today": 1.0,
             "cosmology_JBD_Omegabh2": params["Ωb0"] * params["h"]**2,
             "cosmology_JBD_OmegaCDMh2": params["Ωc0"] * params["h"]**2,
-            "cosmology_JBD_OmegaMNuh2": params["Ωnc0"] * params["h"]**2,
             "cosmology_JBD_OmegaLambdah2": params["ΩΛ0"] * params["h"]**2,
             "cosmology_JBD_OmegaKh2": params["Ωk0"] * params["h"]**2,
             "gravity_model": "JBD",
@@ -223,12 +211,21 @@ def plot_power_spectrum(filename, k, Ps, labels):
     fig.savefig(filename)
     print(f"Plotted {filename}")
 
+def plot_power_spectrum_ratio(filename, k, P1P2s, labels):
+    fig, ax = plt.subplots()
+    ax.set_xlabel("$\log_{10} [k / (h/Mpc)]$")
+    ax.set_ylabel("$P_1 / P_2$")
+    for (P1P2, label) in zip(P1P2s, labels):
+        ax.plot(np.log10(k), P1P2, label=label)
+    ax.legend()
+    fig.savefig(filename)
+    print(f"Plotted {filename}")
+
 params0 = {
     # common
     "h":      0.67,
     "Ωb0":    0.05,
     "Ωc0":    0.267,
-    "Ωnc0":   0.0012, # non-cold dark matter
     "Ωk0":    0.0,
     "Tγ0":    2.7255,
     "Neff":   3.046,
@@ -257,4 +254,4 @@ params = params0
 
 sims = SimulationPair(params)
 k, Pbd_Pgr = sims.power_spectrum_ratio()
-plot_power_spectrum("plots/power_spectrum_ratio.pdf", k, [Pbd_Pgr], ["ratio"]) # TODO: function for ratio
+plot_power_spectrum_ratio("plots/power_spectrum_ratio.pdf", k, [Pbd_Pgr], ["ratio"]) # TODO: function for ratio
