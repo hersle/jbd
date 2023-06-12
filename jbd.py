@@ -100,10 +100,10 @@ class Simulation:
         nsnaps = len(zs)
 
         transfer = self.cosmology.get_transfer(output_format="camb")
-        ks = transfer["k (h/Mpc)"] # TODO: set myself? # k/(Mpc)^(-1)
-        Ps = [self.cosmology.pk(k*params["h"], z=0) * params["h"]**3 for k in ks]
+        ks = np.array(transfer["k (h/Mpc)"]) * params["h"] # k / (1/Mpc)
+        Ps = np.array([self.cosmology.pk(k, z=0) for k in ks]) # P / (Mpc)^3
         self.pspecfile = "initial_power_spectrum.txt"
-        self.write_data(self.pspecfile, {"k/(h/Mpc)": ks / params["h"], "P/(Mpc/h)^3": Ps})
+        self.write_data(self.pspecfile, {"k/(h/Mpc)": ks / params["h"], "P/(Mpc/h)^3": Ps * params["h"]**3}) # COLA wants "h-units"
 
     def params_cola(self, params, seed=1234):
         return { # common parameters (for any derived simulation)
