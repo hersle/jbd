@@ -2,6 +2,7 @@
 
 import os
 import shutil
+import argparse
 import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
@@ -9,7 +10,12 @@ import matplotlib.pyplot as plt
 from scipy.stats import qmc
 from classy import Class
 
-COLAEXEC = os.path.expanduser("~/FML/FML/COLASolver/nbody")
+parser = argparse.ArgumentParser(prog="jbd.py")
+parser.add_argument("--FML", metavar="path/to/FML", default="./FML")
+args = parser.parse_args()
+
+COLAEXEC = os.path.abspath(os.path.expanduser(args.FML + "/FML/COLASolver/nbody"))
+# TODO: add CLASS exec
 
 def luastr(var):
     if isinstance(var, bool):
