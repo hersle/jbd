@@ -6,7 +6,6 @@ import argparse
 import subprocess
 import numpy as np
 import matplotlib.pyplot as plt
-
 from scipy.stats import qmc
 
 parser = argparse.ArgumentParser(prog="jbd.py")
@@ -50,8 +49,8 @@ class Simulation:
         print(f"Simulating {self.name}")
         if not self.completed():
             os.makedirs(self.directory, exist_ok=True)
-            self.run_class(params)
-            self.run_cola(params)
+            ks, Ps = self.run_class(params)
+            self.run_cola(params, ks, Ps)
 
         if self.completed():
             print(f"Simulated {self.name}")
@@ -81,13 +80,15 @@ class Simulation:
         return data
 
     # run a command in the simulation's directory
-    def run_command(self, cmd, logfile="/dev/null", verbose=True):
-        teecmd = subprocess.Popen(["tee", logfile], stdin=subprocess.PIPE, stdout=None if verbose else subprocess.DEVNULL, cwd=self.directory)
-        cmd = subprocess.Popen(cmd, stdout=teecmd.stdin, stderr=subprocess.STDOUT, cwd=self.directory)
-        cmd.wait() # wait for command to finish
+    # TODO: check/return exit status
+    def run_command(self, cmd, log="/dev/null", verbose=True):
+        teecmd = subprocess.Popen(["tee", log], stdin=subprocess.PIPE, stdout=None if verbose else subprocess.DEVNULL, cwd=self.directory)
+        runcmd = subprocess.Popen(cmd, stdout=teecmd.stdin, stderr=subprocess.STDOUT, cwd=self.directory)
+
+        runcmd.wait() # wait for command to finish
         teecmd.stdin.close() # close stream
 
-    def run_class(self, params):
+    def run_class(self, params, input="class_input.ini", log="class.log"):
         # TODO: use hi_class for generating JBD initial conditions?
         # TODO: which k-values to choose? see https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/explanatory.ini#L1102
         params_class = {
@@ -116,14 +117,13 @@ class Simulation:
         }
 
         # write input and run class
-        classinfile = "class_input.ini"
-        self.write_file(classinfile, "\n".join(f"{param} = {str(val)}" for param, val in params_class.items()))
-        self.run_command([CLASSEXEC, classinfile], logfile="class.log", verbose=True)
+        self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in params_class.items()))
+        self.run_command([CLASSEXEC, input], log=log, verbose=True)
 
         # get output power spectrum (COLA needs class' output power spectrum, just without comments)
-        self.pspecfile = "cola_power_spectrum_today.txt"
-        ks, Ps = self.read_data("class_pk.dat") # in "h-units"
-        self.write_data(self.pspecfile, {"k/(h/Mpc)": ks, "P/(Mpc/h)^3": Ps}) # COLA wants "h-units"
+        ks, Ps = self.read_data("class_pk.dat") # k / (h/Mpc); P / (Mpc/h)^3
+        ks, Ps = ks * params["h"], Ps / params["h"]**3 # k / (1/Mpc); P / (Mpc)^3
+        return ks, Ps
 
     def params_cola(self, params, seed=1234):
         return { # common parameters (for any derived simulation)
@@ -151,7 +151,7 @@ class Simulation:
             "ic_initial_redshift": params["zinit"],
             "ic_nmesh" : params["Npart"],
             "ic_type_of_input": "powerspectrum", # transferinfofile only relevant with massive neutrinos?
-            "ic_input_filename": self.pspecfile,
+            "ic_input_filename": "power_spectrum_today.dat",
             "ic_input_redshift": 0.0, # TODO: feed initial power spectrum directly instead of backscaling?
 
             "force_nmesh": params["Nmesh"],
@@ -160,16 +160,12 @@ class Simulation:
             "output_redshifts": [0.0],
         }
 
-    def run_cola(self, params, np=1, verbose=True):
-        colainfile = "cola_input.lua"
-        self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola(params).items()))
-
-        colalogfile = "cola.log"
-
-        cmd = ["mpirun", "-np", str(np), COLAEXEC, colainfile] if np > 1 else [COLAEXEC, colainfile]
-        self.run_command(cmd, logfile=colalogfile, verbose=True)
-
-        assert self.completed(), f"ERROR: see {colalogfile} for details"
+    def run_cola(self, params, ks, Ps, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
+        self.write_data(ic, {"k/(h/Mpc)": ks/params["h"], "P/(Mpc/h)^3": Ps*params["h"]**3}) # COLA wants "h-units"
+        self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola(params).items()))
+        cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input]
+        self.run_command(cmd, log=log, verbose=True)
+        assert self.completed(), f"ERROR: see {log} for details"
 
     def power_spectrum(self):
         assert self.completed()
