@@ -8,14 +8,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from scipy.stats import qmc
-from classy import Class
 
 parser = argparse.ArgumentParser(prog="jbd.py")
 parser.add_argument("--FML", metavar="path/to/FML", default="./FML")
+parser.add_argument("--hiclass", metavar="path/to/hiclass", default="./hi_class_public/class")
 args = parser.parse_args()
 
 COLAEXEC = os.path.abspath(os.path.expanduser(args.FML + "/FML/COLASolver/nbody"))
-# TODO: add CLASS exec
+CLASSEXEC = os.path.abspath(os.path.expanduser(args.hiclass))
 
 def luastr(var):
     if isinstance(var, bool):
@@ -84,8 +84,8 @@ class Simulation:
         # TODO: use hi_class for generating JBD initial conditions?
         # TODO: which k-values to choose? see https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/explanatory.ini#L1102
         params_class = {
-            "output": "mTk,mPk", # needed for Class to compute transfer function # TODO: only mPk?
-            "z_pk": 100, # redshift after which Class should compute transfer function
+            "output": "mPk", # needed for Class to compute transfer function # TODO: only mPk?
+            "root": "class_",
 
             "h": params["h"],
             "Omega_b": params["Ωb0"],
@@ -97,22 +97,19 @@ class Simulation:
             "n_s": params["ns"],
             "k_pivot": params["kpivot"],
         }
-        self.cosmology = Class()
-        self.cosmology.set(params_class)
-        self.cosmology.compute()
 
-        z1, z2 = params["zinit"]+0.1, 0.0 # TODO: FML warns about starting before zinit if z1=zinit
-        a1, a2 = 1/(z1+1), 1/(z2+1)
-        as_ = 10 ** np.linspace(np.log10(a1), np.log10(a2), 100)
-        zs  = 1/as_ - 1
-        zs  = np.flip(zs) # TODO: from 0 ???
-        nsnaps = len(zs)
+        # write input
+        classinfile = "class_input.ini"
+        self.write_file(classinfile, "\n".join(f"{param} = {str(val)}" for param, val in params_class.items()))
 
-        transfer = self.cosmology.get_transfer(output_format="camb")
-        ks = np.array(transfer["k (h/Mpc)"]) * params["h"] # k / (1/Mpc)
-        Ps = np.array([self.cosmology.pk(k, z=0) for k in ks]) # P / (Mpc)^3
-        self.pspecfile = "initial_power_spectrum.txt"
-        self.write_data(self.pspecfile, {"k/(h/Mpc)": ks / params["h"], "P/(Mpc/h)^3": Ps * params["h"]**3}) # COLA wants "h-units"
+        # run command
+        cmd = [CLASSEXEC, classinfile]
+        subprocess.run(cmd, cwd=self.directory)
+
+        # get output (COLA needs class' output power spectrum, just without comments)
+        self.pspecfile = "power_spectrum_today.txt"
+        ks, Ps = self.read_data("class_pk.dat") # in "h-units"
+        self.write_data(self.pspecfile, {"k/(h/Mpc)": ks, "P/(Mpc/h)^3": Ps}) # COLA wants "h-units"
 
     def params_cola(self, params, seed=1234):
         return { # common parameters (for any derived simulation)
