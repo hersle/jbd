@@ -80,13 +80,18 @@ class Simulation:
         data = np.transpose(data)
         return data
 
+    # run a command in the simulation's directory
+    def run_command(self, cmd, logfile="/dev/null", verbose=True):
+        teecmd = subprocess.Popen(["tee", logfile], stdin=subprocess.PIPE, stdout=None if verbose else subprocess.DEVNULL, cwd=self.directory)
+        cmd = subprocess.Popen(cmd, stdout=teecmd.stdin, stderr=subprocess.STDOUT, cwd=self.directory)
+        cmd.wait() # wait for command to finish
+        teecmd.stdin.close() # close stream
+
     def run_class(self, params):
         # TODO: use hi_class for generating JBD initial conditions?
         # TODO: which k-values to choose? see https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/explanatory.ini#L1102
         params_class = {
-            "output": "mPk", # needed for Class to compute transfer function # TODO: only mPk?
-            "root": "class_",
-
+            # cosmological parameters
             "h": params["h"],
             "Omega_b": params["Ωb0"],
             "Omega_cdm": params["Ωc0"],
@@ -96,18 +101,27 @@ class Simulation:
             "A_s": params["As"],
             "n_s": params["ns"],
             "k_pivot": params["kpivot"],
+
+            # output control
+            "output": "mPk",
+            "root": "class_",
+
+            # log verbosity
+            "input_verbose": 4,
+            "background_verbose": 4,
+            "output_verbose": 1,
+            "thermodynamics_verbose": 1,
+            "perturbations_verbose": 2,
+            "spectra_verbose": 2,
         }
 
-        # write input
+        # write input and run class
         classinfile = "class_input.ini"
         self.write_file(classinfile, "\n".join(f"{param} = {str(val)}" for param, val in params_class.items()))
+        self.run_command([CLASSEXEC, classinfile], logfile="class.log", verbose=True)
 
-        # run command
-        cmd = [CLASSEXEC, classinfile]
-        subprocess.run(cmd, cwd=self.directory)
-
-        # get output (COLA needs class' output power spectrum, just without comments)
-        self.pspecfile = "power_spectrum_today.txt"
+        # get output power spectrum (COLA needs class' output power spectrum, just without comments)
+        self.pspecfile = "cola_power_spectrum_today.txt"
         ks, Ps = self.read_data("class_pk.dat") # in "h-units"
         self.write_data(self.pspecfile, {"k/(h/Mpc)": ks, "P/(Mpc/h)^3": Ps}) # COLA wants "h-units"
 
@@ -150,20 +164,10 @@ class Simulation:
         colainfile = "cola_input.lua"
         self.write_file(colainfile, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola(params).items()))
 
-        # pythonize "run_simulation | tee logfile"
-        # TODO: measure time
         colalogfile = "cola.log"
-        teecmd = ["tee", colalogfile]
-        teecmd = subprocess.Popen(teecmd, stdin=subprocess.PIPE, stdout=None if verbose else subprocess.DEVNULL, cwd=self.directory)
 
-        simcmd = [COLAEXEC, colainfile]
-        if np > 1:
-            simcmd = ["mpirun", "-np", str(np)]
-        simcmd = subprocess.Popen(simcmd, stdout=teecmd.stdin, stderr=subprocess.STDOUT, cwd=self.directory)
-
-        # wait for command to finish and close stream
-        simcmd.wait()
-        teecmd.stdin.close()
+        cmd = ["mpirun", "-np", str(np), COLAEXEC, colainfile] if np > 1 else [COLAEXEC, colainfile]
+        self.run_command(cmd, logfile=colalogfile, verbose=True)
 
         assert self.completed(), f"ERROR: see {colalogfile} for details"
 
