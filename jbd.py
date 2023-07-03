@@ -8,6 +8,7 @@
 # TODO: Hans' FML JBD cosmology has not been tested with G/G != 1 !
 
 import os
+import re
 import shutil
 import argparse
 import subprocess
@@ -86,6 +87,16 @@ class Simulation:
         data = np.transpose(data)
         return data
 
+    def read_file(self, filename):
+        with open(self.directory + filename, "r") as file:
+            return file.read()
+
+    def read_variable(self, filename, variable, between=" = "):
+        pattern = variable + between + r"([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)" # e.g. "var = 1.2e-34"
+        matches = re.findall(pattern, self.read_file(filename))
+        assert len(matches) == 1
+        return float(matches[0][0])
+
     # run a command in the simulation's directory
     # TODO: check/return exit status
     def run_command(self, cmd, log="/dev/null", verbose=True):
@@ -143,7 +154,7 @@ class Simulation:
             "cosmology_Omegab": params["Ωb0"],
             "cosmology_OmegaCDM": params["Ωc0"],
             "cosmology_OmegaK": params["Ωk0"],
-            "cosmology_OmegaLambda": params["ΩΛ0"],
+            "cosmology_OmegaLambda": self.ΩΛ0(),
             "cosmology_Neffective": params["Neff"],
             "cosmology_TCMB_kelvin": params["Tγ0"],
             "cosmology_As": params["As"],
@@ -218,14 +229,17 @@ class JBDSimulation(Simulation):
             "cosmology_model": "JBD",
             "cosmology_h": params["h"], # h is a derived quantity in JBD cosmology, but FML needs an arbitrary nonzero value for initial calculations
             "cosmology_JBD_wBD": params["wBD"],
-            "cosmology_JBD_GeffG_today": 0, # TODO:
+            "cosmology_JBD_GeffG_today": 1.0, # TODO:
             "cosmology_JBD_Omegabh2": params["Ωb0"] * params["h"]**2,
             "cosmology_JBD_OmegaCDMh2": params["Ωc0"] * params["h"]**2,
-            #"cosmology_JBD_OmegaLambdah2": params["ΩΛ0"] * params["h"]**2,
+            "cosmology_JBD_OmegaLambdah2": self.ΩΛ0() * params["h"]**2, # TODO: multiply by params["h"]**2 or self.h()**2 ?
             "cosmology_JBD_OmegaKh2": params["Ωk0"] * params["h"]**2,
             "cosmology_JBD_OmegaMNuh2": 0.0,
             "gravity_model": "JBD",
         }
+
+    def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
+    def Φini(self): return self.read_variable("class.log", "phi_ini")
 
 class SimulationPair:
     def __init__(self, params):
@@ -302,6 +316,8 @@ paramspace = ParameterSpace(params_varying)
 params = params0
 
 sim = JBDSimulation(params)
+print(f"ΩΛ0 = {sim.ΩΛ0()}")
+print(f"Φini = {sim.Φini()}")
 #k, P, Plin = sim.power_spectrum()
 #plot_power_spectrum("plots/power_spectrum.pdf", k, [P, Plin], ["full (\"Pcb\")", "linear (\"Pcb_linear\")"])
 
