@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
 
+# TODO: assert CLASS and COLA gives same field, H, etc.
+# TODO: Omega_fld, Omega_Lambda, V0 fulfills same role by setting cosmo constant
+# TODO: which G is hiclass' density parameters defined with respect to?
+# TODO: look at PPN to understand cosmological (large) -> solar system (small) scales of G in JBD
+# TODO: example plots, hi-class run: see /mn/stornext/u3/hansw/Herman/WorkingHiClass/plot.py
+# TODO: Hans' FML JBD cosmology has not been tested with G/G != 1 !
+
 import os
 import shutil
 import argparse
@@ -88,10 +95,8 @@ class Simulation:
         runcmd.wait() # wait for command to finish
         teecmd.stdin.close() # close stream
 
-    def run_class(self, params, input="class_input.ini", log="class.log"):
-        # TODO: use hi_class for generating JBD initial conditions?
-        # TODO: which k-values to choose? see https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/explanatory.ini#L1102
-        params_class = {
+    def params_class(self, params):
+        return {
             # cosmological parameters
             "h": params["h"],
             "Omega_b": params["Ωb0"],
@@ -107,17 +112,20 @@ class Simulation:
             "output": "mPk",
             "root": "class_",
 
-            # log verbosity
-            "input_verbose": 4,
-            "background_verbose": 4,
-            "output_verbose": 1,
+            # log verbosity (increase integers to make more talkative)
+            "input_verbose": 10,
+            "background_verbose": 10,
             "thermodynamics_verbose": 1,
-            "perturbations_verbose": 2,
-            "spectra_verbose": 2,
+            "perturbations_verbose": 1,
+            "spectra_verbose": 1,
+            "output_verbose": 1,
         }
 
+    # TODO: use hi_class for generating JBD initial conditions?
+    # TODO: which k-values to choose? see https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/explanatory.ini#L1102
+    def run_class(self, params, input="class_input.ini", log="class.log"):
         # write input and run class
-        self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in params_class.items()))
+        self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class(params).items()))
         self.run_command([CLASSEXEC, input], log=log, verbose=True)
 
         # get output power spectrum (COLA needs class' output power spectrum, just without comments)
@@ -193,15 +201,27 @@ class JBDSimulation(Simulation):
     def name(self, params):
         return "JBD_" + Simulation.name(self, params)
 
+    def params_class(self, params):
+        return Simulation.params_class(self, params) | { # combine dictionaries
+            "gravity_model": "brans_dicke", # select JBD gravity
+            "Omega_Lambda": 0, # rather include Λ through potential term
+            "Omega_fld": 0, # no dark energy fluid
+            "Omega_smg": -1, # automatic modified gravity
+            "parameters_smg": f"NaN, {params['wBD']}, 1, 0", # Λ (in JBD potential?), ωBD, Φini (guess), Φ′ini≈0 (fixed)
+            "M_pl_today_smg": 1.0, # TODO: vary G/G
+            "a_min_stability_test_smg": 1e-6, # BD has early-time instability, so lower tolerance to pass stability checker
+            "write background": "yes",
+        }
+
     def params_cola(self, params):
         return Simulation.params_cola(self, params) | { # combine dictionaries
             "cosmology_model": "JBD",
             "cosmology_h": params["h"], # h is a derived quantity in JBD cosmology, but FML needs an arbitrary nonzero value for initial calculations
             "cosmology_JBD_wBD": params["wBD"],
-            "cosmology_JBD_GeffG_today": params["h"],
+            "cosmology_JBD_GeffG_today": 0, # TODO:
             "cosmology_JBD_Omegabh2": params["Ωb0"] * params["h"]**2,
             "cosmology_JBD_OmegaCDMh2": params["Ωc0"] * params["h"]**2,
-            "cosmology_JBD_OmegaLambdah2": params["ΩΛ0"] * params["h"]**2,
+            #"cosmology_JBD_OmegaLambdah2": params["ΩΛ0"] * params["h"]**2,
             "cosmology_JBD_OmegaKh2": params["Ωk0"] * params["h"]**2,
             "cosmology_JBD_OmegaMNuh2": 0.0,
             "gravity_model": "JBD",
@@ -271,7 +291,7 @@ params0 = {
     #"Nmesh": 128,
     #"NT": 30,
 }
-params0["ΩΛ0"] = 1 - params0["Ωb0"] - params0["Ωc0"] - params0["Ωk0"]
+#params0["ΩΛ0"] = 1 - params0["Ωb0"] - params0["Ωc0"] - params0["Ωk0"]
 params_varying = {
     "As": (1e-9, 4e-9),
     "Ωc0": (0.15, 0.35),
@@ -281,10 +301,9 @@ params_varying = {
 paramspace = ParameterSpace(params_varying)
 params = params0
 
-#sim = JBDSimulation(params)
+sim = JBDSimulation(params)
 #k, P, Plin = sim.power_spectrum()
 #plot_power_spectrum("plots/power_spectrum.pdf", k, [P, Plin], ["full (\"Pcb\")", "linear (\"Pcb_linear\")"])
 
-sims = SimulationPair(params)
-k, Pbd_Pgr = sims.power_spectrum_ratio()
-plot_power_spectrum_ratio("plots/power_spectrum_ratio.pdf", k, [Pbd_Pgr], ["ratio"])
+#sims = SimulationPair(params)
+#k, Pbd_Pgr = sims.power_spectrum_ratio()
