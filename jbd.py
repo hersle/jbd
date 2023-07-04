@@ -56,19 +56,20 @@ class Simulation:
 
         # make simulation directory
         print(f"Simulating {self.name}")
-        if not self.completed():
-            os.makedirs(self.directory, exist_ok=True)
-            ks, Ps = self.run_class()
-            self.run_cola(ks, Ps)
-
-        if self.completed():
-            print(f"Simulated {self.name}")
+        os.makedirs(self.directory, exist_ok=True)
+        ks, Ps = self.run_class()
+        self.params["h"] = self.h()
+        self.params["ΩΛ0"] = self.ΩΛ0()
+        self.run_cola(ks, Ps)
+        assert self.completed()
+        print(f"Simulated {self.name}")
 
     def name(self):
         return f"N{self.params['Npart']}"
 
-    def completed(self):
-        return os.path.isfile(self.directory + f"pofk_{self.name}_cb_z0.000.txt")
+    def completed_class(self): return os.path.isfile(self.directory + f"class_pk.dat")
+    def completed_cola(self):  return os.path.isfile(self.directory + f"pofk_{self.name}_cb_z0.000.txt")
+    def completed(self):       return self.completed_class() and self.completed_cola()
 
     def write_data(self, filename, cols, colnames=None):
         if isinstance(cols, dict):
@@ -136,13 +137,15 @@ class Simulation:
     # TODO: use hi_class for generating JBD initial conditions?
     # TODO: which k-values to choose? see https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/explanatory.ini#L1102
     def run_class(self, input="class_input.ini", log="class.log"):
-        # write input and run class
-        self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
-        self.run_command([CLASSEXEC, input], log=log, verbose=True)
+        if not self.completed_class():
+            # write input and run class
+            self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
+            self.run_command([CLASSEXEC, input], log=log, verbose=True)
+        assert self.completed_class(), f"ERROR: see {log} for details"
 
         # get output power spectrum (COLA needs class' output power spectrum, just without comments)
         ks, Ps = self.read_data("class_pk.dat") # k / (h/Mpc); P / (Mpc/h)^3
-        ks, Ps = ks * self.h(), Ps / self.h()**3 # k / (1/Mpc); P / (Mpc)^3
+        ks, Ps = ks * self.params["h"], Ps / self.params["h"]**3 # k / (1/Mpc); P / (Mpc)^3
         return ks, Ps
 
     def params_cola(self, seed=1234):
@@ -155,7 +158,7 @@ class Simulation:
             "cosmology_Omegab": self.params["Ωb0"],
             "cosmology_OmegaCDM": self.params["Ωc0"],
             "cosmology_OmegaK": self.params["Ωk0"],
-            "cosmology_OmegaLambda": self.ΩΛ0(),
+            "cosmology_OmegaLambda": self.params["ΩΛ0"],
             "cosmology_Neffective": self.params["Neff"],
             "cosmology_TCMB_kelvin": self.params["Tγ0"],
             "cosmology_As": self.params["As"],
@@ -181,11 +184,12 @@ class Simulation:
         }
 
     def run_cola(self, ks, Ps, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
-        self.write_data(ic, {"k/(h/Mpc)": ks/self.h(), "P/(Mpc/h)^3": Ps*self.h()**3}) # COLA wants "h-units"
-        self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
-        cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input]
-        self.run_command(cmd, log=log, verbose=True)
-        assert self.completed(), f"ERROR: see {log} for details"
+        if not self.completed_cola():
+            self.write_data(ic, {"k/(h/Mpc)": ks/self.params["h"], "P/(Mpc/h)^3": Ps*self.params["h"]**3}) # COLA wants "h-units"
+            self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
+            cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input]
+            self.run_command(cmd, log=log, verbose=True)
+        assert self.completed_cola(), f"ERROR: see {log} for details"
 
     def power_spectrum(self):
         assert self.completed()
@@ -235,10 +239,10 @@ class JBDSimulation(Simulation):
             "cosmology_h": 1.0, # h is a derived quantity in JBD cosmology, but FML needs an arbitrary nonzero value for initial calculations
             "cosmology_JBD_wBD": self.params["wBD"],
             "cosmology_JBD_GeffG_today": 1.0, # TODO: vary
-            "cosmology_JBD_Omegabh2": self.params["Ωb0"] * self.h()**2,
-            "cosmology_JBD_OmegaCDMh2": self.params["Ωc0"] * self.h()**2,
-            "cosmology_JBD_OmegaLambdah2": self.ΩΛ0() * self.h()**2,
-            "cosmology_JBD_OmegaKh2": self.params["Ωk0"] * self.h()**2,
+            "cosmology_JBD_Omegabh2": self.params["Ωb0"] * self.params["h"]**2,
+            "cosmology_JBD_OmegaCDMh2": self.params["Ωc0"] * self.params["h"]**2,
+            "cosmology_JBD_OmegaLambdah2": self.params["ΩΛ0"] * self.params["h"]**2,
+            "cosmology_JBD_OmegaKh2": self.params["Ωk0"] * self.params["h"]**2,
             "cosmology_JBD_OmegaMNuh2": 0.0,
         }
 
