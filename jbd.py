@@ -50,21 +50,22 @@ class ParameterSpace:
 
 class Simulation:
     def __init__(self, params):
-        self.name = self.name(params)
+        self.params = params
+        self.name = self.name()
         self.directory = "sims/" + self.name + "/"
 
         # make simulation directory
         print(f"Simulating {self.name}")
         if not self.completed():
             os.makedirs(self.directory, exist_ok=True)
-            ks, Ps = self.run_class(params)
-            self.run_cola(params, ks, Ps)
+            ks, Ps = self.run_class()
+            self.run_cola(ks, Ps)
 
         if self.completed():
             print(f"Simulated {self.name}")
 
-    def name(self, params):
-        return f"N{params['Npart']}"
+    def name(self):
+        return f"N{self.params['Npart']}"
 
     def completed(self):
         return os.path.isfile(self.directory + f"pofk_{self.name}_cb_z0.000.txt")
@@ -106,18 +107,18 @@ class Simulation:
         runcmd.wait() # wait for command to finish
         teecmd.stdin.close() # close stream
 
-    def params_class(self, params):
+    def params_class(self):
         return {
             # cosmological parameters
-            "h": params["h"],
-            "Omega_b": params["Ωb0"],
-            "Omega_cdm": params["Ωc0"],
-            "Omega_k": params["Ωk0"],
-            "T_cmb": params["Tγ0"],
-            "N_eff": params["Neff"],
-            "A_s": params["As"],
-            "n_s": params["ns"],
-            "k_pivot": params["kpivot"],
+            # "h": self.params["h"],
+            "Omega_b": self.params["Ωb0"],
+            "Omega_cdm": self.params["Ωc0"],
+            "Omega_k": self.params["Ωk0"],
+            "T_cmb": self.params["Tγ0"],
+            "N_eff": self.params["Neff"],
+            "A_s": self.params["As"],
+            "n_s": self.params["ns"],
+            "k_pivot": self.params["kpivot"],
 
             # output control
             "output": "mPk",
@@ -134,54 +135,54 @@ class Simulation:
 
     # TODO: use hi_class for generating JBD initial conditions?
     # TODO: which k-values to choose? see https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/explanatory.ini#L1102
-    def run_class(self, params, input="class_input.ini", log="class.log"):
+    def run_class(self, input="class_input.ini", log="class.log"):
         # write input and run class
-        self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class(params).items()))
+        self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
         self.run_command([CLASSEXEC, input], log=log, verbose=True)
 
         # get output power spectrum (COLA needs class' output power spectrum, just without comments)
         ks, Ps = self.read_data("class_pk.dat") # k / (h/Mpc); P / (Mpc/h)^3
-        ks, Ps = ks * params["h"], Ps / params["h"]**3 # k / (1/Mpc); P / (Mpc)^3
+        ks, Ps = ks * self.h(), Ps / self.h()**3 # k / (1/Mpc); P / (Mpc)^3
         return ks, Ps
 
-    def params_cola(self, params, seed=1234):
+    def params_cola(self, seed=1234):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
-            "simulation_boxsize": params["L"],
+            "simulation_boxsize": self.params["L"],
             "simulation_use_cola": True,
             "simulation_use_scaledependent_cola": False, # only relevant with massive neutrinos?
 
-            "cosmology_Omegab": params["Ωb0"],
-            "cosmology_OmegaCDM": params["Ωc0"],
-            "cosmology_OmegaK": params["Ωk0"],
+            "cosmology_Omegab": self.params["Ωb0"],
+            "cosmology_OmegaCDM": self.params["Ωc0"],
+            "cosmology_OmegaK": self.params["Ωk0"],
             "cosmology_OmegaLambda": self.ΩΛ0(),
-            "cosmology_Neffective": params["Neff"],
-            "cosmology_TCMB_kelvin": params["Tγ0"],
-            "cosmology_As": params["As"],
-            "cosmology_ns": params["ns"],
-            "cosmology_kpivot_mpc": params["kpivot"],
+            "cosmology_Neffective": self.params["Neff"],
+            "cosmology_TCMB_kelvin": self.params["Tγ0"],
+            "cosmology_As": self.params["As"],
+            "cosmology_ns": self.params["ns"],
+            "cosmology_kpivot_mpc": self.params["kpivot"],
             "cosmology_OmegaMNu": 0.0,
 
-            "particle_Npart_1D": params["Npart"],
+            "particle_Npart_1D": self.params["Npart"],
 
-            "timestep_nsteps": [params["NT"]],
+            "timestep_nsteps": [self.params["NT"]],
 
             "ic_random_seed": seed,
-            "ic_initial_redshift": params["zinit"],
-            "ic_nmesh" : params["Npart"],
+            "ic_initial_redshift": self.params["zinit"],
+            "ic_nmesh" : self.params["Npart"],
             "ic_type_of_input": "powerspectrum", # transferinfofile only relevant with massive neutrinos?
             "ic_input_filename": "power_spectrum_today.dat",
             "ic_input_redshift": 0.0, # TODO: feed initial power spectrum directly instead of backscaling?
 
-            "force_nmesh": params["Nmesh"],
+            "force_nmesh": self.params["Nmesh"],
 
             "output_folder": ".",
             "output_redshifts": [0.0],
         }
 
-    def run_cola(self, params, ks, Ps, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
-        self.write_data(ic, {"k/(h/Mpc)": ks/params["h"], "P/(Mpc/h)^3": Ps*params["h"]**3}) # COLA wants "h-units"
-        self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola(params).items()))
+    def run_cola(self, ks, Ps, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
+        self.write_data(ic, {"k/(h/Mpc)": ks/self.h(), "P/(Mpc/h)^3": Ps*self.h()**3}) # COLA wants "h-units"
+        self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
         cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input]
         self.run_command(cmd, log=log, verbose=True)
         assert self.completed(), f"ERROR: see {log} for details"
@@ -198,22 +199,25 @@ class Simulation:
         return k, P, Plin
 
 class GRSimulation(Simulation):
-    def name(self, params):
-        return "GR_" + Simulation.name(self, params)
+    def name(self):
+        return "GR_" + Simulation.name(self)
 
-    def params_cola(self, params):
-        return Simulation.params_cola(self, params) | { # combine dictionaries
-            "cosmology_h": params["h"],
+    def params_cola(self):
+        return Simulation.params_cola(self) | { # combine dictionaries
+            "cosmology_h": self.params["h"],
             "cosmology_model": "LCDM",
             "gravity_model": "GR",
         }
 
-class JBDSimulation(Simulation):
-    def name(self, params):
-        return "JBD_" + Simulation.name(self, params)
+    def   h(self): return params["h"]
+    def ΩΛ0(self): return self.read_variable("class.log", "Omega_Lambda")
 
-    def params_class(self, params):
-        return Simulation.params_class(self, params) | { # combine dictionaries
+class JBDSimulation(Simulation):
+    def name(self):
+        return "JBD_" + Simulation.name(self)
+
+    def params_class(self):
+        return Simulation.params_class(self) | { # combine dictionaries
             "gravity_model": "brans_dicke", # select JBD gravity
             "Omega_Lambda": 0, # rather include Λ through potential term
             "Omega_fld": 0, # no dark energy fluid
@@ -224,17 +228,17 @@ class JBDSimulation(Simulation):
             "write background": "yes",
         }
 
-    def params_cola(self, params):
-        return Simulation.params_cola(self, params) | { # combine dictionaries
+    def params_cola(self):
+        return Simulation.params_cola(self) | { # combine dictionaries
             "gravity_model": "JBD",
             "cosmology_model": "JBD",
             "cosmology_h": 1.0, # h is a derived quantity in JBD cosmology, but FML needs an arbitrary nonzero value for initial calculations
-            "cosmology_JBD_wBD": params["wBD"],
+            "cosmology_JBD_wBD": self.params["wBD"],
             "cosmology_JBD_GeffG_today": 1.0, # TODO: vary
-            "cosmology_JBD_Omegabh2": params["Ωb0"] * self.h()**2,
-            "cosmology_JBD_OmegaCDMh2": params["Ωc0"] * self.h()**2,
+            "cosmology_JBD_Omegabh2": self.params["Ωb0"] * self.h()**2,
+            "cosmology_JBD_OmegaCDMh2": self.params["Ωc0"] * self.h()**2,
             "cosmology_JBD_OmegaLambdah2": self.ΩΛ0() * self.h()**2,
-            "cosmology_JBD_OmegaKh2": params["Ωk0"] * self.h()**2,
+            "cosmology_JBD_OmegaKh2": self.params["Ωk0"] * self.h()**2,
             "cosmology_JBD_OmegaMNuh2": 0.0,
         }
 
@@ -323,6 +327,7 @@ sim = JBDSimulation(params)
 print(f"ΩΛ0 = {sim.ΩΛ0()}")
 print(f"Φini = {sim.Φini()}")
 print(f"h = {sim.h()}")
+sim = GRSimulation(params)
 #k, P, Plin = sim.power_spectrum()
 #plot_power_spectrum("plots/power_spectrum.pdf", k, [P, Plin], ["full (\"Pcb\")", "linear (\"Pcb_linear\")"])
 
