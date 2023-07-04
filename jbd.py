@@ -119,7 +119,6 @@ class Simulation:
     def params_class(self):
         return {
             # cosmological parameters
-            # "h": self.params["h"],
             "Omega_b": self.params["Ωb0"],
             "Omega_cdm": self.params["Ωc0"],
             "Omega_k": self.params["Ωk0"],
@@ -152,9 +151,10 @@ class Simulation:
         assert self.completed_class(), f"ERROR: see {log} for details"
 
         # get output power spectrum (COLA needs class' output power spectrum, just without comments)
-        ks, Ps = self.read_data("class_pk.dat") # k / (h/Mpc); P / (Mpc/h)^3
-        ks, Ps = ks * self.params["h"], Ps / self.params["h"]**3 # k / (1/Mpc); P / (Mpc)^3
-        return ks, Ps
+        # TODO: which h does hiclass use here?
+        # TODO: set the "non-used" h = 1.0 to avoid division?
+        khs, Phs = self.read_data("class_pk.dat") # k / (h/Mpc); P / (Mpc/h)^3
+        return khs, Phs
 
     def params_cola(self, seed=1234):
         return { # common parameters (for any derived simulation)
@@ -191,9 +191,9 @@ class Simulation:
             "output_redshifts": [0.0],
         }
 
-    def run_cola(self, ks, Ps, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
+    def run_cola(self, khs, Phs, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
         if not self.completed_cola():
-            self.write_data(ic, {"k/(h/Mpc)": ks/self.params["h"], "P/(Mpc/h)^3": Ps*self.params["h"]**3}) # COLA wants "h-units"
+            self.write_data(ic, {"k/(h/Mpc)": khs, "P/(Mpc/h)^3": Phs}) # COLA wants "h-units" # TODO: give cola the actual used h for ICs?
             self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
             cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input]
             self.run_command(cmd, log=log, verbose=True)
@@ -248,7 +248,7 @@ class JBDSimulation(Simulation):
         return Simulation.params_cola(self) | { # combine dictionaries
             "gravity_model": "JBD",
             "cosmology_model": "JBD",
-            "cosmology_h": 1.0, # h is a derived quantity in JBD cosmology, but FML needs an arbitrary nonzero value for initial calculations
+            "cosmology_h": self.params["h"], # h is a derived quantity in JBD cosmology, but FML needs arbitrary nonzero value for initial calculations. still, set it to h we get from class, because FML uses this value to convert power spectrum in h-units to non-h-units
             "cosmology_JBD_wBD": self.params["wBD"],
             "cosmology_JBD_GeffG_today": 1.0, # TODO: vary
             "cosmology_JBD_Omegabh2": self.params["Ωb0"] * self.params["h"]**2,
@@ -303,7 +303,7 @@ def plot_power_spectrum_ratio(filename, k, P1P2s, labels, ylabel=r"$P_\mathrm{JB
 
 params0 = {
     # physical parameters
-    "h":      0.67,
+    #"h":      0.67,
     "Ωb0":    0.05,
     "Ωc0":    0.267,
     "Ωk0":    0.0,
@@ -343,7 +343,7 @@ sim = JBDSimulation(params)
 print(f"ΩΛ0 = {sim.ΩΛ0()}")
 print(f"Φini = {sim.Φini()}")
 print(f"h = {sim.h()}")
-sim = GRSimulation(params)
+#sim = GRSimulation(params)
 #k, P, Plin = sim.power_spectrum()
 #plot_power_spectrum("plots/power_spectrum.pdf", k, [P, Plin], ["full (\"Pcb\")", "linear (\"Pcb_linear\")"])
 
