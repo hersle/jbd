@@ -50,37 +50,55 @@ class ParameterSpace:
 
 class Simulation:
     def __init__(self, params):
-        self.params = params.copy()
+        self.params = params.copy() # will be modified
         self.name = self.name()
         self.directory = "sims/" + self.name + "/"
 
-        # make simulation directory
+        # initialize simulation, validate input, create working directory
         print(f"Simulating {self.name}")
         self.validate_input()
         os.makedirs(self.directory, exist_ok=True)
+
+        # create initial conditions with CLASS, store derived parameters, run COLA simulation
         ks, Ps = self.run_class()
-        self.params["h"] = self.h()
+        if not "h" in self.params:
+            self.params["h"] = self.h()
         self.params["ΩΛ0"] = self.ΩΛ0()
         self.run_cola(ks, Ps)
-        self.validate_output()
+
+        # verify successful completion
         assert self.completed()
+        self.validate_output()
         print(f"Simulated {self.name}")
 
+    # unique string identifier for the simulation
     def name(self):
         return f"N{self.params['Npart']}"
 
-    def completed_class(self): return os.path.isfile(self.directory + f"class_pk.dat")
-    def completed_cola(self):  return os.path.isfile(self.directory + f"pofk_{self.name}_cb_z0.000.txt")
-    def completed(self):       return self.completed_class() and self.completed_cola()
+    # whether CLASS has been run
+    def completed_class(self):
+        return os.path.isfile(self.directory + f"class_pk.dat")
 
+    # whether COLA has been run
+    def completed_cola(self):
+        return os.path.isfile(self.directory + f"pofk_{self.name}_cb_z0.000.txt")
+
+    # whether CLASS and COLA has been run
+    def completed(self):
+        return self.completed_class() and self.completed_cola()
+
+    # check that the combination of parameters passed to the simulation is allowed
     def validate_input(self):
-        assert "ΩΛ0" not in self.params, "ΩΛ0 is a derived parameter and should not be specified"
+        assert "ΩΛ0" not in self.params, "derived parameter ΩΛ0 is specified"
 
+    # check that the output from CLASS and COLA is consistent
     def validate_output(self):
+        # both CLASS and COLA evolves ϕ from G/G and should agree
         ϕini1 = self.read_variable("class.log", "phi_ini")
         ϕini2 = self.read_variable("cola.log", "phi_ini")
         assert np.isclose(ϕini1, ϕini2), f"Φini1 = {ϕini1} != Φini2 = {ϕini2}"
 
+    # save a data file associated with the simulation
     def write_data(self, filename, cols, colnames=None):
         if isinstance(cols, dict):
             colnames = cols.keys()
@@ -90,19 +108,23 @@ class Simulation:
         header = None if colnames is None else " ".join(colnames)
         np.savetxt(self.directory + filename, np.transpose(cols), header=header)
 
-    def write_file(self, filename, string):
-        with open(self.directory + filename, "w") as file:
-            file.write(string)
-
+    # load a data file associated with the simulation
     def read_data(self, filename):
         data = np.loadtxt(self.directory + filename)
         data = np.transpose(data)
         return data
 
+    # save a file associated with the simulation
+    def write_file(self, filename, string):
+        with open(self.directory + filename, "w") as file:
+            file.write(string)
+
+    # load a file associated with the simulation
     def read_file(self, filename):
         with open(self.directory + filename, "r") as file:
             return file.read()
 
+    # read a string like "variable = numerical_value" and return the numerical value
     def read_variable(self, filename, variable, between=" = "):
         pattern = variable + between + r"([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)" # e.g. "var = 1.2e-34"
         matches = re.findall(pattern, self.read_file(filename))
@@ -110,14 +132,15 @@ class Simulation:
         return float(matches[0][0])
 
     # run a command in the simulation's directory
-    # TODO: check/return exit status
     def run_command(self, cmd, log="/dev/null", verbose=True):
         teecmd = subprocess.Popen(["tee", log], stdin=subprocess.PIPE, stdout=None if verbose else subprocess.DEVNULL, cwd=self.directory)
         runcmd = subprocess.Popen(cmd, stdout=teecmd.stdin, stderr=subprocess.STDOUT, cwd=self.directory)
 
+        # TODO: check/return exit status
         runcmd.wait() # wait for command to finish
         teecmd.stdin.close() # close stream
 
+    # dictionary of parameters that should be passed to CLASS
     def params_class(self):
         return {
             # cosmological parameters
@@ -143,6 +166,7 @@ class Simulation:
             "output_verbose": 1,
         }
 
+    # run CLASS and return today's matter power spectrum
     # TODO: use hi_class for generating JBD initial conditions?
     # TODO: which k-values to choose? see https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/explanatory.ini#L1102
     def run_class(self, input="class_input.ini", log="class.log"):
@@ -155,9 +179,10 @@ class Simulation:
         # get output power spectrum (COLA needs class' output power spectrum, just without comments)
         # TODO: which h does hiclass use here?
         # TODO: set the "non-used" h = 1.0 to avoid division?
-        khs, Phs = self.read_data("class_pk.dat") # k / (h/Mpc); P / (Mpc/h)^3
+        khs, Phs = self.read_data("class_pk.dat") # k / (h/Mpc); P / (Mpc/h)^3 (in "h-units")
         return khs, Phs
 
+    # dictionary of parameters that should be passed to COLA
     def params_cola(self, seed=1234):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
@@ -193,6 +218,7 @@ class Simulation:
             "output_redshifts": [0.0],
         }
 
+    # run COLA simulation from back-scaling today's matter power spectrum (from CLASS)
     def run_cola(self, khs, Phs, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
         if not self.completed_cola():
             self.write_data(ic, {"k/(h/Mpc)": khs, "P/(Mpc/h)^3": Phs}) # COLA wants "h-units" # TODO: give cola the actual used h for ICs?
@@ -232,7 +258,7 @@ class JBDSimulation(Simulation):
 
     def validate_input(self):
         Simulation.validate_input(self)
-        assert "h" not in self.params, "h is a derived parameter and should not be specified"
+        assert "h" not in self.params, "derived parameter h is specified"
 
     def params_class(self):
         return Simulation.params_class(self) | { # combine dictionaries
@@ -260,7 +286,7 @@ class JBDSimulation(Simulation):
             "cosmology_JBD_OmegaMNuh2": 0.0,
         }
 
-    def    h(self): return self.read_data("class_background.dat")[3,-1] * 3e8 / 1e3 / 100
+    def    h(self): return self.read_data("class_background.dat")[3,-1] * 3e8 / 1e3 / 100 # TODO: could read this in GRSimulation, too
     def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
     def Φini(self): return self.read_variable("class.log", "phi_ini")
 
