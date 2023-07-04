@@ -226,18 +226,22 @@ class JBDSimulation(Simulation):
 
     def params_cola(self, params):
         return Simulation.params_cola(self, params) | { # combine dictionaries
-            "cosmology_model": "JBD",
-            "cosmology_h": params["h"], # h is a derived quantity in JBD cosmology, but FML needs an arbitrary nonzero value for initial calculations
-            "cosmology_JBD_wBD": params["wBD"],
-            "cosmology_JBD_GeffG_today": 1.0, # TODO:
-            "cosmology_JBD_Omegabh2": params["Ωb0"] * params["h"]**2,
-            "cosmology_JBD_OmegaCDMh2": params["Ωc0"] * params["h"]**2,
-            "cosmology_JBD_OmegaLambdah2": self.ΩΛ0() * params["h"]**2, # TODO: multiply by params["h"]**2 or self.h()**2 ?
-            "cosmology_JBD_OmegaKh2": params["Ωk0"] * params["h"]**2,
-            "cosmology_JBD_OmegaMNuh2": 0.0,
             "gravity_model": "JBD",
+            "cosmology_model": "JBD",
+            "cosmology_h": 1.0, # h is a derived quantity in JBD cosmology, but FML needs an arbitrary nonzero value for initial calculations
+            "cosmology_JBD_wBD": params["wBD"],
+            "cosmology_JBD_GeffG_today": 1.0, # TODO: vary
+            "cosmology_JBD_Omegabh2": params["Ωb0"] * self.h()**2,
+            "cosmology_JBD_OmegaCDMh2": params["Ωc0"] * self.h()**2,
+            "cosmology_JBD_OmegaLambdah2": self.ΩΛ0() * self.h()**2,
+            "cosmology_JBD_OmegaKh2": params["Ωk0"] * self.h()**2,
+            "cosmology_JBD_OmegaMNuh2": 0.0,
         }
 
+    def validate(self):
+        pass # TODO: validate consistency from class, cola, etc.
+
+    def    h(self): return self.read_data("class_background.dat")[3,-1] * 3e8 / 1e3 / 100
     def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
     def Φini(self): return self.read_variable("class.log", "phi_ini")
 
@@ -296,7 +300,7 @@ params0 = {
     "L": 256,
     "Npart": 64,
     "Nmesh": 64,
-    "NT": 30,
+    "NT": 10,
 
     # computational parameters (expensive, for results)
     #"zinit": 30,
@@ -318,6 +322,7 @@ params = params0
 sim = JBDSimulation(params)
 print(f"ΩΛ0 = {sim.ΩΛ0()}")
 print(f"Φini = {sim.Φini()}")
+print(f"h = {sim.h()}")
 #k, P, Plin = sim.power_spectrum()
 #plot_power_spectrum("plots/power_spectrum.pdf", k, [P, Plin], ["full (\"Pcb\")", "linear (\"Pcb_linear\")"])
 
