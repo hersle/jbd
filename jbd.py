@@ -50,17 +50,19 @@ class ParameterSpace:
 
 class Simulation:
     def __init__(self, params):
-        self.params = params
+        self.params = params.copy()
         self.name = self.name()
         self.directory = "sims/" + self.name + "/"
 
         # make simulation directory
         print(f"Simulating {self.name}")
+        self.validate_input()
         os.makedirs(self.directory, exist_ok=True)
         ks, Ps = self.run_class()
         self.params["h"] = self.h()
         self.params["ΩΛ0"] = self.ΩΛ0()
         self.run_cola(ks, Ps)
+        self.validate_output()
         assert self.completed()
         print(f"Simulated {self.name}")
 
@@ -70,6 +72,12 @@ class Simulation:
     def completed_class(self): return os.path.isfile(self.directory + f"class_pk.dat")
     def completed_cola(self):  return os.path.isfile(self.directory + f"pofk_{self.name}_cb_z0.000.txt")
     def completed(self):       return self.completed_class() and self.completed_cola()
+
+    def validate_input(self):
+        assert "ΩΛ0" not in self.params, "ΩΛ0 is a derived parameter and should not be specified"
+
+    def validate_output(self):
+        pass # TODO
 
     def write_data(self, filename, cols, colnames=None):
         if isinstance(cols, dict):
@@ -219,6 +227,10 @@ class GRSimulation(Simulation):
 class JBDSimulation(Simulation):
     def name(self):
         return "JBD_" + Simulation.name(self)
+
+    def validate_input(self):
+        Simulation.validate_input(self)
+        assert "h" not in self.params, "h is a derived parameter and should not be specified"
 
     def params_class(self):
         return Simulation.params_class(self) | { # combine dictionaries
