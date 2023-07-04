@@ -77,7 +77,9 @@ class Simulation:
         assert "ΩΛ0" not in self.params, "ΩΛ0 is a derived parameter and should not be specified"
 
     def validate_output(self):
-        pass # TODO
+        ϕini1 = self.read_variable("class.log", "phi_ini")
+        ϕini2 = self.read_variable("cola.log", "phi_ini")
+        assert np.isclose(ϕini1, ϕini2), f"Φini1 = {ϕini1} != Φini2 = {ϕini2}"
 
     def write_data(self, filename, cols, colnames=None):
         if isinstance(cols, dict):
@@ -257,9 +259,6 @@ class JBDSimulation(Simulation):
             "cosmology_JBD_OmegaKh2": self.params["Ωk0"] * self.params["h"]**2,
             "cosmology_JBD_OmegaMNuh2": 0.0,
         }
-
-    def validate(self):
-        pass # TODO: validate consistency from class, cola, etc.
 
     def    h(self): return self.read_data("class_background.dat")[3,-1] * 3e8 / 1e3 / 100
     def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
