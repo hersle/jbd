@@ -9,6 +9,8 @@
 
 import os
 import re
+import json
+import hashlib
 import shutil
 import argparse
 import subprocess
@@ -23,6 +25,9 @@ args = parser.parse_args()
 
 COLAEXEC = os.path.abspath(os.path.expanduser(args.FML + "/FML/COLASolver/nbody"))
 CLASSEXEC = os.path.abspath(os.path.expanduser(args.hiclass))
+
+def dicthash(dict):
+    return hashlib.md5(json.dumps(dict, sort_keys=True).encode('utf-8')).hexdigest()
 
 def luastr(var):
     if isinstance(var, bool):
@@ -53,6 +58,8 @@ class Simulation:
         self.params = params.copy() # will be modified
         self.name = self.name()
         self.directory = "sims/" + self.name + "/"
+        #self.rename_legacy() # TODO: move legacy directory
+        #return # TODO: remove
 
         # initialize simulation, validate input, create working directory
         print(f"Simulating {self.name}")
@@ -72,8 +79,24 @@ class Simulation:
         print(f"Simulated {self.name}")
 
     # unique string identifier for the simulation
+    # TODO: create unique hash from parameters: https://stackoverflow.com/a/10288255
+    # TODO: return array of names (to look for renaming etc.)
+    # TODO: also output JSON dict with parameters
     def name(self):
-        return f"N{self.params['Npart']}"
+        return dicthash(self.params)
+
+    def names_old(self):
+        return [f"NP{self.params['Npart']}_NM{self.params['Ncell']}_NS{self.params['Nstep']}_L{self.params['L']}"]
+
+    def rename_legacy(self):
+        for name_old in self.names_old():
+            path_old = f"sims/{name_old}"
+            print("candidate ", path_old)
+            if os.path.isdir(path_old):
+                print(f"want to rename {path_old} -> {self.directory}")
+                #os.rename(path_old, self.directory)
+                return
+        print("no rename")
 
     # whether CLASS has been run
     def completed_class(self):
@@ -239,8 +262,11 @@ class Simulation:
         return k, P, Plin
 
 class GRSimulation(Simulation):
-    def name(self):
-        return "GR_" + Simulation.name(self)
+    #def name(self):
+        #return "GR_" + Simulation.name(self)
+
+    #def names_old(self):
+        #return ["GR_" + name_old for name_old in Simulation.names_old(self)]
 
     def params_cola(self):
         return Simulation.params_cola(self) | { # combine dictionaries
@@ -253,8 +279,11 @@ class GRSimulation(Simulation):
     def ΩΛ0(self): return self.read_variable("class.log", "Omega_Lambda")
 
 class JBDSimulation(Simulation):
-    def name(self):
-        return "JBD_" + Simulation.name(self)
+    #def name(self):
+        #return "JBD_" + Simulation.name(self)
+
+    #def names_old(self):
+        #return ["JBD_" + name_old for name_old in Simulation.names_old(self)]
 
     def validate_input(self):
         Simulation.validate_input(self)
@@ -363,6 +392,9 @@ params_varying = {
 
 paramspace = ParameterSpace(params_varying)
 params = params0
+
+print(f"Params: {params0}")
+print(f"MD5: {dicthash(params0)}")
 
 sim = JBDSimulation(params)
 print(f"ΩΛ0 = {sim.ΩΛ0()}")
