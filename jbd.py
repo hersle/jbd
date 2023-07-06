@@ -6,6 +6,8 @@
 # TODO: look at PPN to understand cosmological (large) -> solar system (small) scales of G in JBD
 # TODO: example plots, hi-class run: see /mn/stornext/u3/hansw/Herman/WorkingHiClass/plot.py
 # TODO: Hans' FML JBD cosmology has not been tested with G/G != 1 !
+# TODO: compare P(k) with fig. 2 on https://journals.aps.org/prd/pdf/10.1103/PhysRevD.97.023520#page=13
+# TODO: don't output snapshot
 
 import os
 import re
@@ -15,6 +17,7 @@ import shutil
 import argparse
 import subprocess
 import numpy as np
+import matplotlib
 import matplotlib.pyplot as plt
 from scipy.stats import qmc
 
@@ -27,7 +30,7 @@ COLAEXEC = os.path.abspath(os.path.expanduser(args.FML + "/FML/COLASolver/nbody"
 CLASSEXEC = os.path.abspath(os.path.expanduser(args.hiclass))
 
 def dicthash(dict):
-    return hashlib.md5(json.dumps(dict, sort_keys=True).encode('utf-8')).hexdigest()
+    return hashlib.md5(json.dumps(dict, sort_keys=True).encode('utf-8')).hexdigest() # https://stackoverflow.com/a/10288255
 
 def luastr(var):
     if isinstance(var, bool):
@@ -62,7 +65,8 @@ class Simulation:
         #return # TODO: remove
 
         # initialize simulation, validate input, create working directory
-        print(f"Simulating {self.name}")
+        print(f"Simulating {self.name}:")
+        print(self.params)
         self.validate_input()
         os.makedirs(self.directory, exist_ok=True)
 
@@ -71,7 +75,7 @@ class Simulation:
         if not "h" in self.params:
             self.params["h"] = self.h()
         self.params["ΩΛ0"] = self.ΩΛ0()
-        self.run_cola(ks, Ps)
+        self.run_cola(ks, Ps, np=16)
 
         # verify successful completion
         assert self.completed()
@@ -79,7 +83,7 @@ class Simulation:
         print(f"Simulated {self.name}")
 
     # unique string identifier for the simulation
-    # TODO: create unique hash from parameters: https://stackoverflow.com/a/10288255
+    # TODO: create unique hash from parameters: 
     # TODO: return array of names (to look for renaming etc.)
     # TODO: also output JSON dict with parameters
     def name(self):
@@ -202,8 +206,7 @@ class Simulation:
         # get output power spectrum (COLA needs class' output power spectrum, just without comments)
         # TODO: which h does hiclass use here?
         # TODO: set the "non-used" h = 1.0 to avoid division?
-        khs, Phs = self.read_data("class_pk.dat") # k / (h/Mpc); P / (Mpc/h)^3 (in "h-units")
-        return khs, Phs
+        return self.power_spectrum(linear=True)
 
     # dictionary of parameters that should be passed to COLA
     def params_cola(self, seed=1234):
@@ -226,7 +229,7 @@ class Simulation:
 
             "particle_Npart_1D": self.params["Npart"],
 
-            "timestep_nsteps": [self.params["NT"]],
+            "timestep_nsteps": [self.params["Nstep"]],
 
             "ic_random_seed": seed,
             "ic_initial_redshift": self.params["zinit"],
@@ -235,7 +238,7 @@ class Simulation:
             "ic_input_filename": "power_spectrum_today.dat",
             "ic_input_redshift": 0.0, # TODO: feed initial power spectrum directly instead of backscaling?
 
-            "force_nmesh": self.params["Nmesh"],
+            "force_nmesh": self.params["Ncell"],
 
             "output_folder": ".",
             "output_redshifts": [0.0],
@@ -250,16 +253,18 @@ class Simulation:
             self.run_command(cmd, log=log, verbose=True)
         assert self.completed_cola(), f"ERROR: see {log} for details"
 
-    def power_spectrum(self):
-        assert self.completed()
-
-        # pk: "total matter"
-        # pk_cb: "cdm+b"
-        # pk_lin: "total matter" (linear?)
-
-        data = self.read_data(f"pofk_{self.name}_cb_z0.000.txt")
-        k, P, Plin = data[0], data[1], data[2]
-        return k, P, Plin
+    def power_spectrum(self, linear=False):
+        if linear:
+            assert self.completed_class()
+            khs, Phs = self.read_data("class_pk.dat") # k / (h/Mpc); P / (Mpc/h)^3 (in "h-units")
+        else:
+            # pk: "total matter"
+            # pk_cb: "cdm+b"
+            # pk_lin: "total matter" (linear?)
+            assert self.completed_cola()
+            data = self.read_data(f"pofk_{self.name}_cb_z0.000.txt")
+            khs, Phs = data[0], data[1]
+        return khs, Phs
 
 class GRSimulation(Simulation):
     #def name(self):
@@ -295,7 +300,7 @@ class JBDSimulation(Simulation):
             "Omega_Lambda": 0, # rather include Λ through potential term
             "Omega_fld": 0, # no dark energy fluid
             "Omega_smg": -1, # automatic modified gravity
-            "parameters_smg": f"NaN, {params['wBD']}, 1, 0", # Λ (in JBD potential?), ωBD, Φini (guess), Φ′ini≈0 (fixed)
+            "parameters_smg": f"NaN, {self.params['wBD']}, 1, 0", # Λ (in JBD potential?), ωBD, Φini (guess), Φ′ini≈0 (fixed)
             "M_pl_today_smg": 1.0, # TODO: vary G/G
             "a_min_stability_test_smg": 1e-6, # BD has early-time instability, so lower tolerance to pass stability checker
             "write background": "yes",
@@ -320,24 +325,43 @@ class JBDSimulation(Simulation):
     def Φini(self): return self.read_variable("class.log", "phi_ini")
 
 class SimulationPair:
-    def __init__(self, params):
-        self.sim_gr = GRSimulation(params)
+    def __init__(self, params, wGR=1e6):
+        self.sim_gr = JBDSimulation(params | {"wBD": wGR}) # TODO: use JBD with large w, or a proper GR simulation?
         self.sim_bd = JBDSimulation(params)
 
-    def power_spectrum_ratio(self):
-        k_gr, P_gr, _ = self.sim_gr.power_spectrum()
-        k_bd, P_bd, _ = self.sim_bd.power_spectrum()
+    # TODO: how to handle different ks in best way?
+    # TODO: more natural (more similar ks) if plotted in normal units (not in h-units)?
+    # TODO: for linear, specify exact ks to class?
+    def power_spectrum_ratio(self, linear=False):
+        k_gr, P_gr = self.sim_gr.power_spectrum(linear)
+        k_bd, P_bd = self.sim_bd.power_spectrum(linear)
 
-        assert np.all(k_gr == k_bd), "simulations output different k-values"
-        k = k_gr
+        # TODO: use non-h-units for k, since I am comparing two theories with different h!!!
+        k_gr = k_gr / self.sim_gr.h()
+        k_bd = k_bd / self.sim_bd.h()
+        P_gr = P_gr * self.sim_gr.h()**3
+        P_bd = P_bd * self.sim_bd.h()**3
+
+        #assert np.all(np.isclose(k_gr, k_bd, atol=1e-2)), f"simulations output different k-values: max(abs(k1-k2)) = {np.max(np.abs(k_gr-k_bd))}"
+        #k_gr = k_gr / self.sim_gr.h()
+        #k_bd = k_bd / self.sim_bd.h()
+        #k = k_gr
+
+        #kmin = np.maximum(k_gr[0], k_bd[0])
+        #kmax = np.minimum(k_gr[-1], k_bd[-1])
+
+        # get common (average) ks and interpolate P there
+        k = (k_gr + k_bd) / 2
+        P_gr = np.interp(k, k_gr, P_gr)
+        P_bd = np.interp(k, k_bd, P_bd)
 
         return k, P_bd / P_gr
 
-def plot_power_spectrum(filename, k, Ps, labels):
+def plot_power_spectrum(filename, ks, Ps, labels):
     fig, ax = plt.subplots()
     ax.set_xlabel("$\log_{10} [k / (h/Mpc)]$")
     ax.set_ylabel("$\log_{10} [P / (Mpc/h)^3]$")
-    for (P, label) in zip(Ps, labels):
+    for (k, P, label) in zip(ks, Ps, labels):
         ax.plot(np.log10(k), np.log10(P), label=label)
     ax.legend()
     fig.savefig(filename)
@@ -355,6 +379,49 @@ def plot_power_spectrum_ratio(filename, k, P1P2s, labels, ylabel=r"$P_\mathrm{JB
     fig.savefig(filename)
     print(f"Plotted {filename}")
 
+def plot_convergence(filename, params0, varparam, vals, plot_linear=True, colorfunc=None, labelfunc=None):
+    val0 = params0[varparam]
+
+    if colorfunc is None:
+        colorfunc = lambda x: x
+    if labelfunc is None:
+        labelfunc = lambda val: f"${varparam} = {val}$"
+
+    fig, ax = plt.subplots()
+    ax.set_xlabel(r"$\lg [k / (1/\mathrm{Mpc})]$")
+    ax.set_ylabel(r"$P_\mathrm{BD} / P_\mathrm{GR}$")
+    ax.set_xticks((-2.0, -1.0, 0.0, 1.0))
+    ax.set_yticks(np.linspace(1.000, 1.015, 4)) # TODO: minor ticks?
+    ax.set_xlim(-2, +1)
+    ax.set_ylim(1.0, 1.015)
+    ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
+    ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
+
+    cmap = matplotlib.colors.LinearSegmentedColormap.from_list("blueblackred", ["#0000ff", "#000000", "#ff0000"], N=256)
+
+    #ax.axhline(-1.0, linewidth=1, color="gray", linestyle="solid",  label="$P = P_\mathrm{non-linear}$") # dummy for legend
+
+    # plot linear power spectrum (once; not impacted by simulation resolution parameters)
+    if plot_linear:
+        # only once (should be same for the different computational parameters)
+        k, P1_P2 = SimulationPair(params0).power_spectrum_ratio(linear=True)
+        ax.plot(np.log10(k), P1_P2, linewidth=1, color="black", alpha=0.25, linestyle="dashed", label=r"$P = P_\mathrm{linear}$")
+
+    for i, val in enumerate(vals):
+        params = params0 | {varparam: val}
+        sims = SimulationPair(params)
+        is_fiducial = params == params0
+
+        k, P1_P2 = sims.power_spectrum_ratio()
+        label = labelfunc(val) + (" (fiducial)" if is_fiducial else "")
+        ax.plot(np.log10(k), P1_P2, linewidth=1, color=cmap((colorfunc(val/val0) + 1) / 2), linestyle="solid", label=label, zorder=1 if is_fiducial else 0)
+
+    #ax.axhline(1.0, color="gray", linestyle="dashed")
+    ax.legend()
+    ax.grid()
+    fig.tight_layout()
+    fig.savefig(filename)
+
 params0 = {
     # physical parameters
     #"h":      0.67,
@@ -370,17 +437,21 @@ params0 = {
     "wBD": 1e3, # for JBD
 
     # computational parameters (cheap, for testing)
+    # maximum: Npart = Ncell = 1024, np = 16 (on euclid22-32)
     "zinit": 10,
-    "L": 256,
-    "Npart": 64,
-    "Nmesh": 64,
-    "NT": 10,
+    "L": 512, # TODO: should simulate in h-independent units
+    "Npart": 512, 
+    "Ncell": 512, # TODO: default to 2*Npart?
+    "Nstep": 30,
+    #"Npart": 384, 
+    #"Ncell": 768, # TODO: default to 2*Npart?
+    #"NT": 30,
 
     # computational parameters (expensive, for results)
     #"zinit": 30,
     #"L": 350.0,
     #"Npart": 128,
-    #"Nmesh": 128,
+    #"Ncell": 128,
     #"NT": 30,
 }
 #params0["ΩΛ0"] = 1 - params0["Ωb0"] - params0["Ωc0"] - params0["Ωk0"]
@@ -396,13 +467,26 @@ params = params0
 print(f"Params: {params0}")
 print(f"MD5: {dicthash(params0)}")
 
-sim = JBDSimulation(params)
-print(f"ΩΛ0 = {sim.ΩΛ0()}")
-print(f"Φini = {sim.Φini()}")
-print(f"h = {sim.h()}")
+#sim = JBDSimulation(params)
+#print(f"ΩΛ0 = {sim.ΩΛ0()}")
+#print(f"Φini = {sim.Φini()}")
+#print(f"h = {sim.h()}")
 #sim = GRSimulation(params)
 #k, P, Plin = sim.power_spectrum()
 #plot_power_spectrum("plots/power_spectrum.pdf", k, [P, Plin], ["full (\"Pcb\")", "linear (\"Pcb_linear\")"])
+
+# convergence plots                                                fiducial: ↓↓↓
+# TODO: plot convergence of P/P instead (essentially eliminates the ω-dependence)
+# TODO: check that P_BD(w=1e6) → P_GR(H from BD with w=1e6)
+# TODO: add "color grading transformation function"
+plot_convergence("plots/convergence_Npart.pdf", params0, "Npart", (256, 384, 512, 768, 1024), colorfunc=lambda x:  np.log2(x),                  labelfunc=lambda Npart: f"$N_\mathrm{{part}} = {Npart}$")
+plot_convergence("plots/convergence_Ncell.pdf", params0, "Ncell", (256, 384, 512, 768, 1024), colorfunc=lambda x:  np.log2(x),                  labelfunc=lambda Ncell: f"$N_\mathrm{{cell}} = {Ncell}$")
+plot_convergence("plots/convergence_L.pdf",     params0, "L",     (256, 384, 512, 768, 1024), colorfunc=lambda x: -np.log2(x),                  labelfunc=lambda L:     f"$L = {L} \, \mathrm{{Mpc}}/h$")
+plot_convergence("plots/convergence_Nstep.pdf", params0, "Nstep", ( 10,  20,  30,  40,   50), colorfunc=lambda x: -1 + 2 * (30*x-10) / (50-10), labelfunc=lambda Nstep: f"$N_\mathrm{{step}} = {Nstep}$")
+plot_convergence("plots/convergence_zinit.pdf", params0, "zinit", (           10,  20,   30), colorfunc=lambda x: (10*x-10) / (30-10),          labelfunc=lambda zinit: f"$z_\mathrm{{init}} = {zinit}$")
+#plot_convergence("plots/convergence_Npart.pdf", params0, "Npart", (256, 384, 512, 768))
+#plot_convergence("plots/convergence_Ncell.pdf", params0, "Ncell", (384, 576, 768, 960, 1152)) # (1.0, 1.5, 2.0, 2.5, 3.0) * 384
+#plot_convergence("plots/convergence_NT.pdf", params0, "NT", (10, 20, 30, 40, 50))
 
 #sims = SimulationPair(params)
 #k, Pbd_Pgr = sims.power_spectrum_ratio()
