@@ -29,8 +29,11 @@ args = parser.parse_args()
 COLAEXEC = os.path.abspath(os.path.expanduser(args.FML + "/FML/COLASolver/nbody"))
 CLASSEXEC = os.path.abspath(os.path.expanduser(args.hiclass))
 
+def dictjson(dict, sort=False, unicode=False):
+    return json.dumps(dict, sort_keys=sort, ensure_ascii=not unicode)
+
 def dicthash(dict):
-    return hashlib.md5(json.dumps(dict, sort_keys=True).encode('utf-8')).hexdigest() # https://stackoverflow.com/a/10288255
+    return hashlib.md5(dictjson(dict, sort=True).encode('utf-8')).hexdigest() # https://stackoverflow.com/a/10288255
 
 def luastr(var):
     if isinstance(var, bool):
@@ -41,6 +44,11 @@ def luastr(var):
         return "{" + ", ".join(luastr(el) for el in var) + "}" # Lua uses {} for lists
     else:
         return str(var) # go with python's string representation
+
+def list_simulations():
+    for path in os.scandir("sims/"):
+        if os.path.isdir(path):
+            print(f"{path.name}: {JBDSimulation(path=path.name).params}")
 
 class ParameterSpace:
     def __init__(self, params):
@@ -57,18 +65,24 @@ class ParameterSpace:
         return samples # TODO: pack in dict with param names?
 
 class Simulation:
-    def __init__(self, params):
+    def __init__(self, params=None, path=None):
+        if path is not None:
+            self.directory = "sims/" + path + "/"
+            params = json.loads(self.read_file("parameters.json"))
+            return Simulation.__init__(self, params=params)
+
         self.params = params.copy() # will be modified
         self.name = self.name()
         self.directory = "sims/" + self.name + "/"
         #self.rename_legacy() # TODO: move legacy directory
         #return # TODO: remove
 
-        # initialize simulation, validate input, create working directory
+        # initialize simulation, validate input, create working directory, write parameters
         print(f"Simulating {self.name}:")
         print(self.params)
         self.validate_input()
         os.makedirs(self.directory, exist_ok=True)
+        self.write_file("parameters.json", dictjson(self.params, unicode=True))
 
         # create initial conditions with CLASS, store derived parameters, run COLA simulation
         ks, Ps = self.run_class()
@@ -120,10 +134,7 @@ class Simulation:
 
     # check that the output from CLASS and COLA is consistent
     def validate_output(self):
-        # both CLASS and COLA evolves ϕ from G/G and should agree
-        ϕini1 = self.read_variable("class.log", "phi_ini")
-        ϕini2 = self.read_variable("cola.log", "phi_ini")
-        assert np.isclose(ϕini1, ϕini2), f"Φini1 = {ϕini1} != Φini2 = {ϕini2}"
+        pass
 
     # save a data file associated with the simulation
     def write_data(self, filename, cols, colnames=None):
@@ -143,12 +154,12 @@ class Simulation:
 
     # save a file associated with the simulation
     def write_file(self, filename, string):
-        with open(self.directory + filename, "w") as file:
+        with open(self.directory + filename, "w", encoding="utf-8") as file:
             file.write(string)
 
     # load a file associated with the simulation
     def read_file(self, filename):
-        with open(self.directory + filename, "r") as file:
+        with open(self.directory + filename, "r", encoding="utf-8") as file:
             return file.read()
 
     # read a string like "variable = numerical_value" and return the numerical value
@@ -212,7 +223,7 @@ class Simulation:
     def params_cola(self, seed=1234):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
-            "simulation_boxsize": self.params["L"],
+            "simulation_boxsize": self.params["L"], # TODO: convert to physical (instead of h-based boxsize), since h can differ?
             "simulation_use_cola": True,
             "simulation_use_scaledependent_cola": False, # only relevant with massive neutrinos?
 
@@ -280,7 +291,7 @@ class GRSimulation(Simulation):
             "gravity_model": "GR",
         }
 
-    def   h(self): return params["h"]
+    def   h(self): return self.params["h"]
     def ΩΛ0(self): return self.read_variable("class.log", "Omega_Lambda")
 
 class JBDSimulation(Simulation):
@@ -320,42 +331,53 @@ class JBDSimulation(Simulation):
             "cosmology_JBD_OmegaMNuh2": 0.0,
         }
 
+    def validate_output(self):
+        # both CLASS and COLA evolves ϕ from G/G and should agree
+        Simulation.validate_output(self)
+        ϕini1 = self.read_variable("class.log", "phi_ini")
+        ϕini2 = self.read_variable("cola.log", "phi_ini")
+        #assert np.isclose(ϕini1, ϕini2), f"Φini1 = {ϕini1} != Φini2 = {ϕini2}"
+
     def    h(self): return self.read_data("class_background.dat")[3,-1] * 3e8 / 1e3 / 100 # TODO: could read this in GRSimulation, too
     def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
     def Φini(self): return self.read_variable("class.log", "phi_ini")
 
 class SimulationPair:
-    def __init__(self, params, wGR=1e6):
-        self.sim_gr = JBDSimulation(params | {"wBD": wGR}) # TODO: use JBD with large w, or a proper GR simulation?
-        self.sim_bd = JBDSimulation(params)
+    def __init__(self, sim1, sim2):
+        self.sim1 = sim1
+        self.sim2 = sim2
+
+    #def __init__(self, params, wGR=1e6):
+        #self.sim_gr = JBDSimulation(params | {"wBD": wGR}) # TODO: use JBD with large w, or a proper GR simulation?
+        #self.sim_bd = JBDSimulation(params)
 
     # TODO: how to handle different ks in best way?
     # TODO: more natural (more similar ks) if plotted in normal units (not in h-units)?
     # TODO: for linear, specify exact ks to class?
     def power_spectrum_ratio(self, linear=False):
-        k_gr, P_gr = self.sim_gr.power_spectrum(linear)
-        k_bd, P_bd = self.sim_bd.power_spectrum(linear)
+        k1, P1 = self.sim1.power_spectrum(linear)
+        k2, P2 = self.sim2.power_spectrum(linear)
 
         # TODO: use non-h-units for k, since I am comparing two theories with different h!!!
-        k_gr = k_gr / self.sim_gr.h()
-        k_bd = k_bd / self.sim_bd.h()
-        P_gr = P_gr * self.sim_gr.h()**3
-        P_bd = P_bd * self.sim_bd.h()**3
+        k1 = k1 / self.sim1.h()
+        k2 = k2 / self.sim2.h()
+        P1 = P1 * self.sim1.h()**3
+        P2 = P2 * self.sim2.h()**3
 
-        #assert np.all(np.isclose(k_gr, k_bd, atol=1e-2)), f"simulations output different k-values: max(abs(k1-k2)) = {np.max(np.abs(k_gr-k_bd))}"
-        #k_gr = k_gr / self.sim_gr.h()
-        #k_bd = k_bd / self.sim_bd.h()
-        #k = k_gr
+        #assert np.all(np.isclose(k1, k2, atol=1e-2)), f"simulations output different k-values: max(abs(k1-k2)) = {np.max(np.abs(k1-k2))}"
+        #k1 = k1 / self.sim1.h()
+        #k2 = k2 / self.sim2.h()
+        #k = k1
 
-        #kmin = np.maximum(k_gr[0], k_bd[0])
-        #kmax = np.minimum(k_gr[-1], k_bd[-1])
+        #kmin = np.maximum(k1[0],  k2[0])
+        #kmax = np.minimum(k1[-1], k2[-1])
 
         # get common (average) ks and interpolate P there
-        k = (k_gr + k_bd) / 2
-        P_gr = np.interp(k, k_gr, P_gr)
-        P_bd = np.interp(k, k_bd, P_bd)
+        k = (k1 + k2) / 2
+        P1 = np.interp(k, k1, P1)
+        P2 = np.interp(k, k2, P2)
 
-        return k, P_bd / P_gr
+        return k, P1 / P2
 
 def plot_power_spectrum(filename, ks, Ps, labels):
     fig, ax = plt.subplots()
@@ -434,8 +456,6 @@ params0 = {
     "As":     2.1e-9,
     "ns":     0.965,
 
-    "wBD": 1e3, # for JBD
-
     # computational parameters (cheap, for testing)
     # maximum: Npart = Ncell = 1024, np = 16 (on euclid22-32)
     "zinit": 10,
@@ -454,6 +474,8 @@ params0 = {
     #"Ncell": 128,
     #"NT": 30,
 }
+params0_BD = params0 | {"wBD": 1e3}
+params0_GR = params0 | {"h": 0.67}
 #params0["ΩΛ0"] = 1 - params0["Ωb0"] - params0["Ωc0"] - params0["Ωk0"]
 params_varying = {
     "As": (1e-9, 4e-9),
