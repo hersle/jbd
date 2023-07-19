@@ -245,7 +245,7 @@ class Simulation:
 
             "ic_random_seed": seed,
             "ic_initial_redshift": self.params["zinit"],
-            "ic_nmesh" : self.params["Npart"],
+            "ic_nmesh" : self.params["Ncell"],
             "ic_type_of_input": "powerspectrum", # transferinfofile only relevant with massive neutrinos?
             "ic_input_filename": "power_spectrum_today.dat",
             "ic_input_redshift": 0.0, # TODO: feed initial power spectrum directly instead of backscaling?
