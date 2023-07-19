@@ -86,10 +86,10 @@ class Simulation:
 
         # create initial conditions with CLASS, store derived parameters, run COLA simulation
         ks, Ps = self.run_class()
-        if not "h" in self.params:
-            self.params["h"] = self.h()
         self.params["ΩΛ0"] = self.ΩΛ0()
-        self.run_cola(ks, Ps, np=16)
+        self.params["Ωb0"] = self.params["Ωb0"]
+        self.params["Ωc0"] = self.params["Ωc0"]
+        self.run_cola(ks, Ps, np=1)
 
         # verify successful completion
         assert self.completed()
@@ -182,6 +182,7 @@ class Simulation:
     def params_class(self):
         return {
             # cosmological parameters
+            "h": self.params["h"],
             "Omega_b": self.params["Ωb0"],
             "Omega_cdm": self.params["Ωc0"],
             "Omega_k": self.params["Ωk0"],
@@ -303,7 +304,6 @@ class JBDSimulation(Simulation):
 
     def validate_input(self):
         Simulation.validate_input(self)
-        assert "h" not in self.params, "derived parameter h is specified"
 
     def params_class(self):
         return Simulation.params_class(self) | { # combine dictionaries
@@ -324,11 +324,10 @@ class JBDSimulation(Simulation):
             "cosmology_h": self.params["h"], # h is a derived quantity in JBD cosmology, but FML needs arbitrary nonzero value for initial calculations. still, set it to h we get from class, because FML uses this value to convert power spectrum in h-units to non-h-units
             "cosmology_JBD_wBD": self.params["wBD"],
             "cosmology_JBD_GeffG_today": 1.0, # TODO: vary
-            "cosmology_JBD_Omegabh2": self.params["Ωb0"] * self.params["h"]**2,
-            "cosmology_JBD_OmegaCDMh2": self.params["Ωc0"] * self.params["h"]**2,
-            "cosmology_JBD_OmegaLambdah2": self.params["ΩΛ0"] * self.params["h"]**2,
-            "cosmology_JBD_OmegaKh2": self.params["Ωk0"] * self.params["h"]**2,
-            "cosmology_JBD_OmegaMNuh2": 0.0,
+            "cosmology_Omegab": self.params["Ωb0"],
+            "cosmology_OmegaCDM": self.params["Ωc0"],
+            "cosmology_OmegaK": self.params["Ωk0"],
+            "cosmology_OmegaMNu": 0.0,
         }
 
     def validate_output(self):
@@ -338,7 +337,7 @@ class JBDSimulation(Simulation):
         ϕini2 = self.read_variable("cola.log", "phi_ini")
         #assert np.isclose(ϕini1, ϕini2), f"Φini1 = {ϕini1} != Φini2 = {ϕini2}"
 
-    def    h(self): return self.read_data("class_background.dat")[3,-1] * 3e8 / 1e3 / 100 # TODO: could read this in GRSimulation, too
+    # derived parameters
     def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
     def Φini(self): return self.read_variable("class.log", "phi_ini")
 
@@ -445,8 +444,7 @@ def plot_convergence(filename, params0, varparam, vals, plot_linear=True, colorf
     fig.savefig(filename)
 
 params0 = {
-    # physical parameters
-    #"h":      0.67,
+    "h":      0.67,
     "Ωb0":    0.05,
     "Ωc0":    0.267,
     "Ωk0":    0.0,
