@@ -87,8 +87,6 @@ class Simulation:
         # create initial conditions with CLASS, store derived parameters, run COLA simulation
         ks, Ps = self.run_class()
         self.params["ΩΛ0"] = self.ΩΛ0()
-        self.params["Ωb0"] = self.params["Ωb0"]
-        self.params["Ωc0"] = self.params["Ωc0"]
         self.run_cola(ks, Ps, np=1)
 
         # verify successful completion
@@ -382,7 +380,7 @@ class JBDSimulation(Simulation):
         # Compare E = H/H0
         H_class = bg_class[3]
         E_class = H_class / H_class[-1] # E = H/H0 (assuming final value is at a=1)
-        E_cola  = bg_cola[1,:]
+        E_cola  = bg_cola[1]
         check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)", rtol=1e-4)
 
         # Compare ϕ
@@ -394,7 +392,7 @@ class JBDSimulation(Simulation):
         dϕ_dη_class       = bg_class[26]
         dlogϕ_dloga_class = dϕ_dη_class / ϕ_class / (H_class * a_class)
         dlogϕ_dloga_cola  = bg_cola[10]
-        check_values_are_close(dlogϕ_dloga_class[:], dlogϕ_dloga_cola[:], a_class[:], a_cola[:], name="dlogϕ/dloga", atol=1e-4, plot=True)
+        check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4, plot=True)
 
         # Compare ΩΛ0
         ΩΛ0_class = self.read_variable("class.log", "Lambda")
@@ -521,20 +519,10 @@ params0 = {
     # computational parameters (cheap, for testing)
     # maximum: Npart = Ncell = 1024, np = 16 (on euclid22-32)
     "zinit": 10,
-    "L": 512, # TODO: should simulate in h-independent units
+    "L": 512,
     "Npart": 512,
     "Ncell": 512,
     "Nstep": 30,
-    #"Npart": 384, 
-    #"Ncell": 768, # TODO: default to 2*Npart?
-    #"NT": 30,
-
-    # computational parameters (expensive, for results)
-    #"zinit": 30,
-    #"L": 350.0,
-    #"Npart": 128,
-    #"Ncell": 128,
-    #"NT": 30,
 }
 params0_BD = params0 | {"wBD": 1e3}
 params0_GR = params0 | {"h": 0.67}
@@ -545,11 +533,14 @@ params_varying = {
     "μ0": (-1.0, +1.0),
 }
 
-paramspace = ParameterSpace(params_varying)
-params = params0
+# TODO: split up into different "run files"
 
-print(f"Params: {params0}")
-print(f"MD5: {dicthash(params0)}")
+# List simulations
+#list_simulations()
+#exit()
+
+#paramspace = ParameterSpace(params_varying)
+#params = params0
 
 # Check that CLASS and COLA outputs consistent background cosmology parameters
 # for a "non-standard" JBD cosmology with small wBD and Geff/G != 1
