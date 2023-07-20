@@ -331,11 +331,56 @@ class JBDSimulation(Simulation):
         }
 
     def validate_output(self):
-        # both CLASS and COLA evolves ϕ from G/G and should agree
-        Simulation.validate_output(self)
-        ϕini1 = self.read_variable("class.log", "phi_ini")
-        ϕini2 = self.read_variable("cola.log", "phi_ini")
-        #assert np.isclose(ϕini1, ϕini2), f"Φini1 = {ϕini1} != Φini2 = {ϕini2}"
+        Simulation.validate_output(self) # do any validation in parent class
+
+        # Utility function for verifying that two quantities q1 and q2 are (almost) the same
+        def check_values_are_close(q1, q2, a1=None, a2=None, name="", tol=1e-4, verbose=True):
+            if isinstance(q1, np.ndarray) and isinstance(q2, np.ndarray):
+                # If q1 and q2 are function values at a1 and a2,
+                # first interpolate them to common values of a
+                # and compare them there
+                if a1 is not None and a2 is not None:
+                    a = a1 if np.min(a1) > np.min(a2) else a2 # for the comparison, use largest a-values
+                    q1 = np.interp(a, a1, q1)
+                    q2 = np.interp(a, a2, q2)
+
+                # If q1 and q2 are function values (now at common a1=a2=a),
+                # pick out scalars for which the deviation is greatest
+                i = np.argmax(np.abs(q1/q2 - 1))
+                q1 = q1[i]
+                q2 = q2[i]
+
+            are_close = np.abs(q1/q2 - 1) < tol
+            if verbose:
+                print(f"{name}_class = {q1:e}")
+                print(f"{name}_cola  = {q2:e}")
+                print(f"abs({name}_class/{name}_cola - 1) = {abs(q1/q2 - 1):.2e} {'<' if are_close else '>'} {tol:.1e} ({'PASS' if are_close else 'FAIL'})")
+            assert are_close, "abs(class_{name}/cola_{name} - 1) > {tol:.1e}"
+
+        print("Checking consistency between quantities computed separately by CLASS and COLA/FML:")
+
+        ϕ_ini_class = self.read_variable("class.log", "phi_ini")
+        ϕ_ini_cola  = self.read_variable("cola.log", "phi_ini          ", between=" : ")
+        check_values_are_close(ϕ_ini_class, ϕ_ini_cola, name="ϕ_ini")
+
+        # TODO: check intermediate ϕ?
+
+        ϕ_today_class = self.read_variable("class.log", "phi_0")
+        ϕ_today_cola  = self.read_variable("cola.log", "that gives phi_today")
+        check_values_are_close(ϕ_today_class, ϕ_today_cola, name="ϕ0")
+
+        ΩΛ0_class = self.read_variable("class.log", "Lambda")
+        ΩΛ0_cola  = self.read_variable("cola.log", "OmegaLambda      ", between=" : ")
+        check_values_are_close(ΩΛ0_class, ΩΛ0_cola, name="ΩΛ0")
+
+        bg_class = self.read_data("class_background.dat")
+        bg_cola  = self.read_data(f"cosmology_{self.name}.txt")
+        a_class  = 1 / (1 + bg_class[0])
+        a_cola   = bg_cola[0]
+
+        E_class  = bg_class[3,:] / bg_class[3,-1] # E = H/H0
+        E_cola  = bg_cola[1,:]
+        check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)")
 
     # derived parameters
     def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
