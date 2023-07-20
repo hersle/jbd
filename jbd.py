@@ -312,7 +312,7 @@ class JBDSimulation(Simulation):
             "Omega_fld": 0, # no dark energy fluid
             "Omega_smg": -1, # automatic modified gravity
             "parameters_smg": f"NaN, {self.params['wBD']}, 1, 0", # Λ (in JBD potential?), ωBD, Φini (guess), Φ′ini≈0 (fixed)
-            "M_pl_today_smg": 1.0, # TODO: vary G/G
+            "M_pl_today_smg": (4+2*self.params["wBD"])/(3+2*self.params["wBD"]) / self.params["Geff/G"],
             "a_min_stability_test_smg": 1e-6, # BD has early-time instability, so lower tolerance to pass stability checker
             "write background": "yes",
         }
@@ -323,7 +323,7 @@ class JBDSimulation(Simulation):
             "cosmology_model": "JBD",
             "cosmology_h": self.params["h"], # h is a derived quantity in JBD cosmology, but FML needs arbitrary nonzero value for initial calculations. still, set it to h we get from class, because FML uses this value to convert power spectrum in h-units to non-h-units
             "cosmology_JBD_wBD": self.params["wBD"],
-            "cosmology_JBD_GeffG_today": 1.0, # TODO: vary
+            "cosmology_JBD_GeffG_today": self.params["Geff/G"],
             "cosmology_Omegab": self.params["Ωb0"],
             "cosmology_OmegaCDM": self.params["Ωc0"],
             "cosmology_OmegaK": self.params["Ωk0"],
