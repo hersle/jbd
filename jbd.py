@@ -78,8 +78,8 @@ class Simulation:
         #return # TODO: remove
 
         # initialize simulation, validate input, create working directory, write parameters
-        print(f"Simulating {self.name}:")
-        print(self.params)
+        print(f"Simulating {self.name} with independent parameters:")
+        print("\n".join(f"{param} = {self.params[param]}" for param in sorted(self.params)))
         self.validate_input()
         os.makedirs(self.directory, exist_ok=True)
         self.write_file("parameters.json", dictjson(self.params, unicode=True))
@@ -166,7 +166,7 @@ class Simulation:
     def read_variable(self, filename, variable, between=" = "):
         pattern = variable + between + r"([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)" # e.g. "var = 1.2e-34"
         matches = re.findall(pattern, self.read_file(filename))
-        assert len(matches) == 1
+        assert len(matches) == 1, f"found {len(matches)} != 1 matches: {matches}"
         return float(matches[0][0])
 
     # run a command in the simulation's directory
@@ -308,7 +308,7 @@ class JBDSimulation(Simulation):
     def params_class(self):
         return Simulation.params_class(self) | { # combine dictionaries
             "gravity_model": "brans_dicke", # select JBD gravity
-            "Omega_Lambda": 0, # rather include Λ through potential term
+            "Omega_Lambda": 0, # rather include Λ through potential term (first entry in parameters_smg)
             "Omega_fld": 0, # no dark energy fluid
             "Omega_smg": -1, # automatic modified gravity
             "parameters_smg": f"NaN, {self.params['wBD']}, 1, 0", # Λ (in JBD potential?), ωBD, Φini (guess), Φ′ini≈0 (fixed)
@@ -503,8 +503,8 @@ params0 = {
     # maximum: Npart = Ncell = 1024, np = 16 (on euclid22-32)
     "zinit": 10,
     "L": 512, # TODO: should simulate in h-independent units
-    "Npart": 512, 
-    "Ncell": 512, # TODO: default to 2*Npart?
+    "Npart": 512,
+    "Ncell": 512,
     "Nstep": 30,
     #"Npart": 384, 
     #"Ncell": 768, # TODO: default to 2*Npart?
