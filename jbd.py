@@ -355,7 +355,7 @@ class JBDSimulation(Simulation):
                 print(f"{name}_class = {q1:e}")
                 print(f"{name}_cola  = {q2:e}")
                 print(f"abs({name}_class/{name}_cola - 1) = {abs(q1/q2 - 1):.2e} {'<' if are_close else '>'} {tol:.1e} ({'PASS' if are_close else 'FAIL'})")
-            assert are_close, "abs(class_{name}/cola_{name} - 1) > {tol:.1e}"
+            assert are_close, f"abs(class_{name}/cola_{name} - 1) > {tol:.1e}"
 
         print("Checking consistency between quantities computed separately by CLASS and COLA/FML:")
 
