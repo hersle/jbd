@@ -551,6 +551,12 @@ params = params0
 print(f"Params: {params0}")
 print(f"MD5: {dicthash(params0)}")
 
+# Check that CLASS and COLA outputs consistent background cosmology parameters
+# for a "non-standard" JBD cosmology with small wBD and Geff/G != 1
+# (using cheap COLA computational parameters, so the simulation finishes near-instantly)
+JBDSimulation(params0 | {"wBD": 50, "Geff/G": 1.1, "Npart": 0, "Ncell": 4, "Nstep": 0, "L": 4})
+exit()
+
 #sim = JBDSimulation(params)
 #print(f"ΩΛ0 = {sim.ΩΛ0()}")
 #print(f"Φini = {sim.Φini()}")
