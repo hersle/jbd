@@ -22,12 +22,12 @@ import matplotlib.pyplot as plt
 from scipy.stats import qmc
 
 parser = argparse.ArgumentParser(prog="jbd.py")
-parser.add_argument("--FML", metavar="path/to/FML", default="./FML")
-parser.add_argument("--hiclass", metavar="path/to/hiclass", default="./hi_class_public/class")
+parser.add_argument("--nbody", metavar="path/to/FML/FML/COLASolver/nbody", default="./FML/FML/COLASolver/nbody")
+parser.add_argument("--class", metavar="path/to/hi_class_public/class", default="./hi_class_public/class")
 args = parser.parse_args()
 
-COLAEXEC = os.path.abspath(os.path.expanduser(args.FML + "/FML/COLASolver/nbody"))
-CLASSEXEC = os.path.abspath(os.path.expanduser(args.hiclass))
+COLAEXEC = os.path.abspath(os.path.expanduser(vars(args)["nbody"]))
+CLASSEXEC = os.path.abspath(os.path.expanduser(vars(args)["class"]))
 
 def dictjson(dict, sort=False, unicode=False):
     return json.dumps(dict, sort_keys=sort, ensure_ascii=not unicode)
