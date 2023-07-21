@@ -122,8 +122,7 @@ class Simulation:
 
         # create initial conditions with CLASS, store derived parameters, run COLA simulation
         ks, Ps = self.run_class()
-        self.params["ΩΛ0"] = self.ΩΛ0()
-        self.run_cola(ks, Ps, np=1)
+        self.run_cola(ks, Ps, np=16)
 
         # verify successful completion
         assert self.completed()
@@ -164,7 +163,7 @@ class Simulation:
 
     # check that the combination of parameters passed to the simulation is allowed
     def validate_input(self):
-        assert "ΩΛ0" not in self.params, "derived parameter ΩΛ0 is specified"
+        assert "ωΛ0" not in self.params, "derived parameter ωΛ0 is specified"
 
     # check that the output from CLASS and COLA is consistent
     def validate_output(self):
@@ -235,9 +234,9 @@ class Simulation:
         return {
             # cosmological parameters
             "h": self.params["h"],
-            "Omega_b": self.params["Ωb0"],
-            "Omega_cdm": self.params["Ωc0"],
-            "Omega_k": self.params["Ωk0"],
+            "Omega_b": self.params["ωb0"] / self.params["h"]**2,
+            "Omega_cdm": self.params["ωc0"] / self.params["h"]**2,
+            "Omega_k": self.params["ωk0"] / self.params["h"]**2,
             "T_cmb": self.params["Tγ0"],
             "N_eff": self.params["Neff"],
             "A_s": self.params["As"],
@@ -281,10 +280,9 @@ class Simulation:
             "simulation_use_cola": True,
             "simulation_use_scaledependent_cola": False, # only relevant with massive neutrinos?
 
-            "cosmology_Omegab": self.params["Ωb0"],
-            "cosmology_OmegaCDM": self.params["Ωc0"],
-            "cosmology_OmegaK": self.params["Ωk0"],
-            "cosmology_OmegaLambda": self.params["ΩΛ0"],
+            "cosmology_Omegab": self.params["ωb0"] / self.params["h"]**2,
+            "cosmology_OmegaCDM": self.params["ωc0"] / self.params["h"]**2,
+            "cosmology_OmegaK": self.params["ωk0"] / self.params["h"]**2,
             "cosmology_Neffective": self.params["Neff"],
             "cosmology_TCMB_kelvin": self.params["Tγ0"],
             "cosmology_As": self.params["As"],
@@ -345,9 +343,6 @@ class GRSimulation(Simulation):
             "gravity_model": "GR",
         }
 
-    def   h(self): return self.params["h"]
-    def ΩΛ0(self): return self.read_variable("class.log", "Omega_Lambda")
-
 class JBDSimulation(Simulation):
     #def name(self):
         #return "JBD_" + Simulation.name(self)
@@ -359,13 +354,14 @@ class JBDSimulation(Simulation):
         Simulation.validate_input(self)
 
     def params_class(self):
+        ω = 10 ** self.params["log10ω"]
         return Simulation.params_class(self) | { # combine dictionaries
             "gravity_model": "brans_dicke", # select JBD gravity
             "Omega_Lambda": 0, # rather include Λ through potential term (first entry in parameters_smg)
             "Omega_fld": 0, # no dark energy fluid
             "Omega_smg": -1, # automatic modified gravity
-            "parameters_smg": f"NaN, {self.params['wBD']}, 1, 0", # Λ (in JBD potential?), ωBD, Φini (guess), Φ′ini≈0 (fixed)
-            "M_pl_today_smg": (4+2*self.params["wBD"])/(3+2*self.params["wBD"]) / self.params["Geff/G"],
+            "parameters_smg": f"NaN, {ω}, 1, 0", # ΩΛ0 (fill with cosmological constant), ω, Φini (arbitrary initial guess), Φ′ini≈0 (fixed)
+            "M_pl_today_smg": (4+2*ω)/(3+2*ω) / self.params["Geff/G"],
             "a_min_stability_test_smg": 1e-6, # BD has early-time instability, so lower tolerance to pass stability checker
             "output_background_smg": 2, # >= 2 needed to output phi to background table (https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/background.c#L3031)
         }
@@ -374,13 +370,9 @@ class JBDSimulation(Simulation):
         return Simulation.params_cola(self) | { # combine dictionaries
             "gravity_model": "JBD",
             "cosmology_model": "JBD",
-            "cosmology_h": self.params["h"], # h is a derived quantity in JBD cosmology, but FML needs arbitrary nonzero value for initial calculations. still, set it to h we get from class, because FML uses this value to convert power spectrum in h-units to non-h-units
-            "cosmology_JBD_wBD": self.params["wBD"],
+            "cosmology_h": self.params["h"],
+            "cosmology_JBD_wBD": 10 ** self.params["log10ω"],
             "cosmology_JBD_GeffG_today": self.params["Geff/G"],
-            "cosmology_Omegab": self.params["Ωb0"],
-            "cosmology_OmegaCDM": self.params["Ωc0"],
-            "cosmology_OmegaK": self.params["Ωk0"],
-            "cosmology_OmegaMNu": 0.0,
         }
 
     def validate_output(self):
@@ -416,7 +408,7 @@ class SimulationPair:
         self.sim2 = sim2
 
     #def __init__(self, params, wGR=1e6):
-        #self.sim_gr = JBDSimulation(params | {"wBD": wGR}) # TODO: use JBD with large w, or a proper GR simulation?
+        #self.sim_gr = JBDSimulation(params | {"log10ω": log10ωGR}) # TODO: use JBD with large w, or a proper GR simulation?
         #self.sim_bd = JBDSimulation(params)
 
     # TODO: how to handle different ks in best way?
@@ -512,28 +504,31 @@ def plot_convergence(filename, params0, varparam, vals, plot_linear=True, colorf
     fig.tight_layout()
     fig.savefig(filename)
 
-params0 = {
-    "h":      0.67,
-    "Ωb0":    0.05,
-    "Ωc0":    0.267,
-    "Ωk0":    0.0,
-    "Tγ0":    2.7255,
-    "Neff":   3.046,
-    "kpivot": 0.05,
-    "As":     2.1e-9,
-    "ns":     0.965,
+# Fiducial parameters
+params0_GR = {
+    "h":      0.68,   # class' default
+    "ωb0":    0.022,  # class' default
+    "ωc0":    0.120,  # class' default
+    "ωk0":    0.0,    # class' default
+    "Tγ0":    2.7255, # class' default
+    "Neff":   3.044,  # class' default # TODO: handled correctly (in COLA)?
+    "kpivot": 0.05,   # class' default
+    "As":     2.1e-9, # class' default
+    "ns":     0.966,  # class' default
 
-    # computational parameters (cheap, for testing)
-    # maximum: Npart = Ncell = 1024, np = 16 (on euclid22-32)
-    "zinit": 10,
-    "L": 512,
+    # computational parameters
+    # maximum: Npart = Ncell = 1024 (with np = 16) (on euclid22-32)
+    "zinit": 10.0,
+    "Nstep": 30,
     "Npart": 512,
     "Ncell": 512,
-    "Nstep": 30,
+    "L": 512.0,
 }
-params0_BD = params0 | {"wBD": 1e3}
-params0_GR = params0 | {"h": 0.67}
-#params0["ΩΛ0"] = 1 - params0["Ωb0"] - params0["Ωc0"] - params0["Ωk0"]
+params0_BD = params0_GR | {
+    "log10ω": 3.0,
+    "Geff/G": 1.0
+}
+
 params_varying = {
     "As": (1e-9, 4e-9),
     "Ωc0": (0.15, 0.35),
@@ -552,7 +547,8 @@ params_varying = {
 # Check that CLASS and COLA outputs consistent background cosmology parameters
 # for a "non-standard" JBD cosmology with small wBD and Geff/G != 1
 # (using cheap COLA computational parameters, so the simulation finishes near-instantly)
-GRSimulation(params0 | {"Npart": 0, "Ncell": 4, "Nstep": 0, "L": 4})
+GRSimulation(params0_GR  | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4})
+JBDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4, "log10ω": 2.0, "Geff/G": 1.1})
 exit()
 JBDSimulation(params0 | {"wBD": 50, "Geff/G": 1.1, "Npart": 0, "Ncell": 4, "Nstep": 0, "L": 4})
 exit()
