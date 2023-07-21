@@ -3,9 +3,9 @@
 # TODO: assert CLASS and COLA gives same field, H, etc.
 # TODO: Omega_fld, Omega_Lambda, V0 fulfills same role by setting cosmo constant
 # TODO: which G is hiclass' density parameters defined with respect to?
-# TODO: look at PPN to understand cosmological (large) -> solar system (small) scales of G in JBD
+# TODO: look at PPN to understand cosmological (large) -> solar system (small) scales of G in BD
 # TODO: example plots, hi-class run: see /mn/stornext/u3/hansw/Herman/WorkingHiClass/plot.py
-# TODO: Hans' FML JBD cosmology has not been tested with G/G != 1 !
+# TODO: Hans' FML BD cosmology has not been tested with G/G != 1 !
 # TODO: compare P(k) with fig. 2 on https://journals.aps.org/prd/pdf/10.1103/PhysRevD.97.023520#page=13
 # TODO: don't output snapshot
 
@@ -84,7 +84,7 @@ def check_values_are_close(q1, q2, a1=None, a2=None, name="", atol=0, rtol=0, ve
 def list_simulations():
     for path in os.scandir("sims/"):
         if os.path.isdir(path):
-            print(f"{path.name}: {JBDSimulation(path=path.name).params}")
+            print(f"{path.name}: {BDSimulation(path=path.name).params}")
 
 class ParameterSpace:
     def __init__(self, params):
@@ -258,7 +258,7 @@ class Simulation:
         }
 
     # run CLASS and return today's matter power spectrum
-    # TODO: use hi_class for generating JBD initial conditions?
+    # TODO: use hi_class for generating BD initial conditions?
     # TODO: which k-values to choose? see https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/explanatory.ini#L1102
     def run_class(self, input="class_input.ini", log="class.log"):
         if not self.completed_class():
@@ -343,12 +343,12 @@ class GRSimulation(Simulation):
             "gravity_model": "GR",
         }
 
-class JBDSimulation(Simulation):
+class BDSimulation(Simulation):
     #def name(self):
-        #return "JBD_" + Simulation.name(self)
+        #return "BD_" + Simulation.name(self)
 
     #def names_old(self):
-        #return ["JBD_" + name_old for name_old in Simulation.names_old(self)]
+        #return ["BD_" + name_old for name_old in Simulation.names_old(self)]
 
     def validate_input(self):
         Simulation.validate_input(self)
@@ -356,7 +356,7 @@ class JBDSimulation(Simulation):
     def params_class(self):
         ω = 10 ** self.params["log10ω"]
         return Simulation.params_class(self) | { # combine dictionaries
-            "gravity_model": "brans_dicke", # select JBD gravity
+            "gravity_model": "brans_dicke", # select BD gravity
             "Omega_Lambda": 0, # rather include Λ through potential term (first entry in parameters_smg)
             "Omega_fld": 0, # no dark energy fluid
             "Omega_smg": -1, # automatic modified gravity
@@ -408,8 +408,8 @@ class SimulationPair:
         self.sim2 = sim2
 
     #def __init__(self, params, wGR=1e6):
-        #self.sim_gr = JBDSimulation(params | {"log10ω": log10ωGR}) # TODO: use JBD with large w, or a proper GR simulation?
-        #self.sim_bd = JBDSimulation(params)
+        #self.sim_gr = BDSimulation(params | {"log10ω": log10ωGR}) # TODO: use BD with large w, or a proper GR simulation?
+        #self.sim_bd = BDSimulation(params)
 
     # TODO: how to handle different ks in best way?
     # TODO: more natural (more similar ks) if plotted in normal units (not in h-units)?
@@ -449,7 +449,7 @@ def plot_power_spectrum(filename, ks, Ps, labels):
     fig.savefig(filename)
     print(f"Plotted {filename}")
 
-def plot_power_spectrum_ratio(filename, k, P1P2s, labels, ylabel=r"$P_\mathrm{JBD} / P_\mathrm{\Lambda CDM}$"):
+def plot_power_spectrum_ratio(filename, k, P1P2s, labels, ylabel=r"$P_\mathrm{BD} / P_\mathrm{GR}$"):
     fig, ax = plt.subplots()
     ax.set_xlabel("$\log_{10} [k / (h/Mpc)]$")
     ax.set_ylabel(ylabel)
@@ -545,15 +545,37 @@ params_varying = {
 #params = params0
 
 # Check that CLASS and COLA outputs consistent background cosmology parameters
-# for a "non-standard" JBD cosmology with small wBD and Geff/G != 1
+# for a "non-standard" BD cosmology with small wBD and Geff/G != 1
 # (using cheap COLA computational parameters, so the simulation finishes near-instantly)
-GRSimulation(params0_GR  | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4})
-JBDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4, "log10ω": 2.0, "Geff/G": 1.1})
-exit()
-JBDSimulation(params0 | {"wBD": 50, "Geff/G": 1.1, "Npart": 0, "Ncell": 4, "Nstep": 0, "L": 4})
+GRSimulation(params0_GR | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4})
+BDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4, "log10ω": 2.0, "Geff/G": 1.1})
 exit()
 
-#sim = JBDSimulation(params)
+#BDSimulation(params0_BD)
+#GRSimulation(params0_GR)
+#exit()
+
+# TODO: test that P_BD(ω→∞, Geff/G = 1.0) / P_GR() = 1
+fig, ax = plt.subplots()
+winf = 1e7
+sim1 = BDSimulation(params0 | {"log10ω": 2.0})
+print("h1 =", sim1.h())
+exit()
+sim2 = BDSimulation(params0 | {"log10ω": 6.0})
+print("h2 =", sim2.h())
+sim3 = GRSimulation(params0 | {"h": sim1.h()})
+sim4 = GRSimulation(params0 | {"h": sim2.h()})
+sims = SimulationPair(sim3, sim4)
+k, P1P2 = sims.power_spectrum_ratio()
+ax.plot(k, P1P2)
+ax.set_ylim(0.999, 1.001)
+ax.set_yticks(np.linspace(0.999, 1.001, 21))
+ax.set_xlabel(r"$k / (\mathrm{Mpc}/h)$")
+ax.set_ylabel(r"$P_{\mathrm{BD}(\omega=10^6)} / P_{\mathrm{GR}(h)}$")
+fig.savefig("plots/bd_vs_gr.pdf")
+exit()
+
+#sim = BDSimulation(params)
 #print(f"ΩΛ0 = {sim.ΩΛ0()}")
 #print(f"Φini = {sim.Φini()}")
 #print(f"h = {sim.h()}")
