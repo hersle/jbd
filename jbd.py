@@ -45,6 +45,42 @@ def luastr(var):
     else:
         return str(var) # go with python's string representation
 
+# Utility function for verifying that two quantities q1 and q2 are (almost) the same
+def check_values_are_close(q1, q2, a1=None, a2=None, name="", atol=0, rtol=0, verbose=True, plot=False):
+    are_arrays = isinstance(q1, np.ndarray) and isinstance(q2, np.ndarray)
+    if are_arrays:
+        # If q1 and q2 are function values at a1 and a2,
+        # first interpolate them to common values of a
+        # and compare them there
+        if a1 is not None and a2 is not None:
+            a = a1 if np.min(a1) > np.min(a2) else a2 # for the comparison, use largest a-values
+            q1 = np.interp(a, a1, q1)
+            q2 = np.interp(a, a2, q2)
+
+        if plot: # for debugging
+            plt.plot(np.log10(a), q1)
+            plt.plot(np.log10(a), q2)
+            plt.savefig("check.png")
+
+        # If q1 and q2 are function values (now at common a1=a2=a),
+        # pick out scalars for which the deviation is greatest
+        i = np.argmax(np.abs(q1 - q2))
+        a  = a[i]
+        q1 = q1[i]
+        q2 = q2[i]
+
+    # do same test as np.isclose: https://numpy.org/doc/stable/reference/generated/numpy.isclose.html
+    # (use atol != 0 for quantities close to zero, and rtol otherwise)
+    tol = atol + np.abs(q2) * rtol
+    are_close = np.abs(q1 - q2) < tol
+
+    if verbose:
+        print(f"q1 = {name}_class = {q1:e}" + (f" (picked values with greatest difference at a = {a})" if are_arrays else ""))
+        print(f"q2 = {name}_cola  = {q2:e}" + (f" (picked values with greatest difference at a = {a})" if are_arrays else ""))
+        print("^^ PASSED" if are_close else "FAILED", f"test |q1-q2| = {np.abs(q1-q2):.2e} < {tol:.2e} = tol = atol + rtol*|q2| with atol={atol:.1e}, rtol={rtol:.1e}")
+
+    assert are_close, f"{name} is not consistent in CLASS and COLA"
+
 def list_simulations():
     for path in os.scandir("sims/"):
         if os.path.isdir(path):
@@ -132,7 +168,25 @@ class Simulation:
 
     # check that the output from CLASS and COLA is consistent
     def validate_output(self):
-        pass
+        print("Checking consistency between quantities computed separately by CLASS and COLA/FML:")
+
+        # Read background tables and their scale factors (which we use as the free time variable)
+        bg_class = self.read_data("class_background.dat")
+        bg_cola  = self.read_data(f"cosmology_{self.name}.txt")
+        z_class  = bg_class[0]
+        a_class  = 1 / (1 + z_class)
+        a_cola   = bg_cola[0]
+
+        # Compare E = H/H0
+        H_class = bg_class[3]
+        E_class = H_class / H_class[-1] # E = H/H0 (assuming final value is at a=1)
+        E_cola  = bg_cola[1]
+        check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)", rtol=1e-4)
+
+        # Compare ΩΛ0
+        ΩΛ0_class = self.read_variable("class.log", "Lambda")
+        ΩΛ0_cola  = self.read_variable("cola.log", "OmegaLambda      ", between=" : ")
+        check_values_are_close(ΩΛ0_class, ΩΛ0_cola, name="ΩΛ0", rtol=1e-4)
 
     # save a data file associated with the simulation
     def write_data(self, filename, cols, colnames=None):
@@ -192,7 +246,7 @@ class Simulation:
 
             # output control
             "output": "mPk",
-            "output_background_smg": 2, # >= 2 needed to output phi to background table (https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/background.c#L3031)
+            "write background": "yes",
             "root": "class_",
 
             # log verbosity (increase integers to make more talkative)
@@ -313,7 +367,7 @@ class JBDSimulation(Simulation):
             "parameters_smg": f"NaN, {self.params['wBD']}, 1, 0", # Λ (in JBD potential?), ωBD, Φini (guess), Φ′ini≈0 (fixed)
             "M_pl_today_smg": (4+2*self.params["wBD"])/(3+2*self.params["wBD"]) / self.params["Geff/G"],
             "a_min_stability_test_smg": 1e-6, # BD has early-time instability, so lower tolerance to pass stability checker
-            "write background": "yes",
+            "output_background_smg": 2, # >= 2 needed to output phi to background table (https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/background.c#L3031)
         }
 
     def params_cola(self):
@@ -332,44 +386,6 @@ class JBDSimulation(Simulation):
     def validate_output(self):
         Simulation.validate_output(self) # do any validation in parent class
 
-        # Utility function for verifying that two quantities q1 and q2 are (almost) the same
-        def check_values_are_close(q1, q2, a1=None, a2=None, name="", atol=0, rtol=0, verbose=True, plot=False):
-            are_arrays = isinstance(q1, np.ndarray) and isinstance(q2, np.ndarray)
-            if are_arrays:
-                # If q1 and q2 are function values at a1 and a2,
-                # first interpolate them to common values of a
-                # and compare them there
-                if a1 is not None and a2 is not None:
-                    a = a1 if np.min(a1) > np.min(a2) else a2 # for the comparison, use largest a-values
-                    q1 = np.interp(a, a1, q1)
-                    q2 = np.interp(a, a2, q2)
-
-                if plot: # for debugging
-                    plt.plot(np.log10(a), q1)
-                    plt.plot(np.log10(a), q2)
-                    plt.savefig("check.png")
-
-                # If q1 and q2 are function values (now at common a1=a2=a),
-                # pick out scalars for which the deviation is greatest
-                i = np.argmax(np.abs(q1 - q2))
-                a  = a[i]
-                q1 = q1[i]
-                q2 = q2[i]
-
-            # do same test as np.isclose: https://numpy.org/doc/stable/reference/generated/numpy.isclose.html
-            # (use atol != 0 for quantities close to zero, and rtol otherwise)
-            tol = atol + np.abs(q2) * rtol
-            are_close = np.abs(q1 - q2) < tol
-
-            if verbose:
-                print(f"q1 = {name}_class = {q1:e}" + (f" (picked values with greatest difference at a = {a})" if are_arrays else ""))
-                print(f"q2 = {name}_cola  = {q2:e}" + (f" (picked values with greatest difference at a = {a})" if are_arrays else ""))
-                print("^^ PASSED" if are_close else "FAILED", f"test |q1-q2| = {np.abs(q1-q2):.2e} < {tol:.2e} = tol = atol + rtol*|q2| with atol={atol:.1e}, rtol={rtol:.1e}")
-
-            assert are_close, f"{name} is not consistent in CLASS and COLA"
-
-        print("Checking consistency between quantities computed separately by CLASS and COLA/FML:")
-
         # Read background tables and their scale factors (which we use as the free time variable)
         bg_class = self.read_data("class_background.dat")
         bg_cola  = self.read_data(f"cosmology_{self.name}.txt")
@@ -377,11 +393,7 @@ class JBDSimulation(Simulation):
         a_class  = 1 / (1 + z_class)
         a_cola   = bg_cola[0]
 
-        # Compare E = H/H0
         H_class = bg_class[3]
-        E_class = H_class / H_class[-1] # E = H/H0 (assuming final value is at a=1)
-        E_cola  = bg_cola[1]
-        check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)", rtol=1e-4)
 
         # Compare ϕ
         ϕ_class = bg_class[25]
@@ -393,11 +405,6 @@ class JBDSimulation(Simulation):
         dlogϕ_dloga_class = dϕ_dη_class / ϕ_class / (H_class * a_class)
         dlogϕ_dloga_cola  = bg_cola[10]
         check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4, plot=True)
-
-        # Compare ΩΛ0
-        ΩΛ0_class = self.read_variable("class.log", "Lambda")
-        ΩΛ0_cola  = self.read_variable("cola.log", "OmegaLambda      ", between=" : ")
-        check_values_are_close(ΩΛ0_class, ΩΛ0_cola, name="ΩΛ0", rtol=1e-4)
 
     # derived parameters
     def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
@@ -545,6 +552,8 @@ params_varying = {
 # Check that CLASS and COLA outputs consistent background cosmology parameters
 # for a "non-standard" JBD cosmology with small wBD and Geff/G != 1
 # (using cheap COLA computational parameters, so the simulation finishes near-instantly)
+GRSimulation(params0 | {"Npart": 0, "Ncell": 4, "Nstep": 0, "L": 4})
+exit()
 JBDSimulation(params0 | {"wBD": 50, "Geff/G": 1.1, "Npart": 0, "Ncell": 4, "Nstep": 0, "L": 4})
 exit()
 
