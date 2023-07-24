@@ -440,70 +440,67 @@ class SimulationPair:
 
         return k, P1 / P2
 
-def plot_power_spectrum(filename, ks, Ps, labels):
+def plot_sequence(filename, paramss, labelfunc = lambda params: None, colorfunc = lambda params: "black", plot_linear = True):
     fig, ax = plt.subplots()
-    ax.set_xlabel("$\log_{10} [k / (h/Mpc)]$")
-    ax.set_ylabel("$\log_{10} [P / (Mpc/h)^3]$")
-    for (k, P, label) in zip(ks, Ps, labels):
-        ax.plot(np.log10(k), np.log10(P), label=label)
-    ax.legend()
-    fig.savefig(filename)
-    print(f"Plotted {filename}")
-
-def plot_power_spectrum_ratio(filename, k, P1P2s, labels, ylabel=r"$P_\mathrm{BD} / P_\mathrm{GR}$"):
-    fig, ax = plt.subplots()
-    ax.set_xlabel("$\log_{10} [k / (h/Mpc)]$")
-    ax.set_ylabel(ylabel)
-    ax.set_ylim(0.99, 1.01)
-    ax.axhline(1.0, color="gray", linestyle="dashed")
-    for (P1P2, label) in zip(P1P2s, labels):
-        ax.plot(np.log10(k), P1P2, label=label)
-    ax.legend()
-    fig.savefig(filename)
-    print(f"Plotted {filename}")
-
-def plot_convergence(filename, params0, varparam, vals, plot_linear=True, colorfunc=None, labelfunc=None):
-    val0 = params0[varparam]
-
-    if colorfunc is None:
-        colorfunc = lambda x: x
-    if labelfunc is None:
-        labelfunc = lambda val: f"${varparam} = {val}$"
-
-    fig, ax = plt.subplots()
-    ax.set_xlabel(r"$\lg [k / (1/\mathrm{Mpc})]$")
+    ax.set_xlabel(r"$\lg[k / (1/\mathrm{Mpc})]$")
     ax.set_ylabel(r"$P_\mathrm{BD} / P_\mathrm{GR}$")
-    ax.set_xticks((-2.0, -1.0, 0.0, 1.0))
-    ax.set_yticks(np.linspace(1.000, 1.015, 4)) # TODO: minor ticks?
+
+    dy = 0.05 # spacing between major y ticks
+    ymin = 0.96
+    ymax = 1.0
+    for params_bd in paramss:
+        params_gr = params_bd.copy()
+        del params_gr["log10ω"] # remove BD-specific parameters
+        del params_gr["Geff/G"] # remove BD-specific parameters
+
+        sim_bd = BDSimulation(params_bd)
+        sim_gr = GRSimulation(params_gr)
+        sims   = SimulationPair(sim_bd, sim_gr)
+
+        if plot_linear:
+            k, P1_P2 = sims.power_spectrum_ratio(linear=True)
+            k, P1_P2 = k[k>0.9e-2], P1_P2[k>0.9e-2] # cut away k < 10^-2 / Mpc
+            ax.plot(np.log10(k), P1_P2, linewidth=1, color=colorfunc(params_bd), alpha=0.5, linestyle="dashed", label=None, zorder=1) # TODO: create dashed black dummy legend before/after
+
+        k, P1_P2 = sims.power_spectrum_ratio(linear=False)
+        ax.plot(np.log10(k), P1_P2, linewidth=1, color=colorfunc(params_bd), alpha=1.0, linestyle="solid", label=labelfunc(params_bd), zorder=2)
+
+        ymin = np.minimum(ymin, np.min(P1_P2))
+        ymax = np.maximum(ymax, np.max(P1_P2))
+
+    ymax = np.ceil( np.maximum(ymax, np.max(P1_P2)) / dy) * dy # round to nearest full tick
+    ymin = np.floor(np.minimum(ymin, np.min(P1_P2)) / dy) * dy # round to nearest full tick
+
     ax.set_xlim(-2, +1)
-    ax.set_ylim(1.0, 1.015)
+    ax.set_ylim(ymin, ymax)
+    ax.set_xticks([-2, -1, 0, 1])
+    ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/dy)) + 1))
     ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
-    ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
+    ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(int(np.round(dy / 0.01)))) # one minor tick per 0.01
 
-    cmap = matplotlib.colors.LinearSegmentedColormap.from_list("blueblackred", ["#0000ff", "#000000", "#ff0000"], N=256)
-
-    #ax.axhline(-1.0, linewidth=1, color="gray", linestyle="solid",  label="$P = P_\mathrm{non-linear}$") # dummy for legend
-
-    # plot linear power spectrum (once; not impacted by simulation resolution parameters)
-    if plot_linear:
-        # only once (should be same for the different computational parameters)
-        k, P1_P2 = SimulationPair(params0).power_spectrum_ratio(linear=True)
-        ax.plot(np.log10(k), P1_P2, linewidth=1, color="black", alpha=0.25, linestyle="dashed", label=r"$P = P_\mathrm{linear}$")
-
-    for i, val in enumerate(vals):
-        params = params0 | {varparam: val}
-        sims = SimulationPair(params)
-        is_fiducial = params == params0
-
-        k, P1_P2 = sims.power_spectrum_ratio()
-        label = labelfunc(val) + (" (fiducial)" if is_fiducial else "")
-        ax.plot(np.log10(k), P1_P2, linewidth=1, color=cmap((colorfunc(val/val0) + 1) / 2), linestyle="solid", label=label, zorder=1 if is_fiducial else 0)
-
-    #ax.axhline(1.0, color="gray", linestyle="dashed")
     ax.legend()
     ax.grid()
     fig.tight_layout()
     fig.savefig(filename)
+    print("Plotted", filename)
+
+def plot_convergence(filename, params0, param, vals, **kwargs):
+    val0 = params0[param] # fiducial value of parameter to vary
+    paramss = (params0 | {param: val} for val in vals) # generate all parameter combinations
+
+    def labelfunc(params):
+        return f"{param} = {params[param]}"
+
+    # linear color C = A*v + B so C(v0) = 0.5 (black) and C(vmin) = 0.0 (blue) *or* C(vmax) = 1.0 (red)
+    # (black = neutral = fiducial; red = warm = greater; blue = cold = smaller)
+    cmap = matplotlib.colors.LinearSegmentedColormap.from_list("blueblackred", ["#0000ff", "#000000", "#ff0000"], N=256)
+    def colorfunc(params):
+        val = params[param]
+        A = 0.5 / (np.max(vals) - val0) if np.max(vals) - val0 > val0 - np.min(vals) else 0.5 / (val0 - np.min(vals)) # if/else saturates one end of color spectrum
+        B = 0.5 - A * val0
+        return cmap(A * val + B)
+
+    plot_sequence(filename, paramss, labelfunc, colorfunc, **kwargs)
 
 # Fiducial parameters
 params0_GR = {
