@@ -315,6 +315,7 @@ class Simulation:
             self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
             cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input]
             self.run_command(cmd, log=log, verbose=True)
+            shutil.rmtree(self.directory + f"snapshot_{self.name}_z0.000/") # delete particle data # TODO: delete big snapshot/particle files?
         assert self.completed_cola(), f"ERROR: see {log} for details"
 
     def power_spectrum(self, linear=False):
@@ -355,7 +356,7 @@ class BDSimulation(Simulation):
         Simulation.validate_input(self)
 
     def params_class(self):
-        ω = 10 ** self.params["log10ω"]
+        ω = self.params["ω"]
         return Simulation.params_class(self) | { # combine dictionaries
             "gravity_model": "brans_dicke", # select BD gravity
             "Omega_Lambda": 0, # rather include Λ through potential term (first entry in parameters_smg)
@@ -372,7 +373,7 @@ class BDSimulation(Simulation):
             "gravity_model": "JBD",
             "cosmology_model": "JBD",
             "cosmology_h": self.params["h"],
-            "cosmology_JBD_wBD": 10 ** self.params["log10ω"],
+            "cosmology_JBD_wBD": self.params["ω"],
             "cosmology_JBD_GeffG_today": self.params["Geff/G"],
         }
 
@@ -397,7 +398,7 @@ class BDSimulation(Simulation):
         dϕ_dη_class       = bg_class[26]
         dlogϕ_dloga_class = dϕ_dη_class / ϕ_class / (H_class * a_class)
         dlogϕ_dloga_cola  = bg_cola[10]
-        check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4, plot=True)
+        check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4)
 
     # derived parameters
     def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
@@ -409,7 +410,7 @@ class SimulationPair:
         self.sim2 = sim2
 
     #def __init__(self, params, wGR=1e6):
-        #self.sim_gr = BDSimulation(params | {"log10ω": log10ωGR}) # TODO: use BD with large w, or a proper GR simulation?
+        #self.sim_gr = BDSimulation(params | {"ω": ωGR}) # TODO: use BD with large w, or a proper GR simulation?
         #self.sim_bd = BDSimulation(params)
 
     # TODO: how to handle different ks in best way?
@@ -450,7 +451,7 @@ def plot_sequence(filename, paramss, labelfunc = lambda params: None, colorfunc 
     ymax = 1.0
     for params_bd in paramss:
         params_gr = params_bd.copy()
-        del params_gr["log10ω"] # remove BD-specific parameters
+        del params_gr["ω"] # remove BD-specific parameters
         del params_gr["Geff/G"] # remove BD-specific parameters
 
         sim_bd = BDSimulation(params_bd)
@@ -484,46 +485,54 @@ def plot_sequence(filename, paramss, labelfunc = lambda params: None, colorfunc 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_convergence(filename, params0, param, vals, **kwargs):
-    val0 = params0[param] # fiducial value of parameter to vary
+def plot_convergence(filename, params0, param, vals, lfunc=None, cfunc=None, **kwargs):
     paramss = (params0 | {param: val} for val in vals) # generate all parameter combinations
 
+    if lfunc is None:
+        def lfunc(v):
+            return f"{param} = {v}"
     def labelfunc(params):
-        return f"{param} = {params[param]}"
+        return lfunc(params[param])
 
     # linear color C = A*v + B so C(v0) = 0.5 (black) and C(vmin) = 0.0 (blue) *or* C(vmax) = 1.0 (red)
     # (black = neutral = fiducial; red = warm = greater; blue = cold = smaller)
     cmap = matplotlib.colors.LinearSegmentedColormap.from_list("blueblackred", ["#0000ff", "#000000", "#ff0000"], N=256)
+    if cfunc is None:
+        def cfunc(v):
+            return v # identity
     def colorfunc(params):
-        val = params[param]
-        A = 0.5 / (np.max(vals) - val0) if np.max(vals) - val0 > val0 - np.min(vals) else 0.5 / (val0 - np.min(vals)) # if/else saturates one end of color spectrum
-        B = 0.5 - A * val0
-        return cmap(A * val + B)
+        v    = cfunc(params[param])  # current  (transformed) value
+        v0   = cfunc(params0[param]) # fiducial (transformed) value
+        vmin = np.min(cfunc(vals))   # minimum  (transformed) value
+        vmax = np.max(cfunc(vals))   # maximum  (transformed) value
+        A = 0.5 / (vmax - v0) if vmax - v0 > v0 - vmin else 0.5 / (v0 - vmin) # if/else saturates one end of color spectrum
+        B = 0.5 - A * v0
+        return cmap(A * v + B)
 
     plot_sequence(filename, paramss, labelfunc, colorfunc, **kwargs)
 
 # Fiducial parameters
 params0_GR = {
+    # physical parameters
     "h":      0.68,   # class' default
     "ωb0":    0.022,  # class' default
     "ωc0":    0.120,  # class' default
     "ωk0":    0.0,    # class' default
     "Tγ0":    2.7255, # class' default
-    "Neff":   3.044,  # class' default # TODO: handled correctly (in COLA)?
+    "Neff":   3.044,  # class' default # TODO: handled correctly in COLA?
     "kpivot": 0.05,   # class' default
     "As":     2.1e-9, # class' default
     "ns":     0.966,  # class' default
 
-    # computational parameters
-    # maximum: Npart = Ncell = 1024 (with np = 16) (on euclid22-32)
+    # computational parameters (max on euclid22-32: Npart=Ncell=1024 with np=16 CPUs)
     "zinit": 10.0,
     "Nstep": 30,
     "Npart": 512,
     "Ncell": 512,
-    "L": 512.0,
+    "L":     512.0,
 }
 params0_BD = params0_GR | {
-    "log10ω": 3.0,
+    "ω": 1e2, # lowest value to consider (larger values should only be "easier" to simulate?)
     "Geff/G": 1.0
 }
 
@@ -545,54 +554,26 @@ params_varying = {
 # Check that CLASS and COLA outputs consistent background cosmology parameters
 # for a "non-standard" BD cosmology with small wBD and Geff/G != 1
 # (using cheap COLA computational parameters, so the simulation finishes near-instantly)
-GRSimulation(params0_GR | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4})
-BDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4, "log10ω": 2.0, "Geff/G": 1.1})
-exit()
+#GRSimulation(params0_GR | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4})
+#BDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4, "ω": 1e2, "Geff/G": 1.1})
+#exit()
 
 #BDSimulation(params0_BD)
 #GRSimulation(params0_GR)
 #exit()
 
-# TODO: test that P_BD(ω→∞, Geff/G = 1.0) / P_GR() = 1
-fig, ax = plt.subplots()
-winf = 1e7
-sim1 = BDSimulation(params0 | {"log10ω": 2.0})
-print("h1 =", sim1.h())
-exit()
-sim2 = BDSimulation(params0 | {"log10ω": 6.0})
-print("h2 =", sim2.h())
-sim3 = GRSimulation(params0 | {"h": sim1.h()})
-sim4 = GRSimulation(params0 | {"h": sim2.h()})
-sims = SimulationPair(sim3, sim4)
-k, P1P2 = sims.power_spectrum_ratio()
-ax.plot(k, P1P2)
-ax.set_ylim(0.999, 1.001)
-ax.set_yticks(np.linspace(0.999, 1.001, 21))
-ax.set_xlabel(r"$k / (\mathrm{Mpc}/h)$")
-ax.set_ylabel(r"$P_{\mathrm{BD}(\omega=10^6)} / P_{\mathrm{GR}(h)}$")
-fig.savefig("plots/bd_vs_gr.pdf")
-exit()
-
-#sim = BDSimulation(params)
-#print(f"ΩΛ0 = {sim.ΩΛ0()}")
-#print(f"Φini = {sim.Φini()}")
-#print(f"h = {sim.h()}")
-#sim = GRSimulation(params)
-#k, P, Plin = sim.power_spectrum()
-#plot_power_spectrum("plots/power_spectrum.pdf", k, [P, Plin], ["full (\"Pcb\")", "linear (\"Pcb_linear\")"])
-
-# convergence plots                                                fiducial: ↓↓↓
+# Convergence plots                                                fiducial: ↓↓↓
 # TODO: plot convergence of P/P instead (essentially eliminates the ω-dependence)
 # TODO: check that P_BD(w=1e6) → P_GR(H from BD with w=1e6)
 # TODO: add "color grading transformation function"
-plot_convergence("plots/convergence_Npart.pdf", params0, "Npart", (256, 384, 512, 768, 1024), colorfunc=lambda x:  np.log2(x),                  labelfunc=lambda Npart: f"$N_\mathrm{{part}} = {Npart}$")
-plot_convergence("plots/convergence_Ncell.pdf", params0, "Ncell", (256, 384, 512, 768, 1024), colorfunc=lambda x:  np.log2(x),                  labelfunc=lambda Ncell: f"$N_\mathrm{{cell}} = {Ncell}$")
-plot_convergence("plots/convergence_L.pdf",     params0, "L",     (256, 384, 512, 768, 1024), colorfunc=lambda x: -np.log2(x),                  labelfunc=lambda L:     f"$L = {L} \, \mathrm{{Mpc}}/h$")
-plot_convergence("plots/convergence_Nstep.pdf", params0, "Nstep", ( 10,  20,  30,  40,   50), colorfunc=lambda x: -1 + 2 * (30*x-10) / (50-10), labelfunc=lambda Nstep: f"$N_\mathrm{{step}} = {Nstep}$")
-plot_convergence("plots/convergence_zinit.pdf", params0, "zinit", (           10,  20,   30), colorfunc=lambda x: (10*x-10) / (30-10),          labelfunc=lambda zinit: f"$z_\mathrm{{init}} = {zinit}$")
-#plot_convergence("plots/convergence_Npart.pdf", params0, "Npart", (256, 384, 512, 768))
-#plot_convergence("plots/convergence_Ncell.pdf", params0, "Ncell", (384, 576, 768, 960, 1152)) # (1.0, 1.5, 2.0, 2.5, 3.0) * 384
-#plot_convergence("plots/convergence_NT.pdf", params0, "NT", (10, 20, 30, 40, 50))
+plot_convergence("plots/convergence_omega.pdf", params0_BD, "ω",      [1e2, 1e3, 1e4, 1e5], lfunc=lambda ω: f"$\omega = 10^{{{np.log10(ω):.0f}}}$", cfunc=lambda ω: np.log10(ω))
+plot_convergence("plots/convergence_Geff.pdf",  params0_BD, "Geff/G", [0.95, 1.0, 1.05],    lfunc=lambda Geff_G: f"$G_\mathrm{{eff}}/G = {Geff_G:.02f}$")
+plot_convergence("plots/convergence_L.pdf",     params0_BD, "L",      [256.0, 384.0, 512.0, 768.0, 1024.0])
+plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024])
+plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024])
+plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50])
+plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0])
+exit()
 
 #sims = SimulationPair(params)
 #k, Pbd_Pgr = sims.power_spectrum_ratio()
