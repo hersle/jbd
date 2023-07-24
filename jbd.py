@@ -247,6 +247,7 @@ class Simulation:
             "output": "mPk",
             "write background": "yes",
             "root": "class_",
+            "P_k_max_1/Mpc": 11.0, # output linear power spectrum to fill my plots
 
             # log verbosity (increase integers to make more talkative)
             "input_verbose": 10,
