@@ -420,14 +420,14 @@ class SimulationPair:
         k2, P2 = self.sim2.power_spectrum(linear)
 
         # TODO: use non-h-units for k, since I am comparing two theories with different h!!!
-        k1 = k1 / self.sim1.h()
-        k2 = k2 / self.sim2.h()
-        P1 = P1 * self.sim1.h()**3
-        P2 = P2 * self.sim2.h()**3
+        k1 = k1 / self.sim1.params["h"]
+        k2 = k2 / self.sim2.params["h"]
+        P1 = P1 * self.sim1.params["h"]**3
+        P2 = P2 * self.sim2.params["h"]**3
 
         #assert np.all(np.isclose(k1, k2, atol=1e-2)), f"simulations output different k-values: max(abs(k1-k2)) = {np.max(np.abs(k1-k2))}"
-        #k1 = k1 / self.sim1.h()
-        #k2 = k2 / self.sim2.h()
+        #k1 = k1 / self.sim1.params["h"]
+        #k2 = k2 / self.sim2.params["h"]
         #k = k1
 
         #kmin = np.maximum(k1[0],  k2[0])
