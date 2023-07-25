@@ -329,7 +329,9 @@ class Simulation:
             assert self.completed_cola()
             data = self.read_data(f"pofk_{self.name}_cb_z0.000.txt")
             khs, Phs = data[0], data[1]
-        return khs, Phs
+        ks = khs / self.params["h"]
+        Ps = Phs * self.params["h"]**3
+        return ks, Ps
 
 class GRSimulation(Simulation):
     #def name(self):
@@ -420,15 +422,11 @@ class SimulationPair:
         k1, P1 = self.sim1.power_spectrum(linear)
         k2, P2 = self.sim2.power_spectrum(linear)
 
-        # TODO: use non-h-units for k, since I am comparing two theories with different h!!!
-        k1 = k1 / self.sim1.params["h"]
-        k2 = k2 / self.sim2.params["h"]
-        P1 = P1 * self.sim1.params["h"]**3
-        P2 = P2 * self.sim2.params["h"]**3
+        # TODO: why does class output different k?
+        # TODO: fix this and get rid of k interpolation
+        assert linear or np.all(k1 == k2), f"simulations output different k-values: {k1} vs {k2}"
 
         #assert np.all(np.isclose(k1, k2, atol=1e-2)), f"simulations output different k-values: max(abs(k1-k2)) = {np.max(np.abs(k1-k2))}"
-        #k1 = k1 / self.sim1.params["h"]
-        #k2 = k2 / self.sim2.params["h"]
         #k = k1
 
         #kmin = np.maximum(k1[0],  k2[0])
