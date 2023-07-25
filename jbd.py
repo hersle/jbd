@@ -468,10 +468,19 @@ class SimulationGroupPair:
 
         return k, B, ΔB
 
-def plot_sequence(filename, paramss, labelfunc = lambda params: None, colorfunc = lambda params: "black", plot_linear = True):
+def plot_sequence(filename, paramss, nsims, labelfunc = lambda params: None, colorfunc = lambda params: "black", plot_linear = True):
     fig, ax = plt.subplots()
     ax.set_xlabel(r"$\lg[k / (1/\mathrm{Mpc})]$")
-    ax.set_ylabel(r"$P_\mathrm{BD} / P_\mathrm{GR}$")
+    ax.set_ylabel(r"$B = P_\mathrm{BD} / P_\mathrm{GR}$")
+
+    # Dummy legend plot
+    ax2 = ax.twinx() # use invisible twin axis to create second legend
+    ax2.get_yaxis().set_visible(False) # make invisible
+    ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="dashed", linewidth=1, label=r"$P = P_\mathrm{linear}$")
+    ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="solid",  linewidth=1, label=r"$P = \langle P \rangle$")
+    ax2.fill_between([-3, -2], [0, 1], alpha=0.5, color="black", edgecolor=None,                  label=r"$P = \langle P \rangle \pm \Delta P$")
+    ax2.plot(        [-3, -2], [0, 1], alpha=0.0,                                                 label=f"({nsims} realizations)") # invisible (simulate newline)
+    ax2.legend(loc="upper left")
 
     dy = 0.05 # spacing between major y ticks
     ymin = 0.96
@@ -481,15 +490,15 @@ def plot_sequence(filename, paramss, labelfunc = lambda params: None, colorfunc 
         del params_gr["ω"] # remove BD-specific parameters
         del params_gr["Geff/G"] # remove BD-specific parameters
 
-        sims = SimulationGroupPair(BDSimulation, GRSimulation, params_bd, params_gr, 5)
+        sims = SimulationGroupPair(BDSimulation, GRSimulation, params_bd, params_gr, nsims)
 
         if plot_linear:
             k, B, _ = sims.power_spectrum_ratio(linear=True)
             k, B = k[k>0.9e-2], B[k>0.9e-2] # cut away k < 10^-2 / Mpc
-            ax.plot(np.log10(k), B, linewidth=1, color=colorfunc(params_bd), alpha=0.5, linestyle="dashed", label=None, zorder=1) # TODO: create dashed black dummy legend before/after
+            ax.plot(np.log10(k), B, linewidth=1, color=colorfunc(params_bd), alpha=0.5, linestyle="dashed", label=None, zorder=1)
 
         k, B, ΔB = sims.power_spectrum_ratio(linear=False)
-        ax.fill_between(np.log10(k), B-ΔB, B+ΔB, color=colorfunc(params_bd), alpha=0.2, edgecolor=None) # TODO: dummy legend
+        ax.fill_between(np.log10(k), B-ΔB, B+ΔB, color=colorfunc(params_bd), alpha=0.2, edgecolor=None)
         ax.plot(        np.log10(k), B,          color=colorfunc(params_bd), alpha=1.0, linewidth=1, linestyle="solid", label=labelfunc(params_bd), zorder=2)
 
         ymin = np.minimum(ymin, np.min(B))
@@ -505,13 +514,13 @@ def plot_sequence(filename, paramss, labelfunc = lambda params: None, colorfunc 
     ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
     ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(int(np.round(dy / 0.01)))) # one minor tick per 0.01
 
-    ax.legend()
+    ax.legend(loc="upper right")
     ax.grid()
     fig.tight_layout()
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_convergence(filename, params0, param, vals, lfunc=None, cfunc=None, **kwargs):
+def plot_convergence(filename, params0, param, vals, nsims=5, lfunc=None, cfunc=None, **kwargs):
     paramss = (params0 | {param: val} for val in vals) # generate all parameter combinations
 
     if lfunc is None:
@@ -535,7 +544,7 @@ def plot_convergence(filename, params0, param, vals, lfunc=None, cfunc=None, **k
         B = 0.5 - A * v0
         return cmap(A * v + B)
 
-    plot_sequence(filename, paramss, labelfunc, colorfunc, **kwargs)
+    plot_sequence(filename, paramss, nsims, labelfunc, colorfunc, **kwargs)
 
 # Fiducial parameters
 params0_GR = {
