@@ -562,17 +562,20 @@ params_varying = {
 #GRSimulation(params0_GR)
 #exit()
 
-# Convergence plots                                                fiducial: ↓↓↓
-# TODO: plot convergence of P/P instead (essentially eliminates the ω-dependence)
-# TODO: check that P_BD(w=1e6) → P_GR(H from BD with w=1e6)
-# TODO: add "color grading transformation function"
-plot_convergence("plots/convergence_omega.pdf", params0_BD, "ω",      [1e2, 1e3, 1e4, 1e5], lfunc=lambda ω: f"$\omega = 10^{{{np.log10(ω):.0f}}}$", cfunc=lambda ω: np.log10(ω))
-plot_convergence("plots/convergence_Geff.pdf",  params0_BD, "Geff/G", [0.95, 1.0, 1.05],    lfunc=lambda Geff_G: f"$G_\mathrm{{eff}}/G = {Geff_G:.02f}$")
-plot_convergence("plots/convergence_L.pdf",     params0_BD, "L",      [256.0, 384.0, 512.0, 768.0, 1024.0])
-plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024])
-plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024])
-plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50])
-plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0])
+# Convergence plots (computational parameters)
+plot_convergence("plots/convergence_L.pdf",     params0_BD, "L",      [256.0, 384.0, 512.0, 768.0, 1024.0], lfunc=lambda L: f"$L = {L:.0f}\,\mathrm{{Mpc}}$")
+plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           lfunc=lambda Npart: f"$N_\mathrm{{part}} = {Npart}^3$")
+plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           lfunc=lambda Ncell: f"$N_\mathrm{{cell}} = {Ncell}^3$")
+plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 lfunc=lambda Nstep: f"$N_\mathrm{{step}} = {Nstep}$")
+plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   lfunc=lambda zinit: f"$z_\mathrm{{init}} = {zinit:.0f}$")
+
+# Variation plots (cosmological parameters)
+plot_convergence("plots/convergence_omega.pdf",   params0_BD, "ω",      [1e2, 1e3, 1e4, 1e5],               lfunc=lambda ω: f"$\omega = 10^{{{np.log10(ω):.0f}}}$", cfunc=lambda ω: np.log10(ω))
+plot_convergence("plots/convergence_Geff.pdf",    params0_BD, "Geff/G", [0.95, 1.0, 1.05],                  lfunc=lambda Geff_G: f"$G_\mathrm{{eff}}/G = {Geff_G:.02f}$")
+plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],                 lfunc=lambda h: f"$h = {h}$")
+plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],              lfunc=lambda ωb0: f"$\omega_{{b0}} = {ωb0}$")
+plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],              lfunc=lambda ωc0: f"$\omega_{{c0}} = {ωc0}$")
+plot_convergence("plots/convergence_As.pdf",      params0_BD, "As",    [1.6e-9, 2.1e-9, 2.7e-9],            lfunc=lambda As:  f"$A_s = {np.round(As/1e-9, 1)} \cdot 10^{{-9}}$")
 exit()
 
 #sims = SimulationPair(params)
