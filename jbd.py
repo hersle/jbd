@@ -274,7 +274,7 @@ class Simulation:
         return self.power_spectrum(linear=True)
 
     # dictionary of parameters that should be passed to COLA
-    def params_cola(self, seed=1234):
+    def params_cola(self):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
             "simulation_boxsize": self.params["L"], # TODO: convert to physical (instead of h-based boxsize), since h can differ?
@@ -295,7 +295,7 @@ class Simulation:
 
             "timestep_nsteps": [self.params["Nstep"]],
 
-            "ic_random_seed": seed,
+            "ic_random_seed": self.params["seed"],
             "ic_initial_redshift": self.params["zinit"],
             "ic_nmesh" : self.params["Ncell"],
             "ic_type_of_input": "powerspectrum", # transferinfofile only relevant with massive neutrinos?
@@ -406,10 +406,34 @@ class BDSimulation(Simulation):
     def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
     def Φini(self): return self.read_variable("class.log", "phi_ini")
 
-class SimulationPair:
-    def __init__(self, sim1, sim2):
-        self.sim1 = sim1
-        self.sim2 = sim2
+class SimulationGroup:
+    def __init__(self, simtype, params0, nsims):
+        hash = dicthash(params0) # unique hash of base (without seed) simulation parameters
+        hash = int(hash, 16) # convert MD5 hexadecimal (base 16) hash to integer (needed to seed numpy's rng)
+        rng = np.random.default_rng(hash) # deterministic random number generator from simulation parameters
+        seeds = rng.integers(0, 2**31-1, size=nsims, dtype=int) # will be the same for the same simulation parameters
+        seeds = [int(seed) for seed in seeds] # convert to python ints to make compatible with JSON dict hashing
+        self.sims = [simtype(params0 | {"seed": seed}) for seed in seeds] # run simulations with all seeds
+
+    def power_spectrum(self, linear=False):
+        ks, Ps = [], []
+        for sim in self.sims:
+            k, P = sim.power_spectrum(linear=linear)
+            assert len(ks) == 0 or np.all(k == ks[0]), "group simulations output different k"
+            ks.append(k)
+            Ps.append(P)
+
+        k = ks[0] # common wavenumbers for all simulations
+        Ps = np.array(Ps) # 2D numpy array P[i_sim, i_k]
+        P  = np.average(Ps, axis=0) # for each k, compute average            over simulations
+        ΔP = np.std(    Ps, axis=0) # for each k, compute standard deviation over simulations
+        assert not linear or np.all(np.isclose(ΔP, 0.0, rtol=0, atol=1e-12)), "group simulations output different linear power spectra" # linear power spectrum is independent of seeds
+        return k, P, ΔP
+
+class SimulationGroupPair:
+    def __init__(self, simtype1, simtype2, params1, params2, nsims):
+        self.sims1 = SimulationGroup(simtype1, params1, nsims)
+        self.sims2 = SimulationGroup(simtype2, params2, nsims)
 
     #def __init__(self, params, wGR=1e6):
         #self.sim_gr = BDSimulation(params | {"ω": ωGR}) # TODO: use BD with large w, or a proper GR simulation?
@@ -419,8 +443,8 @@ class SimulationPair:
     # TODO: more natural (more similar ks) if plotted in normal units (not in h-units)?
     # TODO: for linear, specify exact ks to class?
     def power_spectrum_ratio(self, linear=False):
-        k1, P1 = self.sim1.power_spectrum(linear)
-        k2, P2 = self.sim2.power_spectrum(linear)
+        k1, P1, ΔP1 = self.sims1.power_spectrum(linear)
+        k2, P2, ΔP2 = self.sims2.power_spectrum(linear)
 
         # TODO: why does class output different k?
         # TODO: fix this and get rid of k interpolation
@@ -432,12 +456,17 @@ class SimulationPair:
         #kmin = np.maximum(k1[0],  k2[0])
         #kmax = np.minimum(k1[-1], k2[-1])
 
-        # get common (average) ks and interpolate P there
-        k = (k1 + k2) / 2
-        P1 = np.interp(k, k1, P1)
-        P2 = np.interp(k, k2, P2)
+        # get common (average) ks and interpolate P there # TODO: avoid with same k?
+        k   = (k1 + k2) / 2
+        P1  = np.interp(k, k1,  P1)
+        P2  = np.interp(k, k2,  P2)
+        ΔP1 = np.interp(k, k1, ΔP1)
+        ΔP2 = np.interp(k, k2, ΔP2)
 
-        return k, P1 / P2
+        B  = P1 / P2
+        ΔB = B * np.sqrt((ΔP1/P1)**2 + (ΔP2/P2)**2) # error propagation: https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Example_formulae TODO: correct error propagation?
+
+        return k, B, ΔB
 
 def plot_sequence(filename, paramss, labelfunc = lambda params: None, colorfunc = lambda params: "black", plot_linear = True):
     fig, ax = plt.subplots()
@@ -452,23 +481,22 @@ def plot_sequence(filename, paramss, labelfunc = lambda params: None, colorfunc 
         del params_gr["ω"] # remove BD-specific parameters
         del params_gr["Geff/G"] # remove BD-specific parameters
 
-        sim_bd = BDSimulation(params_bd)
-        sim_gr = GRSimulation(params_gr)
-        sims   = SimulationPair(sim_bd, sim_gr)
+        sims = SimulationGroupPair(BDSimulation, GRSimulation, params_bd, params_gr, 5)
 
         if plot_linear:
-            k, P1_P2 = sims.power_spectrum_ratio(linear=True)
-            k, P1_P2 = k[k>0.9e-2], P1_P2[k>0.9e-2] # cut away k < 10^-2 / Mpc
-            ax.plot(np.log10(k), P1_P2, linewidth=1, color=colorfunc(params_bd), alpha=0.5, linestyle="dashed", label=None, zorder=1) # TODO: create dashed black dummy legend before/after
+            k, B, _ = sims.power_spectrum_ratio(linear=True)
+            k, B = k[k>0.9e-2], B[k>0.9e-2] # cut away k < 10^-2 / Mpc
+            ax.plot(np.log10(k), B, linewidth=1, color=colorfunc(params_bd), alpha=0.5, linestyle="dashed", label=None, zorder=1) # TODO: create dashed black dummy legend before/after
 
-        k, P1_P2 = sims.power_spectrum_ratio(linear=False)
-        ax.plot(np.log10(k), P1_P2, linewidth=1, color=colorfunc(params_bd), alpha=1.0, linestyle="solid", label=labelfunc(params_bd), zorder=2)
+        k, B, ΔB = sims.power_spectrum_ratio(linear=False)
+        ax.fill_between(np.log10(k), B-ΔB, B+ΔB, color=colorfunc(params_bd), alpha=0.2, edgecolor=None) # TODO: dummy legend
+        ax.plot(        np.log10(k), B,          color=colorfunc(params_bd), alpha=1.0, linewidth=1, linestyle="solid", label=labelfunc(params_bd), zorder=2)
 
-        ymin = np.minimum(ymin, np.min(P1_P2))
-        ymax = np.maximum(ymax, np.max(P1_P2))
+        ymin = np.minimum(ymin, np.min(B))
+        ymax = np.maximum(ymax, np.max(B))
 
-    ymax = np.ceil( np.maximum(ymax, np.max(P1_P2)) / dy) * dy # round to nearest full tick
-    ymin = np.floor(np.minimum(ymin, np.min(P1_P2)) / dy) * dy # round to nearest full tick
+    ymax = np.ceil( np.maximum(ymax, np.max(B)) / dy) * dy # round to nearest full tick
+    ymin = np.floor(np.minimum(ymin, np.min(B)) / dy) * dy # round to nearest full tick
 
     ax.set_xlim(-2, +1)
     ax.set_ylim(ymin, ymax)
