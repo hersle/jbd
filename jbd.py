@@ -121,8 +121,8 @@ class Simulation:
         self.write_file("parameters.json", dictjson(self.params, unicode=True))
 
         # create initial conditions with CLASS, store derived parameters, run COLA simulation
-        ks, Ps = self.run_class()
-        self.run_cola(ks, Ps, np=16)
+        k, P = self.run_class()
+        self.run_cola(k, P, np=16)
 
         # verify successful completion
         assert self.completed()
@@ -271,7 +271,7 @@ class Simulation:
         # get output power spectrum (COLA needs class' output power spectrum, just without comments)
         # TODO: which h does hiclass use here?
         # TODO: set the "non-used" h = 1.0 to avoid division?
-        return self.power_spectrum(linear=True)
+        return self.power_spectrum(linear=True, hunits=True) # COLA wants power spectrum in h units
 
     # dictionary of parameters that should be passed to COLA
     def params_cola(self):
@@ -318,20 +318,20 @@ class Simulation:
             shutil.rmtree(self.directory + f"snapshot_{self.name}_z0.000/") # delete particle data # TODO: delete big snapshot/particle files?
         assert self.completed_cola(), f"ERROR: see {log} for details"
 
-    def power_spectrum(self, linear=False):
+    def power_spectrum(self, linear=False, hunits=False):
         if linear:
             assert self.completed_class()
-            khs, Phs = self.read_data("class_pk.dat") # k / (h/Mpc); P / (Mpc/h)^3 (in "h-units")
+            data = self.read_data("class_pk.dat")
         else:
-            # pk: "total matter"
-            # pk_cb: "cdm+b"
-            # pk_lin: "total matter" (linear?)
             assert self.completed_cola()
-            data = self.read_data(f"pofk_{self.name}_cb_z0.000.txt")
-            khs, Phs = data[0], data[1]
-        ks = khs / self.params["h"]
-        Ps = Phs * self.params["h"]**3
-        return ks, Ps
+            data = self.read_data(f"pofk_{self.name}_cb_z0.000.txt") # pk: "total matter"; pk_cb: "cdm+b"; pk_lin: "total matter" (linear?)
+
+        k, P = data[0], data[1] # k / (h/Mpc); P / (Mpc/h)^3 (in "h-units", common to CLASS and COLA)
+        if not hunits:
+            k = k / self.params["h"]    # k / Mpc
+            P = P * self.params["h"]**3 # P / Mpc^3
+
+        return k, P
 
 class GRSimulation(Simulation):
     #def name(self):
