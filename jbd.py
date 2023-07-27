@@ -81,6 +81,13 @@ def check_values_are_close(q1, q2, a1=None, a2=None, name="", atol=0, rtol=0, ve
 
     assert are_close, f"{name} is not consistent in CLASS and COLA"
 
+# propagate error in f(x1, x2, ...) given
+# * df_dx = [df_dx1, df_dx2, ...] (list of numbers): derivatives df/dxi evaluated at mean x
+# * xs    = [x1s,    x2s,    ...] (list of lists of numbers): list of observations xis for each variable xi
+# (see e.g. https://veritas.ucd.ie/~apl/labs_master/docs/2020/DA/Matrix-Methods-for-Error-Propagation.pdf)
+def propagate_error(df_dx, xs):
+    return np.sqrt(np.transpose(df_dx) @ np.cov(xs) @ df_dx)
+
 def list_simulations():
     for path in os.scandir("sims/"):
         if os.path.isdir(path):
@@ -415,18 +422,25 @@ class SimulationGroup:
         seeds = [int(seed) for seed in seeds] # convert to python ints to make compatible with JSON dict hashing
         self.sims = [simtype(params0 | {"seed": seed}) for seed in seeds] # run simulations with all seeds
 
-    def power_spectrum(self, linear=False):
+    def __iter__(self):
+        yield from self.sims
+
+    def power_spectra(self, linear=False):
         ks, Ps = [], []
-        for sim in self.sims:
+        for sim in self:
             k, P = sim.power_spectrum(linear=linear)
             assert len(ks) == 0 or np.all(k == ks[0]), "group simulations output different k"
             ks.append(k)
             Ps.append(P)
 
-        k = ks[0] # common wavenumbers for all simulations
-        Ps = np.array(Ps) # 2D numpy array P[i_sim, i_k]
-        P  = np.average(Ps, axis=0) # for each k, compute average            over simulations
-        ΔP = np.std(    Ps, axis=0) # for each k, compute standard deviation over simulations
+        k = ks[0] # common wavenumbers for all simulations (by assertion)
+        Ps = np.array(Ps) # 2D numpy array P[isim, ik]
+        return k, Ps
+
+    def power_spectrum(self, linear=False):
+        k, Ps = self.power_spectra(linear=linear)
+        P  = np.mean(Ps, axis=0) # average            over simulations (for each k)
+        ΔP = np.std( Ps, axis=0) # standard deviation over simulations (for each k)
         assert not linear or np.all(np.isclose(ΔP, 0.0, rtol=0, atol=1e-12)), "group simulations output different linear power spectra" # linear power spectrum is independent of seeds
         return k, P, ΔP
 
@@ -434,6 +448,7 @@ class SimulationGroupPair:
     def __init__(self, simtype1, simtype2, params1, params2, nsims):
         self.sims1 = SimulationGroup(simtype1, params1, nsims)
         self.sims2 = SimulationGroup(simtype2, params2, nsims)
+        self.nsims = nsims
 
     #def __init__(self, params, wGR=1e6):
         #self.sim_gr = BDSimulation(params | {"ω": ωGR}) # TODO: use BD with large w, or a proper GR simulation?
@@ -443,8 +458,8 @@ class SimulationGroupPair:
     # TODO: more natural (more similar ks) if plotted in normal units (not in h-units)?
     # TODO: for linear, specify exact ks to class?
     def power_spectrum_ratio(self, linear=False):
-        k1, P1, ΔP1 = self.sims1.power_spectrum(linear)
-        k2, P2, ΔP2 = self.sims2.power_spectrum(linear)
+        k1, P1s = self.sims1.power_spectra(linear=linear)
+        k2, P2s = self.sims2.power_spectra(linear=linear)
 
         # TODO: why does class output different k?
         # TODO: fix this and get rid of k interpolation
@@ -458,13 +473,32 @@ class SimulationGroupPair:
 
         # get common (average) ks and interpolate P there # TODO: avoid with same k?
         k   = (k1 + k2) / 2
-        P1  = np.interp(k, k1,  P1)
-        P2  = np.interp(k, k2,  P2)
-        ΔP1 = np.interp(k, k1, ΔP1)
-        ΔP2 = np.interp(k, k2, ΔP2)
+        for isim in range(0, self.nsims):
+            P1s[isim,:] = np.interp(k, k1, P1s[isim,:])
+            P2s[isim,:] = np.interp(k, k2, P2s[isim,:])
 
+        # from a statistical viewpoint,
+        # we view P(k) as a random variable with samples from each simulation,
+        # so it is more natural to index Ps[ik] == Ps[ik,:]
+        P1s = np.transpose(P1s)
+        P2s = np.transpose(P2s)
+
+        # boost (of means)
+        P1 = np.mean(P1s, axis=1) # average over simulations
+        P2 = np.mean(P2s, axis=1) # average over simulations
         B  = P1 / P2
-        ΔB = B * np.sqrt((ΔP1/P1)**2 + (ΔP2/P2)**2) # error propagation: https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Example_formulae TODO: correct error propagation?
+
+        # boost error (propagate from errors in P1 and P2)
+        dB_dP1 =   1 / P2    # dB/dP1 evaluated at means
+        dB_dP2 = -P1 / P2**2 # dB/dP2 evaluated at means
+        ΔB = np.array([propagate_error([dB_dP1[ik], dB_dP2[ik]], [P1s[ik], P2s[ik]]) for ik in range(0, len(k))])
+
+        # uncomment to compare matrix error propagation to manual expression (for one k value, to check it is correct)
+        # (see formula for f=A/B at https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Example_formulae)
+        #σsq = np.cov([P1s[0], P2s[0]])
+        #ΔB_matrix = ΔB[0]
+        #ΔB_manual = B[0] * np.sqrt(σsq[0,0]/P1[0]**2 + σsq[1,1]/P2[0]**2 - 2*σsq[0,1]/(P1[0]*P2[0]))
+        #assert np.isclose(ΔB_matrix, ΔB_manual), "error propagation is wrong"
 
         return k, B, ΔB
 
