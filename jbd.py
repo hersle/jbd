@@ -32,8 +32,11 @@ CLASSEXEC = os.path.abspath(os.path.expanduser(vars(args)["class"]))
 def dictjson(dict, sort=False, unicode=False):
     return json.dumps(dict, sort_keys=sort, ensure_ascii=not unicode)
 
-def dicthash(dict):
-    return hashlib.md5(dictjson(dict, sort=True).encode('utf-8')).hexdigest() # https://stackoverflow.com/a/10288255
+def hashstr(str):
+    return hashlib.md5(str.encode('utf-8')).hexdigest()
+
+def hashdict(dict):
+    return hashstr(dictjson(dict, sort=True)) # https://stackoverflow.com/a/10288255
 
 def luastr(var):
     if isinstance(var, bool):
@@ -141,7 +144,7 @@ class Simulation:
     # TODO: return array of names (to look for renaming etc.)
     # TODO: also output JSON dict with parameters
     def name(self):
-        return dicthash(self.params)
+        return hashdict(self.params)
 
     def names_old(self):
         return [f"NP{self.params['Npart']}_NM{self.params['Ncell']}_NS{self.params['Nstep']}_L{self.params['L']}"]
@@ -413,10 +416,12 @@ class BDSimulation(Simulation):
     def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
     def Φini(self): return self.read_variable("class.log", "phi_ini")
 
+# TODO: rather use a SimulationPairGroup when running pairs with same initial seed
 class SimulationGroup:
-    def __init__(self, simtype, params0, nsims):
-        hash = dicthash(params0) # unique hash of base (without seed) simulation parameters
-        hash = int(hash, 16) # convert MD5 hexadecimal (base 16) hash to integer (needed to seed numpy's rng)
+    def __init__(self, simtype, params0, nsims, hash=None):
+        if hash is None:
+            hash = hashdict(params0) # unique hash of base (without seed) simulation parameters # TODO: hash WITHOUT the BD parameters, so the seed is the same in BD and GR simulations?
+            hash = int(hash, 16)     # convert MD5 hexadecimal (base 16) hash to integer (needed to seed numpy's rng)
         rng = np.random.default_rng(hash) # deterministic random number generator from simulation parameters
         seeds = rng.integers(0, 2**31-1, size=nsims, dtype=int) # will be the same for the same simulation parameters
         seeds = [int(seed) for seed in seeds] # convert to python ints to make compatible with JSON dict hashing
@@ -446,8 +451,13 @@ class SimulationGroup:
 
 class SimulationGroupPair:
     def __init__(self, simtype1, simtype2, params1, params2, nsims):
-        self.sims1 = SimulationGroup(simtype1, params1, nsims)
-        self.sims2 = SimulationGroup(simtype2, params2, nsims)
+        # choose common hash(params1, params2), so each simulation in P1/P2 is run with the same seed
+        # TODO: does this imply "same ICs" for similar, but different power spectra P1 and P2?
+        hash  = hashstr(hashdict(params1) + hashdict(params2)) # hash for the combinations of (params1, params2)
+        hash  = int(hash, 16) # make an integer out of it
+
+        self.sims1 = SimulationGroup(simtype1, params1, nsims, hash=hash)
+        self.sims2 = SimulationGroup(simtype2, params2, nsims, hash=hash)
         self.nsims = nsims
 
     #def __init__(self, params, wGR=1e6):
@@ -486,7 +496,8 @@ class SimulationGroupPair:
         # boost (of means)
         P1 = np.mean(P1s, axis=1) # average over simulations
         P2 = np.mean(P2s, axis=1) # average over simulations
-        B  = P1 / P2
+        #B  = P1 / P2 # TODO: use this? makes sense when not run with same initial seeds
+        B = np.mean(P1s/P2s, axis=1) # TODO: or this? makes sense when pairs have same initial seed, but is the error propagated correctly?
 
         # boost error (propagate from errors in P1 and P2)
         dB_dP1 =   1 / P2    # dB/dP1 evaluated at means
@@ -510,9 +521,9 @@ def plot_sequence(filename, paramss, nsims, labelfunc = lambda params: None, col
     # Dummy legend plot
     ax2 = ax.twinx() # use invisible twin axis to create second legend
     ax2.get_yaxis().set_visible(False) # make invisible
-    ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="dashed", linewidth=1, label=r"$P = P_\mathrm{linear}$")
-    ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="solid",  linewidth=1, label=r"$P = \langle P \rangle$")
-    ax2.fill_between([-3, -2], [0, 1], alpha=0.5, color="black", edgecolor=None,                  label=r"$P = \langle P \rangle \pm \Delta P$")
+    ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="dashed", linewidth=1, label=r"$B = B_\mathrm{linear}$")
+    ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="solid",  linewidth=1, label=r"$B = \langle B \rangle$")
+    ax2.fill_between([-3, -2], [0, 1], alpha=0.5, color="black", edgecolor=None,                  label=r"$B = \langle B \rangle \pm \Delta B$")
     ax2.plot(        [-3, -2], [0, 1], alpha=0.0,                                                 label=f"({nsims} realizations)") # invisible (simulate newline)
     ax2.legend(loc="upper left")
 
