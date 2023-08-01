@@ -295,7 +295,7 @@ class Simulation:
     def params_cola(self):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
-            "simulation_boxsize": self.params["L"], # TODO: convert to physical (instead of h-based boxsize), since h can differ?
+            "simulation_boxsize": self.params["L"] * self.params["h"], # TODO: convert to physical (instead of h-based boxsize), since h can differ?
             "simulation_use_cola": True,
             "simulation_use_scaledependent_cola": False, # only relevant with massive neutrinos?
 
