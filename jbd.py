@@ -21,6 +21,12 @@ import matplotlib
 import matplotlib.pyplot as plt
 from scipy.stats import qmc
 
+print(matplotlib.rcParams.keys())
+matplotlib.rcParams["pgf.texsystem"] = "pdflatex"
+matplotlib.rcParams["text.usetex"] = True
+matplotlib.rcParams["font.size"] = 11
+matplotlib.rcParams["figure.figsize"] = (6.0, 4.0) # default (6.4, 4.8)
+
 parser = argparse.ArgumentParser(prog="jbd.py")
 parser.add_argument("--nbody", metavar="path/to/FML/FML/COLASolver/nbody", default="./FML/FML/COLASolver/nbody")
 parser.add_argument("--class", metavar="path/to/hi_class_public/class", default="./hi_class_public/class")
@@ -87,7 +93,8 @@ def check_values_are_close(q1, q2, a1=None, a2=None, name="", atol=0, rtol=0, ve
 # propagate error in f(x1, x2, ...) given
 # * df_dx = [df_dx1, df_dx2, ...] (list of numbers): derivatives df/dxi evaluated at mean x
 # * xs    = [x1s,    x2s,    ...] (list of lists of numbers): list of observations xis for each variable xi
-# (see e.g. https://veritas.ucd.ie/~apl/labs_master/docs/2020/DA/Matrix-Methods-for-Error-Propagation.pdf)
+# (for reference,       see e.g. https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Non-linear_combinations)
+# (for an introduction, see e.g. https://veritas.ucd.ie/~apl/labs_master/docs/2020/DA/Matrix-Methods-for-Error-Propagation.pdf)
 def propagate_error(df_dx, xs):
     return np.sqrt(np.transpose(df_dx) @ np.cov(xs) @ df_dx)
 
@@ -131,6 +138,7 @@ class Simulation:
         self.write_file("parameters.json", dictjson(self.params, unicode=True))
 
         # create initial conditions with CLASS, store derived parameters, run COLA simulation
+        # TODO: do lazily
         k, P = self.run_class()
         self.run_cola(k, P, np=16)
 
@@ -481,7 +489,8 @@ class SimulationGroupPair:
         #kmin = np.maximum(k1[0],  k2[0])
         #kmax = np.minimum(k1[-1], k2[-1])
 
-        # get common (average) ks and interpolate P there # TODO: avoid with same k?
+        # get common (average) ks and interpolate P there
+        # TODO: avoid with same k?
         k   = (k1 + k2) / 2
         for isim in range(0, self.nsims):
             P1s[isim,:] = np.interp(k, k1, P1s[isim,:])
@@ -521,14 +530,13 @@ def plot_sequence(filename, paramss, nsims, labelfunc = lambda params: None, col
     # Dummy legend plot
     ax2 = ax.twinx() # use invisible twin axis to create second legend
     ax2.get_yaxis().set_visible(False) # make invisible
-    ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="dashed", linewidth=1, label=r"$B = B_\mathrm{linear}$")
+    ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="dashed", linewidth=1, label=r"$B = B_\mathrm{lin}$")
     ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="solid",  linewidth=1, label=r"$B = \langle B \rangle$")
-    ax2.fill_between([-3, -2], [0, 1], alpha=0.5, color="black", edgecolor=None,                  label=r"$B = \langle B \rangle \pm \Delta B$")
-    ax2.plot(        [-3, -2], [0, 1], alpha=0.0,                                                 label=f"({nsims} realizations)") # invisible (simulate newline)
-    ax2.legend(loc="upper left")
+    ax2.fill_between([-3, -2], [0, 1], alpha=0.5, color="black", edgecolor=None,                  label=r"$B = \langle B \rangle \pm \Delta B$" + f" ({nsims} realizations)")
+    ax2.legend(loc="lower left", ncol=3, mode="expand") # fill bottom with horizontal legend
 
     dy = 0.05 # spacing between major y ticks
-    ymin = 0.96
+    ymin = 1.0
     ymax = 1.0
     for params_bd in paramss:
         params_gr = params_bd.copy()
@@ -559,7 +567,7 @@ def plot_sequence(filename, paramss, nsims, labelfunc = lambda params: None, col
     ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
     ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(int(np.round(dy / 0.01)))) # one minor tick per 0.01
 
-    ax.legend(loc="upper right")
+    ax.legend(loc="upper left")
     ax.grid()
     fig.tight_layout()
     fig.savefig(filename)
@@ -655,7 +663,8 @@ plot_convergence("plots/convergence_Geff.pdf",    params0_BD, "Geff/G", [0.95, 1
 plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],                 lfunc=lambda h: f"$h = {h}$")
 plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],              lfunc=lambda ωb0: f"$\omega_{{b0}} = {ωb0}$")
 plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],              lfunc=lambda ωc0: f"$\omega_{{c0}} = {ωc0}$")
-plot_convergence("plots/convergence_As.pdf",      params0_BD, "As",    [1.6e-9, 2.1e-9, 2.7e-9],            lfunc=lambda As:  f"$A_s = {np.round(As/1e-9, 1)} \cdot 10^{{-9}}$")
+plot_convergence("plots/convergence_As.pdf",      params0_BD, "As",     [1.6e-9, 2.1e-9, 2.7e-9],           lfunc=lambda As:  f"$A_s = {np.round(As/1e-9, 1)} \cdot 10^{{-9}}$")
+plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],              lfunc=lambda ns:  f"$n_s = {ns}$")
 exit()
 
 #sims = SimulationPair(params)
