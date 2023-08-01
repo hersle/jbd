@@ -19,13 +19,18 @@ import subprocess
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.stats import qmc
 
 print(matplotlib.rcParams.keys())
-matplotlib.rcParams["pgf.texsystem"] = "pdflatex"
 matplotlib.rcParams["text.usetex"] = True
-matplotlib.rcParams["font.size"] = 11
-matplotlib.rcParams["figure.figsize"] = (6.0, 4.0) # default (6.4, 4.8)
+matplotlib.rcParams["font.size"] = 9
+matplotlib.rcParams["figure.figsize"] = (3.0, 2.7) # default (6.4, 4.8)
+matplotlib.rcParams["legend.labelspacing"] = 0.2
+matplotlib.rcParams["legend.columnspacing"] = 1.5
+matplotlib.rcParams["legend.handlelength"] = 1.5
+matplotlib.rcParams["legend.handletextpad"] = 0.3
+matplotlib.rcParams["legend.frameon"] = False
 
 parser = argparse.ArgumentParser(prog="jbd.py")
 parser.add_argument("--nbody", metavar="path/to/FML/FML/COLASolver/nbody", default="./FML/FML/COLASolver/nbody")
@@ -522,22 +527,49 @@ class SimulationGroupPair:
 
         return k, B, ΔB
 
-def plot_sequence(filename, paramss, nsims, labelfunc = lambda params: None, colorfunc = lambda params: "black", plot_linear = True):
+def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfunc = lambda params: "black"):
     fig, ax = plt.subplots()
     ax.set_xlabel(r"$\lg[k / (1/\mathrm{Mpc})]$")
+    ax.set_ylabel(r"$\lg[P / \mathrm{Mpc}^3]$")
+
+    k, P, ΔP = sims.power_spectrum(linear=True)
+    ax.plot(np.log10(k), np.log10(P), color="black", alpha=0.5, linewidth=1, linestyle="dashed")
+
+    for i, sim in enumerate(sims):
+        k, P = sim.power_spectrum(linear=False)
+        ax.plot(np.log10(k), np.log10(P), color="black", alpha=0.5, linewidth=0.1, linestyle="solid")
+
+    k, P, ΔP = sims.power_spectrum(linear=False)
+    ax.fill_between(np.log10(k), np.log10(P-ΔP), np.log10(P+ΔP), color="black", alpha=0.2, edgecolor=None)
+    ax.plot(        np.log10(k), np.log10(P),                    color="black", alpha=1.0, linewidth=1.0, linestyle="solid")
+
+    ax.set_xlim(-2, 1)
+    ax.set_ylim(1, 4)
+    ax.set_xticks([-2, -1, 0, 1])  # also sets xlims
+    ax.set_yticks([1, 2, 3, 4]) # also sets xlims
+    ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
+    ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # one minor tick per 0.01
+
+    fig.tight_layout()
+    fig.savefig(filename)
+    print("Plotted", filename)
+
+# TODO: plot_single and plot_pair generic functions?
+
+def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, plot_linear = True):
+    fig, ax = plt.subplots()
+
+    ax.set_xlabel(r"$\lg\left[k / (1/\mathrm{Mpc})\right]$")
     ax.set_ylabel(r"$B = P_\mathrm{BD} / P_\mathrm{GR}$")
 
     # Dummy legend plot
     ax2 = ax.twinx() # use invisible twin axis to create second legend
     ax2.get_yaxis().set_visible(False) # make invisible
-    ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="dashed", linewidth=1, label=r"$B = B_\mathrm{lin}$")
+    ax2.fill_between([-3, -2], [0, 1], alpha=0.2, color="black", edgecolor=None,                  label=r"$B = \langle B \rangle \pm \Delta B$")
     ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="solid",  linewidth=1, label=r"$B = \langle B \rangle$")
-    ax2.fill_between([-3, -2], [0, 1], alpha=0.5, color="black", edgecolor=None,                  label=r"$B = \langle B \rangle \pm \Delta B$" + f" ({nsims} realizations)")
-    ax2.legend(loc="lower left", ncol=3, mode="expand") # fill bottom with horizontal legend
+    ax2.plot(        [-3, -2], [0, 1], alpha=0.5, color="black", linestyle="dashed", linewidth=1, label=r"$B = B_\mathrm{lin}$")
+    ax2.legend(loc="upper left", bbox_to_anchor=(-0.02, 0.97))
 
-    dy = 0.05 # spacing between major y ticks
-    ymin = 1.0
-    ymax = 1.0
     for params_bd in paramss:
         params_gr = params_bd.copy()
         del params_gr["ω"] # remove BD-specific parameters
@@ -552,35 +584,34 @@ def plot_sequence(filename, paramss, nsims, labelfunc = lambda params: None, col
 
         k, B, ΔB = sims.power_spectrum_ratio(linear=False)
         ax.fill_between(np.log10(k), B-ΔB, B+ΔB, color=colorfunc(params_bd), alpha=0.2, edgecolor=None)
-        ax.plot(        np.log10(k), B,          color=colorfunc(params_bd), alpha=1.0, linewidth=1, linestyle="solid", label=labelfunc(params_bd), zorder=2)
-
-        ymin = np.minimum(ymin, np.min(B))
-        ymax = np.maximum(ymax, np.max(B))
-
-    ymax = np.ceil( np.maximum(ymax, np.max(B)) / dy) * dy # round to nearest full tick
-    ymin = np.floor(np.minimum(ymin, np.min(B)) / dy) * dy # round to nearest full tick
+        ax.plot(        np.log10(k), B,          color=colorfunc(params_bd), alpha=1.0, linewidth=1, linestyle="solid", label=None, zorder=2)
 
     ax.set_xlim(-2, +1)
-    ax.set_ylim(ymin, ymax)
+    ax.set_ylim(0.99-1e-10, 1.15+1e-10) # +/- 1e-10 shows first and last minor tick
     ax.set_xticks([-2, -1, 0, 1])
-    ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/dy)) + 1))
-    ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
-    ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(int(np.round(dy / 0.01)))) # one minor tick per 0.01
+    ax.set_yticks([1.0, 1.1])
+    ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
+    ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
 
-    ax.legend(loc="upper left")
-    ax.grid()
-    fig.tight_layout()
+    labels = [labelfunc(params_bd) for params_bd in paramss]
+    colors = [colorfunc(params_bd) for params_bd in paramss]
+    cax  = make_axes_locatable(ax).append_axes("top", size="7%", pad="0%") # align colorbar axis with plot
+    cmap = matplotlib.colors.ListedColormap(colors)
+    cbar = plt.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap), cax=cax, orientation="horizontal")
+    cbar.ax.set_title(labeltitle)
+    cax.xaxis.set_ticks_position("top")
+    cax.xaxis.set_ticks(np.linspace(0.5/len(labels), 1-0.5/len(labels), len(labels)), labels=labels)
+
+    fig.tight_layout(pad=0)
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_convergence(filename, params0, param, vals, nsims=5, lfunc=None, cfunc=None, **kwargs):
-    paramss = (params0 | {param: val} for val in vals) # generate all parameter combinations
+def plot_convergence(filename, params0, param, vals, nsims=5, paramlabel=None, lfunc=None, cfunc=None, **kwargs):
+    paramss = [params0 | {param: val} for val in vals] # generate all parameter combinations
 
     if lfunc is None:
-        def lfunc(v):
-            return f"{param} = {v}"
-    def labelfunc(params):
-        return lfunc(params[param])
+        def lfunc(val): return f"{val}"
+    def labelfunc(params): return lfunc(params[param])
 
     # linear color C = A*v + B so C(v0) = 0.5 (black) and C(vmin) = 0.0 (blue) *or* C(vmax) = 1.0 (red)
     # (black = neutral = fiducial; red = warm = greater; blue = cold = smaller)
@@ -597,7 +628,7 @@ def plot_convergence(filename, params0, param, vals, nsims=5, lfunc=None, cfunc=
         B = 0.5 - A * v0
         return cmap(A * v + B)
 
-    plot_sequence(filename, paramss, nsims, labelfunc, colorfunc, **kwargs)
+    plot_sequence(filename, paramss, nsims, paramlabel, labelfunc, colorfunc, **kwargs)
 
 # Fiducial parameters
 params0_GR = {
@@ -650,21 +681,32 @@ params_varying = {
 #GRSimulation(params0_GR)
 #exit()
 
+# Power spectrum plots
+# TODO: discrepancy between COLA and CLASS' linear power spectra
+#sims = SimulationGroup(BDSimulation, params0_BD, 1)
+#sims = SimulationGroup(GRSimulation, params0_GR, 1)
+#exit()
+#plot_power_spectra("plots/power_spectra_fiducial.pdf", sims)
+#exit()
+
+#plot_convergence("plots/boost_fiducial.pdf", params0_BD, "ω", [1e2], nsims=5)
+#exit()
+
 # Convergence plots (computational parameters)
-plot_convergence("plots/convergence_L.pdf",     params0_BD, "L",      [256.0, 384.0, 512.0, 768.0, 1024.0], lfunc=lambda L: f"$L = {L:.0f}\,\mathrm{{Mpc}}$")
-plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           lfunc=lambda Npart: f"$N_\mathrm{{part}} = {Npart}^3$")
-plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           lfunc=lambda Ncell: f"$N_\mathrm{{cell}} = {Ncell}^3$")
-plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 lfunc=lambda Nstep: f"$N_\mathrm{{step}} = {Nstep}$")
-plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   lfunc=lambda zinit: f"$z_\mathrm{{init}} = {zinit:.0f}$")
+plot_convergence("plots/convergence_L.pdf",     params0_BD, "L",      [256.0, 384.0, 512.0, 768.0, 1024.0], paramlabel=r"$L / \mathrm{Mpc}$", lfunc=lambda L: f"${L:.0f}$", cfunc=lambda L: np.log2(L))
+plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           paramlabel=r"$N_\mathrm{part}$",  lfunc=lambda Npart: f"${Npart}^3$")
+plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           paramlabel=r"$N_\mathrm{cell}$",  lfunc=lambda Ncell: f"${Ncell}^3$")
+plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 paramlabel=r"$N_\mathrm{step}$",  lfunc=lambda Nstep: f"${Nstep}$")
+plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   paramlabel=r"$z_\mathrm{init}$",  lfunc=lambda zinit: f"${zinit:.0f}$")
 
 # Variation plots (cosmological parameters)
-plot_convergence("plots/convergence_omega.pdf",   params0_BD, "ω",      [1e2, 1e3, 1e4, 1e5],               lfunc=lambda ω: f"$\omega = 10^{{{np.log10(ω):.0f}}}$", cfunc=lambda ω: np.log10(ω))
-plot_convergence("plots/convergence_Geff.pdf",    params0_BD, "Geff/G", [0.95, 1.0, 1.05],                  lfunc=lambda Geff_G: f"$G_\mathrm{{eff}}/G = {Geff_G:.02f}$")
-plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],                 lfunc=lambda h: f"$h = {h}$")
-plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],              lfunc=lambda ωb0: f"$\omega_{{b0}} = {ωb0}$")
-plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],              lfunc=lambda ωc0: f"$\omega_{{c0}} = {ωc0}$")
-plot_convergence("plots/convergence_As.pdf",      params0_BD, "As",     [1.6e-9, 2.1e-9, 2.7e-9],           lfunc=lambda As:  f"$A_s = {np.round(As/1e-9, 1)} \cdot 10^{{-9}}$")
-plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],              lfunc=lambda ns:  f"$n_s = {ns}$")
+plot_convergence("plots/convergence_omega.pdf",   params0_BD, "ω",      [1e2, 1e3, 1e4, 1e5],     paramlabel=r"$\omega$", lfunc=lambda ω: f"$10^{{{np.log10(ω):.0f}}}$", cfunc=lambda ω: np.log10(ω))
+plot_convergence("plots/convergence_Geff.pdf",    params0_BD, "Geff/G", [0.99, 1.0, 1.01],        paramlabel=r"$G_0/G$", lfunc=lambda Geff_G: f"${Geff_G:.02f}$")
+plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],       paramlabel=r"$h$", lfunc=lambda h: f"${h}$")
+plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],    paramlabel=r"$\omega_{b0}$", lfunc=lambda ωb0: f"${ωb0}$")
+plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],    paramlabel=r"$\omega_{c0}$", lfunc=lambda ωc0: f"${ωc0}$")
+plot_convergence("plots/convergence_As.pdf",      params0_BD, "As",     [1.6e-9, 2.1e-9, 2.7e-9], paramlabel=r"$A_s$", lfunc=lambda As:  f"${np.round(As/1e-9, 1)} \cdot 10^{{-9}}$")
+plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],    paramlabel=r"$n_s$", lfunc=lambda ns:  f"${ns}$")
 exit()
 
 #sims = SimulationPair(params)
