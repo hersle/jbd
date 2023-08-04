@@ -26,6 +26,8 @@ print(matplotlib.rcParams.keys())
 matplotlib.rcParams["text.usetex"] = True
 matplotlib.rcParams["font.size"] = 9
 matplotlib.rcParams["figure.figsize"] = (3.0, 2.7) # default (6.4, 4.8)
+matplotlib.rcParams["grid.linewidth"] = 0.3
+matplotlib.rcParams["grid.alpha"] = 0.2
 matplotlib.rcParams["legend.labelspacing"] = 0.2
 matplotlib.rcParams["legend.columnspacing"] = 1.5
 matplotlib.rcParams["legend.handlelength"] = 1.5
@@ -602,6 +604,7 @@ def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda 
     cax.xaxis.set_ticks_position("top")
     cax.xaxis.set_ticks(np.linspace(0.5/len(labels), 1-0.5/len(labels), len(labels)), labels=labels)
 
+    ax.grid(which="both")
     fig.tight_layout(pad=0)
     fig.savefig(filename)
     print("Plotted", filename)
