@@ -33,6 +33,10 @@ matplotlib.rcParams["legend.columnspacing"] = 1.5
 matplotlib.rcParams["legend.handlelength"] = 1.5
 matplotlib.rcParams["legend.handletextpad"] = 0.3
 matplotlib.rcParams["legend.frameon"] = False
+matplotlib.rcParams["xtick.top"] = True
+matplotlib.rcParams["ytick.right"] = True
+matplotlib.rcParams["xtick.direction"] = "in"
+matplotlib.rcParams["ytick.direction"] = "in"
 
 parser = argparse.ArgumentParser(prog="jbd.py")
 parser.add_argument("--nbody", metavar="path/to/FML/FML/COLASolver/nbody", default="./FML/FML/COLASolver/nbody")
@@ -111,18 +115,40 @@ def list_simulations():
             print(f"{path.name}: {BDSimulation(path=path.name).params}")
 
 class ParameterSpace:
-    def __init__(self, params):
+    def __init__(self, params, seed=1234):
         self.param_names = list(params.keys())
-        self.param_bounds = [(val, val) if isinstance(val, float) else val for val in params.values()]
+        self.param_bounds = [val if isinstance(val, tuple) else (val, val) for val in params.values()]
         self.param_bounds_lo = [bounds[0] for bounds in self.param_bounds]
         self.param_bounds_hi = [bounds[1] for bounds in self.param_bounds]
         self.dimension = len(self.param_names)
+        self.sampler = qmc.LatinHypercube(self.dimension, seed=seed)
 
-    def sample(self, n, seed=1234):
-        sampler = qmc.LatinHypercube(self.dimension, seed=seed)
-        samples = sampler.random(n=n) # in [0, 1]
-        samples = qmc.scale(samples, self.param_bounds_lo, self.param_bounds_hi) # in [lo, hi]
-        return samples # TODO: pack in dict with param names?
+    def bounds_lo(self): return dict([(name, lo) for name, lo in zip(self.param_names, self.param_bounds_lo)])
+    def bounds_hi(self): return dict([(name, hi) for name, hi in zip(self.param_names, self.param_bounds_hi)])
+
+    def sample(self):
+        samples = self.sampler.random()[0] # in [0,1)
+        for i in range(0, self.dimension):
+            lo = self.param_bounds_lo[i]
+            hi = self.param_bounds_hi[i]
+
+            if lo == hi:
+                samples[i] = lo # fixed parameter (handle separately to preserve data type)
+            else:
+                samples[i] = lo + (hi-lo) * samples[i] # varying parameter; scale [0,1) -> [a,b)
+
+        lo = self.param_bounds_lo
+        hi = self.param_bounds_hi
+        samples = [sample for sample in samples]
+        #samples = qmc.scale(samples, self.param_bounds_lo, self.param_bounds_hi) # in [lo, hi]
+
+        # TODO: pack in dict with param names?
+        samples = dict([(name, sample) for name, sample in zip(self.param_names, samples)])
+
+        return samples
+
+    def samples(self, n=100):
+        return [self.sample() for i in range(0, n)]
 
 class Simulation:
     def __init__(self, params=None, path=None):
@@ -633,6 +659,48 @@ def plot_convergence(filename, params0, param, vals, nsims=5, paramlabel=None, l
 
     plot_sequence(filename, paramss, nsims, paramlabel, labelfunc, colorfunc, **kwargs)
 
+def plot_parameter_samples(filename, samples, lo, hi, labels):
+    params = list(lo.keys())
+    dimension = len(params)
+
+    fig, axs = plt.subplots(dimension-1, dimension-1, figsize=(10, 10), sharex=False, sharey=False)
+    for iy in range(1, dimension):
+        paramy = params[iy]
+        sy = [sample[paramy] for sample in samples]
+        for ix in range(0, dimension-1):
+            paramx = params[ix]
+            sx = [sample[paramx] for sample in samples]
+
+            ax = axs[iy-1,ix]
+
+            if ix >= iy:
+                ax.set_visible(False)
+                continue
+
+            xticks = [lo[paramx], np.round((lo[paramx]+hi[paramx])/2, 10), hi[paramx]]
+            yticks = [lo[paramy], np.round((lo[paramy]+hi[paramy])/2, 10), hi[paramy]]
+            xticklabels = [f"${xtick}$" if iy == dimension-1 else "" for xtick in xticks]
+            yticklabels = [f"${ytick}$" if ix == 0 else "" for ytick in yticks]
+
+            ax.set_xlabel(latex_labels[paramx] if iy == dimension-1 else "")
+            ax.set_ylabel(latex_labels[paramy] if ix == 0 else "")
+            ax.set_xlim(lo[paramx], hi[paramx])
+            ax.set_ylim(lo[paramy], hi[paramy])
+            ax.set_xticks(xticks, xticklabels, rotation=90)
+            ax.set_yticks(yticks, yticklabels, rotation=0)
+            ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
+            ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
+            ax.grid()
+
+            ax.scatter(sx, sy, 3)
+
+    fig.suptitle(f"$\\textrm{{${len(samples)}$ Latin hypercube samples, as seen through each face in parameter space}}$", y=0.92)
+    fig.subplots_adjust(hspace=0.10, wspace=0.10)
+
+    fig.savefig(filename)
+    fig.tight_layout(pad=0)
+    print("Plotted", filename)
+
 # Fiducial parameters
 params0_GR = {
     # physical parameters
@@ -658,10 +726,19 @@ params0_BD = params0_GR | {
     "Geff/G": 1.0
 }
 
-params_varying = {
-    "As": (1e-9, 4e-9),
-    "Ωc0": (0.15, 0.35),
-    "μ0": (-1.0, +1.0),
+latex_labels = {
+    "h":      r"$h$",
+    "ωb0":    r"$\omega_{b0}$",
+    "ωc0":    r"$\omega_{c0}$",
+    "L":      r"$L / \mathrm{Mpc}$",
+    "Npart":  r"$N_\mathrm{part}$",
+    "Ncell":  r"$N_\mathrm{cell}$",
+    "Nstep":  r"$N_\mathrm{step}$",
+    "zinit":  r"$z_\mathrm{init}$",
+    "ω":      r"$\omega$",
+    "Geff/G": r"$G_0/G$",
+    "As":     r"$A_s$",
+    "ns":     r"$n_s$",
 }
 
 # TODO: split up into different "run files"
@@ -670,8 +747,19 @@ params_varying = {
 #list_simulations()
 #exit()
 
-#paramspace = ParameterSpace(params_varying)
-#params = params0
+# TODO: create parameter space sampling plots
+params_varying = {
+    "Geff/G": (0.99, 1.01),
+    "h":      (0.63, 0.73),
+    "ωb0":    (0.016, 0.028),
+    "ωc0":    (0.090, 0.150),
+    "As":     (1.6e-9, 2.6e-9),
+    "ns":     (0.866, 1.066),
+}
+paramspace = ParameterSpace(params_varying)
+samples = paramspace.samples(100)
+plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), latex_labels)
+exit()
 
 # Check that CLASS and COLA outputs consistent background cosmology parameters
 # for a "non-standard" BD cosmology with small wBD and Geff/G != 1
