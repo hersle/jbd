@@ -290,7 +290,7 @@ class Simulation:
             "Omega_k": self.params["ωk0"] / self.params["h"]**2,
             "T_cmb": self.params["Tγ0"],
             "N_eff": self.params["Neff"],
-            "A_s": self.params["As"],
+            "A_s": self.params["Ase9"] / 1e9,
             "n_s": self.params["ns"],
             "k_pivot": self.params["kpivot"],
 
@@ -337,7 +337,7 @@ class Simulation:
             "cosmology_OmegaK": self.params["ωk0"] / self.params["h"]**2,
             "cosmology_Neffective": self.params["Neff"],
             "cosmology_TCMB_kelvin": self.params["Tγ0"],
-            "cosmology_As": self.params["As"],
+            "cosmology_As": self.params["Ase9"] / 1e9,
             "cosmology_ns": self.params["ns"],
             "cosmology_kpivot_mpc": self.params["kpivot"],
             "cosmology_OmegaMNu": 0.0,
@@ -716,7 +716,7 @@ params0_GR = {
     "Tγ0":    2.7255, # class' default
     "Neff":   3.044,  # class' default # TODO: handled correctly in COLA?
     "kpivot": 0.05,   # class' default
-    "As":     2.1e-9, # class' default
+    "Ase9":   2.1,    # class' default
     "ns":     0.966,  # class' default
 
     # computational parameters (max on euclid22-32: Npart=Ncell=1024 with np=16 CPUs)
@@ -742,7 +742,7 @@ latex_labels = {
     "zinit":  r"$z_\mathrm{init}$",
     "ω":      r"$\omega$",
     "Geff/G": r"$G_0/G$",
-    "As":     r"$A_s$",
+    "Ase9":   r"$A_s \cdot 10^{9}$",
     "ns":     r"$n_s$",
 }
 
@@ -758,7 +758,7 @@ params_varying = {
     "h":      (0.63, 0.73),
     "ωb0":    (0.016, 0.028),
     "ωc0":    (0.090, 0.150),
-    "As":     (1.6e-9, 2.6e-9),
+    "Ase9":   (1.6, 2.6),
     "ns":     (0.866, 1.066),
 }
 paramspace = ParameterSpace(params_varying)
@@ -801,7 +801,7 @@ plot_convergence("plots/convergence_Geff.pdf",    params0_BD, "Geff/G", [0.99, 1
 plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],       paramlabel=latex_labels["h"],      lfunc=lambda h: f"${h}$")
 plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],    paramlabel=latex_labels["ωb0"],    lfunc=lambda ωb0: f"${ωb0}$")
 plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],    paramlabel=latex_labels["ωc0"],    lfunc=lambda ωc0: f"${ωc0}$")
-plot_convergence("plots/convergence_As.pdf",      params0_BD, "As",     [1.6e-9, 2.1e-9, 2.6e-9], paramlabel=latex_labels["As"],     lfunc=lambda As:  f"${np.round(As/1e-9, 1)} \cdot 10^{{-9}}$")
+plot_convergence("plots/convergence_As.pdf",      params0_BD, "Ase9",   [1.6, 2.1, 2.6],          paramlabel=latex_labels["Ase9"],   lfunc=lambda Ase9: f"${Ase9}$")
 plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],    paramlabel=latex_labels["ns"],     lfunc=lambda ns:  f"${ns}$")
 exit()
 
