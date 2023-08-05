@@ -147,7 +147,7 @@ class ParameterSpace:
 
         return samples
 
-    def samples(self, n=100):
+    def samples(self, n):
         return [self.sample() for i in range(0, n)]
 
 class Simulation:
@@ -668,7 +668,7 @@ def plot_parameter_samples(filename, samples, lo, hi, labels):
     params = list(lo.keys())
     dimension = len(params)
 
-    fig, axs = plt.subplots(dimension-1, dimension-1, figsize=(10, 10), sharex=False, sharey=False)
+    fig, axs = plt.subplots(dimension-1, dimension-1, figsize=(6.0, 6.0))
     for iy in range(1, dimension):
         paramy = params[iy]
         sy = [sample[paramy] for sample in samples]
@@ -678,32 +678,30 @@ def plot_parameter_samples(filename, samples, lo, hi, labels):
 
             ax = axs[iy-1,ix]
 
+            # plot faces (p1, p2); but not degenerate faces (p2, p1) or "flat faces" with p1 == p2
             if ix >= iy:
-                ax.set_visible(False)
+                ax.set_visible(False) # hide subplot
                 continue
 
-            xticks = [lo[paramx], np.round((lo[paramx]+hi[paramx])/2, 10), hi[paramx]]
-            yticks = [lo[paramy], np.round((lo[paramy]+hi[paramy])/2, 10), hi[paramy]]
-            xticklabels = [f"${xtick}$" if iy == dimension-1 else "" for xtick in xticks]
-            yticklabels = [f"${ytick}$" if ix == 0 else "" for ytick in yticks]
-
             ax.set_xlabel(latex_labels[paramx] if iy == dimension-1 else "")
-            ax.set_ylabel(latex_labels[paramy] if ix == 0 else "")
-            ax.set_xlim(lo[paramx], hi[paramx])
-            ax.set_ylim(lo[paramy], hi[paramy])
-            ax.set_xticks(xticks, xticklabels, rotation=90)
-            ax.set_yticks(yticks, yticklabels, rotation=0)
-            ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
-            ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
+            ax.set_ylabel(latex_labels[paramy] if ix == 0           else "")
+            ax.set_xlim(lo[paramx], hi[paramx]) # [lo, hi]
+            ax.set_ylim(lo[paramy], hi[paramy]) # [lo, hi]
+            ax.set_xticks([lo[paramx], np.round((lo[paramx]+hi[paramx])/2, 10), hi[paramx]]) # [lo, mid, hi]
+            ax.set_yticks([lo[paramy], np.round((lo[paramy]+hi[paramy])/2, 10), hi[paramy]]) # [lo, mid, hi]
+            ax.set_xticklabels([f"${xtick}$" if iy == dimension-1 else "" for xtick in ax.get_xticks()], rotation=90) # rotation=45, ha="right", rotation_mode="anchor") # only on very bottom
+            ax.set_yticklabels([f"${ytick}$" if ix == 0           else "" for ytick in ax.get_yticks()], rotation= 0) # rotation=45, ha="right", rotation_mode="anchor") # only on very left
+            ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # minor ticks
+            ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # minor ticks
+            ax.xaxis.set_label_coords(+0.5, -0.5) # manually align xlabels vertically   (due to ticklabels with different size)
+            ax.yaxis.set_label_coords(-0.5, +0.5) # manually align ylabels horizontally (due to ticklabels with different size)
             ax.grid()
 
-            ax.scatter(sx, sy, 3)
+            ax.scatter(sx, sy, 2.0, c="black", edgecolors="none")
 
-    fig.suptitle(f"$\\textrm{{${len(samples)}$ Latin hypercube samples, as seen through each face in parameter space}}$", y=0.92)
-    fig.subplots_adjust(hspace=0.10, wspace=0.10)
-
+    fig.suptitle(f"$\\textrm{{${len(samples)}$ Latin hypercube samples}}$")
+    fig.tight_layout(pad=0, rect=(0.02, 0.02, 1.0, 1.0))
     fig.savefig(filename)
-    fig.tight_layout(pad=0)
     print("Plotted", filename)
 
 # Fiducial parameters
@@ -740,9 +738,9 @@ latex_labels = {
     "Ncell":  r"$N_\mathrm{cell}$",
     "Nstep":  r"$N_\mathrm{step}$",
     "zinit":  r"$z_\mathrm{init}$",
-    "lgω":    r"$lg \omega$",
+    "lgω":    r"$\lg \omega$",
     "G0/G":   r"$G_0/G$",
-    "Ase9":   r"$A_s \cdot 10^{9}$",
+    "Ase9":   r"$A_s / 10^{-9}$",
     "ns":     r"$n_s$",
 }
 
@@ -754,6 +752,7 @@ latex_labels = {
 
 # TODO: create parameter space sampling plots
 params_varying = {
+    "lgω":    (2.0, 5.0),
     "G0/G":   (0.99, 1.01),
     "h":      (0.63, 0.73),
     "ωb0":    (0.016, 0.028),
@@ -761,10 +760,10 @@ params_varying = {
     "Ase9":   (1.6, 2.6),
     "ns":     (0.866, 1.066),
 }
-#paramspace = ParameterSpace(params_varying)
-#samples = paramspace.samples(100)
-#plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), latex_labels)
-#exit()
+paramspace = ParameterSpace(params_varying)
+samples = paramspace.samples(500)
+plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), latex_labels)
+exit()
 
 # Check that CLASS and COLA outputs consistent background cosmology parameters
 # for a "non-standard" BD cosmology with small wBD and G0/G != 1
