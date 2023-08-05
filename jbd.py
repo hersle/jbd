@@ -414,7 +414,7 @@ class BDSimulation(Simulation):
         Simulation.validate_input(self)
 
     def params_class(self):
-        ω = self.params["ω"]
+        ω = 10 ** self.params["lgω"]
         return Simulation.params_class(self) | { # combine dictionaries
             "gravity_model": "brans_dicke", # select BD gravity
             "Omega_Lambda": 0, # rather include Λ through potential term (first entry in parameters_smg)
@@ -431,7 +431,7 @@ class BDSimulation(Simulation):
             "gravity_model": "JBD",
             "cosmology_model": "JBD",
             "cosmology_h": self.params["h"],
-            "cosmology_JBD_wBD": self.params["ω"],
+            "cosmology_JBD_wBD": 10 ** self.params["lgω"],
             "cosmology_JBD_GeffG_today": self.params["Geff/G"],
         }
 
@@ -506,8 +506,8 @@ class SimulationGroupPair:
         self.sims2 = SimulationGroup(simtype2, params2, nsims, hash=hash)
         self.nsims = nsims
 
-    #def __init__(self, params, wGR=1e6):
-        #self.sim_gr = BDSimulation(params | {"ω": ωGR}) # TODO: use BD with large w, or a proper GR simulation?
+    #def __init__(self, params, lgωGR=1e6):
+        #self.sim_gr = BDSimulation(params | {"lgω": lgωGR}) # TODO: use BD with large w, or a proper GR simulation?
         #self.sim_bd = BDSimulation(params)
 
     # TODO: how to handle different ks in best way?
@@ -605,7 +605,7 @@ def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda 
 
     for params_bd in paramss:
         params_gr = params_bd.copy()
-        del params_gr["ω"] # remove BD-specific parameters
+        del params_gr["lgω"] # remove BD-specific parameters
         del params_gr["Geff/G"] # remove BD-specific parameters
 
         sims = SimulationGroupPair(BDSimulation, GRSimulation, params_bd, params_gr, nsims)
@@ -727,7 +727,7 @@ params0_GR = {
     "L":     512.0,
 }
 params0_BD = params0_GR | {
-    "ω": 1e2, # lowest value to consider (larger values should only be "easier" to simulate?)
+    "lgω": 2.0, # lowest value to consider (larger values should only be "easier" to simulate?)
     "Geff/G": 1.0
 }
 
@@ -740,7 +740,7 @@ latex_labels = {
     "Ncell":  r"$N_\mathrm{cell}$",
     "Nstep":  r"$N_\mathrm{step}$",
     "zinit":  r"$z_\mathrm{init}$",
-    "ω":      r"$\omega$",
+    "lgω":    r"$lg \omega$",
     "Geff/G": r"$G_0/G$",
     "Ase9":   r"$A_s \cdot 10^{9}$",
     "ns":     r"$n_s$",
@@ -761,16 +761,16 @@ params_varying = {
     "Ase9":   (1.6, 2.6),
     "ns":     (0.866, 1.066),
 }
-paramspace = ParameterSpace(params_varying)
-samples = paramspace.samples(100)
-plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), latex_labels)
-exit()
+#paramspace = ParameterSpace(params_varying)
+#samples = paramspace.samples(100)
+#plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), latex_labels)
+#exit()
 
 # Check that CLASS and COLA outputs consistent background cosmology parameters
 # for a "non-standard" BD cosmology with small wBD and Geff/G != 1
 # (using cheap COLA computational parameters, so the simulation finishes near-instantly)
 #GRSimulation(params0_GR | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4})
-#BDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4, "ω": 1e2, "Geff/G": 1.1})
+#BDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4, "lgω": 2.0, "Geff/G": 1.1})
 #exit()
 
 #BDSimulation(params0_BD)
@@ -785,7 +785,7 @@ exit()
 #plot_power_spectra("plots/power_spectra_fiducial.pdf", sims)
 #exit()
 
-plot_convergence("plots/boost_fiducial.pdf", params0_BD, "ω", [1e2], nsims=2)
+plot_convergence("plots/boost_fiducial.pdf", params0_BD, "lgω", [2.0], nsims=2)
 exit()
 
 # Convergence plots (computational parameters)
@@ -796,7 +796,7 @@ plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 3
 plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   paramlabel=latex_labels["zinit"], lfunc=lambda zinit: f"${zinit:.0f}$")
 
 # Variation plots (cosmological parameters)
-plot_convergence("plots/convergence_omega.pdf",   params0_BD, "ω",      [1e2, 1e3, 1e4, 1e5],     paramlabel=latex_labels["ω"],      lfunc=lambda ω: f"$10^{{{np.log10(ω):.0f}}}$", cfunc=lambda ω: np.log10(ω))
+plot_convergence("plots/convergence_omega.pdf",   params0_BD, "lgω",    [2.0, 3.0, 4.0, 5.0],     paramlabel=latex_labels["lgω"],    lfunc=lambda lgω: f"${lgω}$")
 plot_convergence("plots/convergence_Geff.pdf",    params0_BD, "Geff/G", [0.99, 1.0, 1.01],        paramlabel=latex_labels["Geff/G"], lfunc=lambda Geff_G: f"${Geff_G:.02f}$")
 plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],       paramlabel=latex_labels["h"],      lfunc=lambda h: f"${h}$")
 plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],    paramlabel=latex_labels["ωb0"],    lfunc=lambda ωb0: f"${ωb0}$")
