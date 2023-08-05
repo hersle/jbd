@@ -328,9 +328,9 @@ class Simulation:
     def params_cola(self):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
-            "simulation_boxsize": self.params["L"] * self.params["h"], # TODO: convert to physical (instead of h-based boxsize), since h can differ?
+            "simulation_boxsize": self.params["L"] * self.params["h"], # h factors out of sim equations, so instead of L = Lphys / Mpc, it wants Lsim = Lphys / (Mpc/h) = L * h
             "simulation_use_cola": True,
-            "simulation_use_scaledependent_cola": False, # only relevant with massive neutrinos?
+            "simulation_use_scaledependent_cola": False, # TODO: only relevant with massive neutrinos?
 
             "cosmology_Omegab": self.params["ωb0"] / self.params["h"]**2,
             "cosmology_OmegaCDM": self.params["ωc0"] / self.params["h"]**2,
@@ -346,17 +346,22 @@ class Simulation:
 
             "timestep_nsteps": [self.params["Nstep"]],
 
+            # TODO: look into σ8 normalization stuff
+            "ic_random_field_type": "gaussian",
             "ic_random_seed": self.params["seed"],
+            "ic_fix_amplitude": True, # use P(k) when generating Gaussian random field # TODO: (?)
+            "ic_use_gravity_model_GR": False, # don't use GR for backscaling P(k) in MG runs; instead be consistent with gravity model
             "ic_initial_redshift": self.params["zinit"],
             "ic_nmesh" : self.params["Ncell"],
             "ic_type_of_input": "powerspectrum", # transferinfofile only relevant with massive neutrinos?
             "ic_input_filename": "power_spectrum_today.dat",
-            "ic_input_redshift": 0.0, # TODO: feed initial power spectrum directly instead of backscaling?
+            "ic_input_redshift": 0.0, # TODO: feed initial power spectrum directly instead of backscaling? Hans said someone incorporated this into his code?
 
             "force_nmesh": self.params["Ncell"],
 
             "output_folder": ".",
             "output_redshifts": [0.0],
+            "pofk_nmesh": self.params["Ncell"], # TODO: ???
         }
 
     # run COLA simulation from back-scaling today's matter power spectrum (from CLASS)
