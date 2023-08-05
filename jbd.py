@@ -421,7 +421,7 @@ class BDSimulation(Simulation):
             "Omega_fld": 0, # no dark energy fluid
             "Omega_smg": -1, # automatic modified gravity
             "parameters_smg": f"NaN, {ω}, 1, 0", # ΩΛ0 (fill with cosmological constant), ω, Φini (arbitrary initial guess), Φ′ini≈0 (fixed)
-            "M_pl_today_smg": (4+2*ω)/(3+2*ω) / self.params["Geff/G"],
+            "M_pl_today_smg": (4+2*ω)/(3+2*ω) / self.params["G0/G"],
             "a_min_stability_test_smg": 1e-6, # BD has early-time instability, so lower tolerance to pass stability checker
             "output_background_smg": 2, # >= 2 needed to output phi to background table (https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/background.c#L3031)
         }
@@ -432,7 +432,7 @@ class BDSimulation(Simulation):
             "cosmology_model": "JBD",
             "cosmology_h": self.params["h"],
             "cosmology_JBD_wBD": 10 ** self.params["lgω"],
-            "cosmology_JBD_GeffG_today": self.params["Geff/G"],
+            "cosmology_JBD_GeffG_today": self.params["G0/G"],
         }
 
     def validate_output(self):
@@ -606,7 +606,7 @@ def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda 
     for params_bd in paramss:
         params_gr = params_bd.copy()
         del params_gr["lgω"] # remove BD-specific parameters
-        del params_gr["Geff/G"] # remove BD-specific parameters
+        del params_gr["G0/G"] # remove BD-specific parameters
 
         sims = SimulationGroupPair(BDSimulation, GRSimulation, params_bd, params_gr, nsims)
 
@@ -728,7 +728,7 @@ params0_GR = {
 }
 params0_BD = params0_GR | {
     "lgω": 2.0, # lowest value to consider (larger values should only be "easier" to simulate?)
-    "Geff/G": 1.0
+    "G0/G": 1.0
 }
 
 latex_labels = {
@@ -741,7 +741,7 @@ latex_labels = {
     "Nstep":  r"$N_\mathrm{step}$",
     "zinit":  r"$z_\mathrm{init}$",
     "lgω":    r"$lg \omega$",
-    "Geff/G": r"$G_0/G$",
+    "G0/G":   r"$G_0/G$",
     "Ase9":   r"$A_s \cdot 10^{9}$",
     "ns":     r"$n_s$",
 }
@@ -754,7 +754,7 @@ latex_labels = {
 
 # TODO: create parameter space sampling plots
 params_varying = {
-    "Geff/G": (0.99, 1.01),
+    "G0/G":   (0.99, 1.01),
     "h":      (0.63, 0.73),
     "ωb0":    (0.016, 0.028),
     "ωc0":    (0.090, 0.150),
@@ -767,10 +767,10 @@ params_varying = {
 #exit()
 
 # Check that CLASS and COLA outputs consistent background cosmology parameters
-# for a "non-standard" BD cosmology with small wBD and Geff/G != 1
+# for a "non-standard" BD cosmology with small wBD and G0/G != 1
 # (using cheap COLA computational parameters, so the simulation finishes near-instantly)
 #GRSimulation(params0_GR | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4})
-#BDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4, "lgω": 2.0, "Geff/G": 1.1})
+#BDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4, "lgω": 2.0, "G0/G": 1.1})
 #exit()
 
 #BDSimulation(params0_BD)
@@ -797,7 +797,7 @@ plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.
 
 # Variation plots (cosmological parameters)
 plot_convergence("plots/convergence_omega.pdf",   params0_BD, "lgω",    [2.0, 3.0, 4.0, 5.0],     paramlabel=latex_labels["lgω"],    lfunc=lambda lgω: f"${lgω}$")
-plot_convergence("plots/convergence_Geff.pdf",    params0_BD, "Geff/G", [0.99, 1.0, 1.01],        paramlabel=latex_labels["Geff/G"], lfunc=lambda Geff_G: f"${Geff_G:.02f}$")
+plot_convergence("plots/convergence_G0.pdf",      params0_BD, "G0/G",   [0.99, 1.0, 1.01],        paramlabel=latex_labels["G0/G"],   lfunc=lambda G0_G: f"${G0_G:.02f}$")
 plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],       paramlabel=latex_labels["h"],      lfunc=lambda h: f"${h}$")
 plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],    paramlabel=latex_labels["ωb0"],    lfunc=lambda ωb0: f"${ωb0}$")
 plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],    paramlabel=latex_labels["ωc0"],    lfunc=lambda ωc0: f"${ωc0}$")
