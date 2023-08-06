@@ -1,11 +1,6 @@
 #!/usr/bin/env python3
 
-# TODO: assert CLASS and COLA gives same field, H, etc.
-# TODO: Omega_fld, Omega_Lambda, V0 fulfills same role by setting cosmo constant
-# TODO: which G is hiclass' density parameters defined with respect to?
 # TODO: look at PPN to understand cosmological (large) -> solar system (small) scales of G in BD
-# TODO: example plots, hi-class run: see /mn/stornext/u3/hansw/Herman/WorkingHiClass/plot.py
-# TODO: Hans' FML BD cosmology has not been tested with G/G != 1 !
 # TODO: compare P(k) with fig. 2 on https://journals.aps.org/prd/pdf/10.1103/PhysRevD.97.023520#page=13
 # TODO: don't output snapshot
 
@@ -22,21 +17,24 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.stats import qmc
 
+print("Matplotlib default rcParams:")
 print(matplotlib.rcParams.keys())
-matplotlib.rcParams["text.usetex"] = True
-matplotlib.rcParams["font.size"] = 9
-matplotlib.rcParams["figure.figsize"] = (3.0, 2.7) # default (6.4, 4.8)
-matplotlib.rcParams["grid.linewidth"] = 0.3
-matplotlib.rcParams["grid.alpha"] = 0.2
-matplotlib.rcParams["legend.labelspacing"] = 0.2
-matplotlib.rcParams["legend.columnspacing"] = 1.5
-matplotlib.rcParams["legend.handlelength"] = 1.5
-matplotlib.rcParams["legend.handletextpad"] = 0.3
-matplotlib.rcParams["legend.frameon"] = False
-matplotlib.rcParams["xtick.top"] = True
-matplotlib.rcParams["ytick.right"] = True
-matplotlib.rcParams["xtick.direction"] = "in"
-matplotlib.rcParams["ytick.direction"] = "in"
+matplotlib.rcParams |= {
+    "text.usetex": True,
+    "font.size": 9,
+    "figure.figsize": (6.0, 4.0), # default (6.4, 4.8)
+    "grid.linewidth": 0.3,
+    "grid.alpha": 0.2,
+    "legend.labelspacing": 0.2,
+    "legend.columnspacing": 1.5,
+    "legend.handlelength": 1.5,
+    "legend.handletextpad": 0.3,
+    "legend.frameon": False,
+    "xtick.top": True,
+    "ytick.right": True,
+    "xtick.direction": "in",
+    "ytick.direction": "in",
+}
 
 parser = argparse.ArgumentParser(prog="jbd.py")
 parser.add_argument("--nbody", metavar="path/to/FML/FML/COLASolver/nbody", default="./FML/FML/COLASolver/nbody")
@@ -128,23 +126,9 @@ class ParameterSpace:
 
     def sample(self):
         samples = self.sampler.random()[0] # in [0,1)
-        for i in range(0, self.dimension):
-            lo = self.param_bounds_lo[i]
-            hi = self.param_bounds_hi[i]
-
-            if lo == hi:
-                samples[i] = lo # fixed parameter (handle separately to preserve data type)
-            else:
-                samples[i] = lo + (hi-lo) * samples[i] # varying parameter; scale [0,1) -> [a,b)
-
-        lo = self.param_bounds_lo
-        hi = self.param_bounds_hi
-        samples = [sample for sample in samples]
-        #samples = qmc.scale(samples, self.param_bounds_lo, self.param_bounds_hi) # in [lo, hi]
-
-        # TODO: pack in dict with param names?
-        samples = dict([(name, sample) for name, sample in zip(self.param_names, samples)])
-
+        for i, (lo, hi) in enumerate(zip(self.param_bounds_lo, self.param_bounds_hi)):
+            samples[i] = lo if hi == lo else lo + (hi-lo) * samples[i] # in [lo, hi); or fixed to lo == hi if they are equal (handle this separately to preserve data type)
+        samples = dict([(name, sample) for name, sample in zip(self.param_names, samples)]) # e.g. from [0.67, 2.1e-9] to {"h": 0.67, "As": 2.1e-9}
         return samples
 
     def samples(self, n):
@@ -160,8 +144,6 @@ class Simulation:
         self.params = params.copy() # will be modified
         self.name = self.name()
         self.directory = "sims/" + self.name + "/"
-        #self.rename_legacy() # TODO: move legacy directory
-        #return # TODO: remove
 
         # initialize simulation, validate input, create working directory, write parameters
         print(f"Simulating {self.name} with independent parameters:")
@@ -171,7 +153,7 @@ class Simulation:
         self.write_file("parameters.json", dictjson(self.params, unicode=True))
 
         # create initial conditions with CLASS, store derived parameters, run COLA simulation
-        # TODO: do lazily
+        # TODO: be lazy
         k, P = self.run_class()
         self.run_cola(k, P, np=16)
 
@@ -181,24 +163,8 @@ class Simulation:
         print(f"Simulated {self.name}")
 
     # unique string identifier for the simulation
-    # TODO: create unique hash from parameters: 
-    # TODO: return array of names (to look for renaming etc.)
-    # TODO: also output JSON dict with parameters
     def name(self):
         return hashdict(self.params)
-
-    def names_old(self):
-        return [f"NP{self.params['Npart']}_NM{self.params['Ncell']}_NS{self.params['Nstep']}_L{self.params['L']}"]
-
-    def rename_legacy(self):
-        for name_old in self.names_old():
-            path_old = f"sims/{name_old}"
-            print("candidate ", path_old)
-            if os.path.isdir(path_old):
-                print(f"want to rename {path_old} -> {self.directory}")
-                #os.rename(path_old, self.directory)
-                return
-        print("no rename")
 
     # whether CLASS has been run
     def completed_class(self):
@@ -276,7 +242,7 @@ class Simulation:
         teecmd = subprocess.Popen(["tee", log], stdin=subprocess.PIPE, stdout=None if verbose else subprocess.DEVNULL, cwd=self.directory)
         runcmd = subprocess.Popen(cmd, stdout=teecmd.stdin, stderr=subprocess.STDOUT, cwd=self.directory)
 
-        # TODO: check/return exit status
+        # TODO: check/return exit status?
         runcmd.wait() # wait for command to finish
         teecmd.stdin.close() # close stream
 
@@ -310,8 +276,6 @@ class Simulation:
         }
 
     # run CLASS and return today's matter power spectrum
-    # TODO: use hi_class for generating BD initial conditions?
-    # TODO: which k-values to choose? see https://github.com/lesgourg/class_public/blob/aa92943e4ab86b56970953589b4897adf2bd0f99/explanatory.ini#L1102
     def run_class(self, input="class_input.ini", log="class.log"):
         if not self.completed_class():
             # write input and run class
@@ -320,8 +284,6 @@ class Simulation:
         assert self.completed_class(), f"ERROR: see {log} for details"
 
         # get output power spectrum (COLA needs class' output power spectrum, just without comments)
-        # TODO: which h does hiclass use here?
-        # TODO: set the "non-used" h = 1.0 to avoid division?
         return self.power_spectrum(linear=True, hunits=True) # COLA wants power spectrum in h units
 
     # dictionary of parameters that should be passed to COLA
@@ -332,6 +294,7 @@ class Simulation:
             "simulation_use_cola": True,
             "simulation_use_scaledependent_cola": False, # TODO: only relevant with massive neutrinos?
 
+            "cosmology_h": self.params["h"],
             "cosmology_Omegab": self.params["ωb0"] / self.params["h"]**2,
             "cosmology_OmegaCDM": self.params["ωc0"] / self.params["h"]**2,
             "cosmology_OmegaK": self.params["ωk0"] / self.params["h"]**2,
@@ -361,6 +324,7 @@ class Simulation:
 
             "output_folder": ".",
             "output_redshifts": [0.0],
+            "output_particles": False,
             "pofk_nmesh": self.params["Ncell"], # TODO: ???
         }
 
@@ -369,9 +333,8 @@ class Simulation:
         if not self.completed_cola():
             self.write_data(ic, {"k/(h/Mpc)": khs, "P/(Mpc/h)^3": Phs}) # COLA wants "h-units" # TODO: give cola the actual used h for ICs?
             self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
-            cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input]
+            cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh and run?
             self.run_command(cmd, log=log, verbose=True)
-            shutil.rmtree(self.directory + f"snapshot_{self.name}_z0.000/") # delete particle data # TODO: delete big snapshot/particle files?
         assert self.completed_cola(), f"ERROR: see {log} for details"
 
     def power_spectrum(self, linear=False, hunits=False):
@@ -390,26 +353,13 @@ class Simulation:
         return k, P
 
 class GRSimulation(Simulation):
-    #def name(self):
-        #return "GR_" + Simulation.name(self)
-
-    #def names_old(self):
-        #return ["GR_" + name_old for name_old in Simulation.names_old(self)]
-
     def params_cola(self):
         return Simulation.params_cola(self) | { # combine dictionaries
-            "cosmology_h": self.params["h"],
             "cosmology_model": "LCDM",
             "gravity_model": "GR",
         }
 
 class BDSimulation(Simulation):
-    #def name(self):
-        #return "BD_" + Simulation.name(self)
-
-    #def names_old(self):
-        #return ["BD_" + name_old for name_old in Simulation.names_old(self)]
-
     def validate_input(self):
         Simulation.validate_input(self)
 
@@ -417,11 +367,11 @@ class BDSimulation(Simulation):
         ω = 10 ** self.params["lgω"]
         return Simulation.params_class(self) | { # combine dictionaries
             "gravity_model": "brans_dicke", # select BD gravity
-            "Omega_Lambda": 0, # rather include Λ through potential term (first entry in parameters_smg)
+            "Omega_Lambda": 0, # rather include Λ through potential term (first entry in parameters_smg; should be equivalent)
             "Omega_fld": 0, # no dark energy fluid
             "Omega_smg": -1, # automatic modified gravity
             "parameters_smg": f"NaN, {ω}, 1, 0", # ΩΛ0 (fill with cosmological constant), ω, Φini (arbitrary initial guess), Φ′ini≈0 (fixed)
-            "M_pl_today_smg": (4+2*ω)/(3+2*ω) / self.params["G0/G"],
+            "M_pl_today_smg": (4+2*ω)/(3+2*ω) / self.params["G0/G"], # see https://github.com/HAWinther/hi_class_pub_devel/blob/3160be0e0482ac2284c20b8878d9a81efdf09f2a/gravity_smg/gravity_models_smg.c#L462
             "a_min_stability_test_smg": 1e-6, # BD has early-time instability, so lower tolerance to pass stability checker
             "output_background_smg": 2, # >= 2 needed to output phi to background table (https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/background.c#L3031)
         }
@@ -430,7 +380,6 @@ class BDSimulation(Simulation):
         return Simulation.params_cola(self) | { # combine dictionaries
             "gravity_model": "JBD",
             "cosmology_model": "JBD",
-            "cosmology_h": self.params["h"],
             "cosmology_JBD_wBD": 10 ** self.params["lgω"],
             "cosmology_JBD_GeffG_today": self.params["G0/G"],
         }
@@ -466,7 +415,7 @@ class BDSimulation(Simulation):
 class SimulationGroup:
     def __init__(self, simtype, params0, nsims, hash=None):
         if hash is None:
-            hash = hashdict(params0) # unique hash of base (without seed) simulation parameters # TODO: hash WITHOUT the BD parameters, so the seed is the same in BD and GR simulations?
+            hash = hashdict(params0) # unique hash of base (without seed) simulation parameters
             hash = int(hash, 16)     # convert MD5 hexadecimal (base 16) hash to integer (needed to seed numpy's rng)
         rng = np.random.default_rng(hash) # deterministic random number generator from simulation parameters
         seeds = rng.integers(0, 2**31-1, size=nsims, dtype=int) # will be the same for the same simulation parameters
@@ -497,8 +446,7 @@ class SimulationGroup:
 
 class SimulationGroupPair:
     def __init__(self, simtype1, simtype2, params1, params2, nsims):
-        # choose common hash(params1, params2), so each simulation in P1/P2 is run with the same seed
-        # TODO: does this imply "same ICs" for similar, but different power spectra P1 and P2?
+        # choose common hash(params1, params2), so each simulation in P1/P2 is run with the same seed, giving similar initial conditions
         hash  = hashstr(hashdict(params1) + hashdict(params2)) # hash for the combinations of (params1, params2)
         hash  = int(hash, 16) # make an integer out of it
 
@@ -506,19 +454,11 @@ class SimulationGroupPair:
         self.sims2 = SimulationGroup(simtype2, params2, nsims, hash=hash)
         self.nsims = nsims
 
-    #def __init__(self, params, lgωGR=1e6):
-        #self.sim_gr = BDSimulation(params | {"lgω": lgωGR}) # TODO: use BD with large w, or a proper GR simulation?
-        #self.sim_bd = BDSimulation(params)
-
-    # TODO: how to handle different ks in best way?
-    # TODO: more natural (more similar ks) if plotted in normal units (not in h-units)?
-    # TODO: for linear, specify exact ks to class?
     def power_spectrum_ratio(self, linear=False):
         k1, P1s = self.sims1.power_spectra(linear=linear)
         k2, P2s = self.sims2.power_spectra(linear=linear)
 
-        # TODO: why does class output different k?
-        # TODO: fix this and get rid of k interpolation
+        # TODO: why does class output different k? fix and get rid of k interpolation!
         assert linear or np.all(k1 == k2), f"simulations output different k-values: {k1} vs {k2}"
 
         #assert np.all(np.isclose(k1, k2, atol=1e-2)), f"simulations output different k-values: max(abs(k1-k2)) = {np.max(np.abs(k1-k2))}"
@@ -528,7 +468,7 @@ class SimulationGroupPair:
         #kmax = np.minimum(k1[-1], k2[-1])
 
         # get common (average) ks and interpolate P there
-        # TODO: avoid with same k?
+        # TODO: avoid k interpolation?
         k   = (k1 + k2) / 2
         for isim in range(0, self.nsims):
             P1s[isim,:] = np.interp(k, k1, P1s[isim,:])
@@ -543,8 +483,7 @@ class SimulationGroupPair:
         # boost (of means)
         P1 = np.mean(P1s, axis=1) # average over simulations
         P2 = np.mean(P2s, axis=1) # average over simulations
-        #B  = P1 / P2 # TODO: use this? makes sense when not run with same initial seeds
-        B = np.mean(P1s/P2s, axis=1) # TODO: or this? makes sense when pairs have same initial seed, but is the error propagated correctly?
+        B = np.mean(P1s/P2s, axis=1)
 
         # boost error (propagate from errors in P1 and P2)
         dB_dP1 =   1 / P2    # dB/dP1 evaluated at means
@@ -561,7 +500,7 @@ class SimulationGroupPair:
         return k, B, ΔB
 
 def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfunc = lambda params: "black"):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(3.0, 2.7))
     ax.set_xlabel(r"$\lg[k / (1/\mathrm{Mpc})]$")
     ax.set_ylabel(r"$\lg[P / \mathrm{Mpc}^3]$")
 
@@ -590,7 +529,7 @@ def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfun
 # TODO: plot_single and plot_pair generic functions?
 
 def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, plot_linear = True):
-    fig, ax = plt.subplots()
+    fig, ax = plt.subplots(figsize=(3.0, 2.7))
 
     ax.set_xlabel(r"$\lg\left[k / (1/\mathrm{Mpc})\right]$")
     ax.set_ylabel(r"$B = P_\mathrm{BD} / P_\mathrm{GR}$")
@@ -669,6 +608,8 @@ def plot_parameter_samples(filename, samples, lo, hi, labels):
     dimension = len(params)
 
     fig, axs = plt.subplots(dimension-1, dimension-1, figsize=(6.0, 6.0))
+    #fig = matplotlib.figure.Figure(figsize=(6.0, 6.0))
+    #axs = fig.subplots(dimension-1, dimension-1)
     for iy in range(1, dimension):
         paramy = params[iy]
         sy = [sample[paramy] for sample in samples]
@@ -708,8 +649,8 @@ def plot_parameter_samples(filename, samples, lo, hi, labels):
 params0_GR = {
     # physical parameters
     "h":      0.68,   # class' default
-    "ωb0":    0.022,  # class' default
-    "ωc0":    0.120,  # class' default
+    "ωb0":    0.022,  # class' default (ωb0 = Ωs0*h0^2*ϕ0 ∝ ρb0 in BD, ωb0 = Ωs0*h0^2 ∝ ρb0 in GR)
+    "ωc0":    0.120,  # class' default (ωc0 = Ωs0*h0^2*ϕ0 ∝ ρc0 in BD, ωc0 = Ωs0*h0^2 ∝ ρc0 in GR)
     "ωk0":    0.0,    # class' default
     "Tγ0":    2.7255, # class' default
     "Neff":   3.044,  # class' default # TODO: handled correctly in COLA?
@@ -725,8 +666,8 @@ params0_GR = {
     "L":     512.0,
 }
 params0_BD = params0_GR | {
-    "lgω": 2.0, # lowest value to consider (larger values should only be "easier" to simulate?)
-    "G0/G": 1.0
+    "lgω":    2.0,    # lowest value to consider (larger values should only be "easier" to simulate?)
+    "G0/G":   1.0,    # G0 == G        (ϕ0 = (4+2*ω)/(3+2*ω) * 1/(G0/G))
 }
 
 latex_labels = {
@@ -750,7 +691,7 @@ latex_labels = {
 #list_simulations()
 #exit()
 
-# TODO: create parameter space sampling plots
+# Plot LHS samples seen through each parameter space face
 params_varying = {
     "lgω":    (2.0, 5.0),
     "G0/G":   (0.99, 1.01),
@@ -777,14 +718,13 @@ exit()
 #exit()
 
 # Power spectrum plots
-# TODO: discrepancy between COLA and CLASS' linear power spectra
 #sims = SimulationGroup(BDSimulation, params0_BD, 1)
 #sims = SimulationGroup(GRSimulation, params0_GR, 1)
 #exit()
 #plot_power_spectra("plots/power_spectra_fiducial.pdf", sims)
 #exit()
 
-plot_convergence("plots/boost_fiducial.pdf", params0_BD, "lgω", [2.0], nsims=2)
+plot_convergence("plots/boost_fiducial.pdf", params0_BD, "lgω", [2.0], nsims=1)
 exit()
 
 # Convergence plots (computational parameters)
@@ -803,6 +743,3 @@ plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090,
 plot_convergence("plots/convergence_As.pdf",      params0_BD, "Ase9",   [1.6, 2.1, 2.6],          paramlabel=latex_labels["Ase9"],   lfunc=lambda Ase9: f"${Ase9}$")
 plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],    paramlabel=latex_labels["ns"],     lfunc=lambda ns:  f"${ns}$")
 exit()
-
-#sims = SimulationPair(params)
-#k, Pbd_Pgr = sims.power_spectrum_ratio()
