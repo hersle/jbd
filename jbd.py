@@ -160,7 +160,9 @@ class Simulation:
         # verify successful completion
         assert self.completed()
         self.validate_output()
-        print(f"Simulated {self.name}")
+        print(f"Simulated {self.name} with derived parameters:")
+        params_extended = self.params_extended()
+        print("\n".join(f"{param} = {params_extended[param]}" for param in sorted(params_extended)))
 
     # unique string identifier for the simulation
     def name(self):
@@ -352,6 +354,10 @@ class Simulation:
 
         return k, P
 
+    # extend independent parameters used to run the sim with its derived parameters
+    def params_extended(self):
+        return self.params.copy()
+
 class GRSimulation(Simulation):
     def params_cola(self):
         return Simulation.params_cola(self) | { # combine dictionaries
@@ -407,9 +413,13 @@ class BDSimulation(Simulation):
         dlogϕ_dloga_cola  = bg_cola[10]
         check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4)
 
-    # derived parameters
-    def  ΩΛ0(self): return self.read_variable("class.log", "Lambda")
-    def Φini(self): return self.read_variable("class.log", "phi_ini")
+    def params_extended(self):
+        params = Simulation.params_extended(self)
+        params["ϕini"] = self.read_variable("class.log", "phi_ini")
+        params["ϕ0"]   = self.read_variable("class.log", "phi_0")
+        params["ΩΛ0"]  = self.read_variable("class.log", "Lambda") / params["ϕ0"] # ρΛ0 / (3*H0^2*ϕ0/8*π)
+        params["ωΛ0"]  = params["ΩΛ0"] * params["h"]**2 * params["ϕ0"]            # ∝ ρΛ0
+        return params
 
 # TODO: rather use a SimulationPairGroup when running pairs with same initial seed
 class SimulationGroup:
