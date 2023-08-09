@@ -44,6 +44,17 @@ args = parser.parse_args()
 COLAEXEC = os.path.abspath(os.path.expanduser(vars(args)["nbody"]))
 CLASSEXEC = os.path.abspath(os.path.expanduser(vars(args)["class"]))
 
+def to_nearest(number, nearest, mode="round"):
+    if mode == "round":
+        func = np.round
+    elif mode == "ceil":
+        func = np.ceil
+    elif mode == "floor":
+        func = np.floor
+    else:
+        assert f"unknown mode {mode}"
+    return func(number / nearest) * nearest
+
 def dictjson(dict, sort=False, unicode=False):
     return json.dumps(dict, sort_keys=sort, ensure_ascii=not unicode)
 
@@ -456,22 +467,22 @@ class SimulationGroup:
         return k, P, ΔP
 
 class SimulationGroupPair:
-    def __init__(self, params_BD, nsims):
+    def __init__(self, params_BD, nsims, params_BD_to_GR):
         # choose hash so each simulation in PBD/PGR is run with the same seed and thus similar initial conditions
         hash = hashdict(params_BD) # BD parameters is a superset, so use them to make a hash for both BD and GR
         hash = int(hash, 16) # make an integer out of it
 
         self.sims_BD = SimulationGroup(BDSimulation, params_BD, nsims, hash=hash)
-        params_BD_derived = self.sims_BD[0].params_extended()
-        del params_BD_derived["seed"]
+        params_BD_ext = self.sims_BD[0].params_extended()
+        del params_BD_ext["seed"]
 
-        # make sure all BD simulations (except the appended random seed) have the same derived parameters
+        # make sure all BD simulations (except the appended random seed) have the same derived/extended parameters
         for sim_BD in self.sims_BD:
-            params_BD_derived_candidate = sim_BD.params_extended()
-            del params_BD_derived_candidate["seed"]
-            assert params_BD_derived_candidate == params_BD_derived
+            params_BD_ext_candidate = sim_BD.params_extended()
+            del params_BD_ext_candidate["seed"]
+            assert params_BD_ext_candidate == params_BD_ext
 
-        params_GR = parameters_BD_to_GR(params_BD, params_BD_derived) # θGR = θGR(θBD)
+        params_GR = params_BD_to_GR(params_BD, params_BD_ext) # θGR = θGR(θBD)
         self.sims_GR = SimulationGroup(GRSimulation, params_GR, nsims, hash=hash)
 
         self.nsims = nsims
@@ -522,14 +533,16 @@ class SimulationGroupPair:
 
         return k, B, ΔB
 
-def parameters_BD_to_GR(params_BD, params_BD_derived):
-    params_GR = params_BD.copy() # don't modify input
+def θGR_identity(θBD, θBDext):
+    θGR = θBD.copy() # don't modify input
+    del θGR["lgω"]  # remove BD-specific parameter
+    del θGR["G0/G"] # remove BD-specific parameter
+    return θGR
 
-    del params_GR["lgω"]  # remove BD-specific parameter
-    del params_GR["G0/G"] # remove BD-specific parameter
-    params_GR["h"] = params_BD["h"] * np.sqrt(params_BD_derived["ϕini"]) # TODO: ensure similar Hubble evolution (of E=H/H0) during radiation domination
-
-    return params_GR
+def θGR_different_h(θBD, θBDext):
+    θGR = θGR_identity(θBD, θBDext)
+    θGR["h"] = θBD["h"] * np.sqrt(θBDext["ϕini"]) # TODO: ensure similar Hubble evolution (of E=H/H0) during radiation domination
+    return θGR
 
 def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfunc = lambda params: "black"):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
@@ -560,7 +573,7 @@ def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfun
 
 # TODO: plot_single and plot_pair generic functions?
 
-def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, divide_linear = False):
+def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, divide_linear = True):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
 
     ax.set_xlabel(r"$\lg\left[k_\mathrm{BD} / (1/\mathrm{Mpc})\right]$")
@@ -575,7 +588,7 @@ def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda 
     ax2.legend(loc="upper left", bbox_to_anchor=(-0.02, 0.97))
 
     for params_BD in paramss:
-        sims = SimulationGroupPair(params_BD, nsims)
+        sims = SimulationGroupPair(params_BD, nsims, θGR)
 
         klin, Blin, _  = sims.power_spectrum_ratio(linear=True)
         k,    B   , ΔB = sims.power_spectrum_ratio(linear=False)
@@ -592,10 +605,14 @@ def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda 
         ax.plot(np.log10(k),    y,    color=colorfunc(params_BD), alpha=1.0, linewidth=1, linestyle="solid",  label=None)
         ax.fill_between(np.log10(k), y-Δy, y+Δy, color=colorfunc(params_BD), alpha=0.2, edgecolor=None) # error band
 
-    ax.set_xlim(-2, +1)
-    ax.set_ylim(0.94-1e-10, 1.06+1e-10) # +/- 1e-10 shows first and last minor tick
+    ymin, ymax = ax.get_ylim()
+    ymin = to_nearest(ymin, 0.05, "floor")
+    ymax = to_nearest(ymax, 0.05, "ceil")
+
     ax.set_xticks([-2, -1, 0, 1])
-    ax.set_yticks([0.95, 1.0, 1.05])
+    ax.set_yticks(np.linspace(0, 2, 41)) # every 0.05
+    ax.set_xlim(-2, +1)
+    ax.set_ylim(ymin, ymax)
     ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
     ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
 
@@ -613,7 +630,7 @@ def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_convergence(filename, params0, param, vals, nsims=5, paramlabel=None, lfunc=None, cfunc=None, **kwargs):
+def plot_convergence(filename, params0, param, vals, nsims=5, θGR=lambda ΘBD, θBDext: ΘBD, paramlabel=None, lfunc=None, cfunc=None, **kwargs):
     paramss = [params0 | {param: val} for val in vals] # generate all parameter combinations
 
     if lfunc is None:
@@ -635,7 +652,7 @@ def plot_convergence(filename, params0, param, vals, nsims=5, paramlabel=None, l
         B = 0.5 - A * v0
         return cmap(A * v + B)
 
-    plot_sequence(filename, paramss, nsims, paramlabel, labelfunc, colorfunc, **kwargs)
+    plot_sequence(filename, paramss, nsims, θGR, paramlabel, labelfunc, colorfunc, **kwargs)
 
 def plot_parameter_samples(filename, samples, lo, hi, labels):
     params = list(lo.keys())
@@ -758,7 +775,10 @@ params_varying = {
 #plot_power_spectra("plots/power_spectra_fiducial.pdf", sims)
 #exit()
 
-plot_convergence("plots/boost_fiducial.pdf", params0_BD, "lgω", [2.0], nsims=1)
+plot_convergence("plots/boost_fiducial_sameh.pdf",        params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_identity,    divide_linear=False, paramlabel=latex_labels["lgω"])
+plot_convergence("plots/boost_fiducial_diffh.pdf",        params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_different_h, divide_linear=False, paramlabel=latex_labels["lgω"])
+plot_convergence("plots/boost_fiducial_sameh_divlin.pdf", params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_identity,    divide_linear=True,  paramlabel=latex_labels["lgω"])
+plot_convergence("plots/boost_fiducial_diffh_divlin.pdf", params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_different_h, divide_linear=True,  paramlabel=latex_labels["lgω"])
 exit()
 
 # Convergence plots (computational parameters)
