@@ -292,7 +292,7 @@ class Simulation:
     def params_cola(self):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
-            "simulation_boxsize": self.params["L"] * self.params["h"], # h factors out of sim equations, so instead of L = Lphys / Mpc, it wants Lsim = Lphys / (Mpc/h) = L * h
+            "simulation_boxsize": self.params["Lh"], # TODO: flexibly give L with or without hunits (using parameter reduction function?) # h factors out of sim equations, so instead of L = Lphys / Mpc, it wants Lsim = Lphys / (Mpc/h) = L * h
             "simulation_use_cola": True,
             "simulation_use_scaledependent_cola": False, # TODO: only relevant with massive neutrinos?
 
@@ -673,7 +673,7 @@ params0_GR = {
     "Nstep": 30,
     "Npart": 512,
     "Ncell": 512,
-    "L":     512.0,
+    "Lh":    512.0, # L / (Mpc/h)
 }
 params0_BD = params0_GR | {
     "lgω":    2.0,    # lowest value to consider (larger values should only be "easier" to simulate?)
@@ -684,7 +684,7 @@ latex_labels = {
     "h":      r"$h$",
     "ωb0":    r"$\omega_{b0}$",
     "ωc0":    r"$\omega_{c0}$",
-    "L":      r"$L / \mathrm{Mpc}$",
+    "Lh":     r"$L / (\mathrm{Mpc}/h)$",
     "Npart":  r"$N_\mathrm{part}$",
     "Ncell":  r"$N_\mathrm{cell}$",
     "Nstep":  r"$N_\mathrm{step}$",
@@ -711,16 +711,16 @@ params_varying = {
     "Ase9":   (1.6, 2.6),
     "ns":     (0.866, 1.066),
 }
-paramspace = ParameterSpace(params_varying)
-samples = paramspace.samples(500)
-plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), latex_labels)
-exit()
+#paramspace = ParameterSpace(params_varying)
+#samples = paramspace.samples(500)
+#plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), latex_labels)
+#exit()
 
 # Check that CLASS and COLA outputs consistent background cosmology parameters
 # for a "non-standard" BD cosmology with small wBD and G0/G != 1
 # (using cheap COLA computational parameters, so the simulation finishes near-instantly)
-#GRSimulation(params0_GR | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4})
-#BDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "L": 4, "lgω": 2.0, "G0/G": 1.1})
+#GRSimulation(params0_GR | {"Npart": 0, "Ncell": 16, "Nstep": 0, "Lh": 4})
+#BDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "Lh": 4, "lgω": 2.0, "G0/G": 1.1})
 #exit()
 
 #BDSimulation(params0_BD)
@@ -738,7 +738,7 @@ plot_convergence("plots/boost_fiducial.pdf", params0_BD, "lgω", [2.0], nsims=1)
 exit()
 
 # Convergence plots (computational parameters)
-plot_convergence("plots/convergence_L.pdf",     params0_BD, "L",      [256.0, 384.0, 512.0, 768.0, 1024.0], paramlabel=latex_labels["L"],     lfunc=lambda L: f"${L:.0f}$", cfunc=lambda L: np.log2(L))
+plot_convergence("plots/convergence_L.pdf",     params0_BD, "Lh",     [256.0, 384.0, 512.0, 768.0, 1024.0], paramlabel=latex_labels["Lh"],    lfunc=lambda Lh:    f"${Lh:.0f}$", cfunc=lambda Lh: np.log2(Lh))
 plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           paramlabel=latex_labels["Npart"], lfunc=lambda Npart: f"${Npart}^3$")
 plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           paramlabel=latex_labels["Ncell"], lfunc=lambda Ncell: f"${Ncell}^3$")
 plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 paramlabel=latex_labels["Nstep"], lfunc=lambda Nstep: f"${Nstep}$")
