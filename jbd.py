@@ -432,13 +432,14 @@ class SimulationGroup:
         seeds = [int(seed) for seed in seeds] # convert to python ints to make compatible with JSON dict hashing
         self.sims = [simtype(params0 | {"seed": seed}) for seed in seeds] # run simulations with all seeds
 
-    def __iter__(self):
-        yield from self.sims
+    def __iter__(self): yield from self.sims
+    def __len__(self): return len(self.sims)
+    def __getitem__(self, key): return self.sims[key]
 
-    def power_spectra(self, linear=False):
+    def power_spectra(self, **kwargs):
         ks, Ps = [], []
         for sim in self:
-            k, P = sim.power_spectrum(linear=linear)
+            k, P = sim.power_spectrum(**kwargs)
             assert len(ks) == 0 or np.all(k == ks[0]), "group simulations output different k"
             ks.append(k)
             Ps.append(P)
@@ -447,67 +448,88 @@ class SimulationGroup:
         Ps = np.array(Ps) # 2D numpy array P[isim, ik]
         return k, Ps
 
-    def power_spectrum(self, linear=False):
-        k, Ps = self.power_spectra(linear=linear)
+    def power_spectrum(self, **kwargs):
+        k, Ps = self.power_spectra(**kwargs)
         P  = np.mean(Ps, axis=0) # average            over simulations (for each k)
         ΔP = np.std( Ps, axis=0) # standard deviation over simulations (for each k)
         assert not linear or np.all(np.isclose(ΔP, 0.0, rtol=0, atol=1e-12)), "group simulations output different linear power spectra" # linear power spectrum is independent of seeds
         return k, P, ΔP
 
 class SimulationGroupPair:
-    def __init__(self, simtype1, simtype2, params1, params2, nsims):
-        # choose common hash(params1, params2), so each simulation in P1/P2 is run with the same seed, giving similar initial conditions
-        hash  = hashstr(hashdict(params1) + hashdict(params2)) # hash for the combinations of (params1, params2)
-        hash  = int(hash, 16) # make an integer out of it
+    def __init__(self, params_BD, nsims):
+        # choose hash so each simulation in PBD/PGR is run with the same seed and thus similar initial conditions
+        hash = hashdict(params_BD) # BD parameters is a superset, so use them to make a hash for both BD and GR
+        hash = int(hash, 16) # make an integer out of it
 
-        self.sims1 = SimulationGroup(simtype1, params1, nsims, hash=hash)
-        self.sims2 = SimulationGroup(simtype2, params2, nsims, hash=hash)
+        self.sims_BD = SimulationGroup(BDSimulation, params_BD, nsims, hash=hash)
+        params_BD_derived = self.sims_BD[0].params_extended()
+        del params_BD_derived["seed"]
+
+        # make sure all BD simulations (except the appended random seed) have the same derived parameters
+        for sim_BD in self.sims_BD:
+            params_BD_derived_candidate = sim_BD.params_extended()
+            del params_BD_derived_candidate["seed"]
+            assert params_BD_derived_candidate == params_BD_derived
+
+        params_GR = parameters_BD_to_GR(params_BD, params_BD_derived) # θGR = θGR(θBD)
+        self.sims_GR = SimulationGroup(GRSimulation, params_GR, nsims, hash=hash)
+
         self.nsims = nsims
 
     def power_spectrum_ratio(self, linear=False):
-        k1, P1s = self.sims1.power_spectra(linear=linear)
-        k2, P2s = self.sims2.power_spectra(linear=linear)
+        kBD, PBDs = self.sims_BD.power_spectra(linear=linear, hunits=True) # kBD / (hBD/Mpc), PBD / (Mpc/hBD)^3
+        kGR, PGRs = self.sims_GR.power_spectra(linear=linear, hunits=True) # kGR / (hGR/Mpc), PGR / (Mpc/hGR)^3
 
-        # TODO: why does class output different k? fix and get rid of k interpolation!
-        assert linear or np.all(k1 == k2), f"simulations output different k-values: {k1} vs {k2}"
-
-        #assert np.all(np.isclose(k1, k2, atol=1e-2)), f"simulations output different k-values: max(abs(k1-k2)) = {np.max(np.abs(k1-k2))}"
-        #k = k1
-
-        #kmin = np.maximum(k1[0],  k2[0])
-        #kmax = np.minimum(k1[-1], k2[-1])
-
-        # get common (average) ks and interpolate P there
-        # TODO: avoid k interpolation?
-        k   = (k1 + k2) / 2
-        for isim in range(0, self.nsims):
-            P1s[isim,:] = np.interp(k, k1, P1s[isim,:])
-            P2s[isim,:] = np.interp(k, k2, P2s[isim,:])
+        if linear:
+            # class outputs linear P at slightly different k/(h/Mpc) in BD and GR,
+            # so interpolate PGR(kGR) -> PGR(kBD)
+            # TODO: avoid interpolation by make class output linear P at same kBD and kGR (in hunits)
+            for isim in range(0, self.nsims):
+                PGRs[isim,:] = np.interp(kBD, kGR, PGRs[isim,:]) # interpolate PGR(kGR) to kBD values # TODO: avoid
+        else:
+            # kBD / hBD == kGR / hGR if the simulations are run with equal L / (Mpc/h)
+            assert np.all(kBD == kGR), f"simulations output different k-values: {kBD[:3]}...{kBD[-3:]} vs {kGR[:3]}...{kGR[-3:]}"
+        k = kBD / self.sims_BD[0].params["h"] # take the BD wavenumbers as the reference wavenumbers
 
         # from a statistical viewpoint,
         # we view P(k) as a random variable with samples from each simulation,
         # so it is more natural to index Ps[ik] == Ps[ik,:]
-        P1s = np.transpose(P1s)
-        P2s = np.transpose(P2s)
+        PBDs = np.transpose(PBDs)
+        PGRs = np.transpose(PGRs)
 
         # boost (of means)
-        P1 = np.mean(P1s, axis=1) # average over simulations
-        P2 = np.mean(P2s, axis=1) # average over simulations
-        B = np.mean(P1s/P2s, axis=1)
+        PBD = np.mean(PBDs, axis=1) # average over simulations
+        PGR = np.mean(PGRs, axis=1) # average over simulations
+        B = np.mean(PBDs/PGRs, axis=1)
 
-        # boost error (propagate from errors in P1 and P2)
-        dB_dP1 =   1 / P2    # dB/dP1 evaluated at means
-        dB_dP2 = -P1 / P2**2 # dB/dP2 evaluated at means
-        ΔB = np.array([propagate_error([dB_dP1[ik], dB_dP2[ik]], [P1s[ik], P2s[ik]]) for ik in range(0, len(k))])
+        # boost error (propagate from errors in PBD and PGR)
+        dB_dPBD =    1 / PGR    # dB/dPBD evaluated at means
+        dB_dPGR = -PBD / PGR**2 # dB/dPGR evaluated at means
+        ΔB = np.array([propagate_error([dB_dPBD[ik], dB_dPGR[ik]], [PBDs[ik], PGRs[ik]]) for ik in range(0, len(k))])
 
         # uncomment to compare matrix error propagation to manual expression (for one k value, to check it is correct)
         # (see formula for f=A/B at https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Example_formulae)
-        #σsq = np.cov([P1s[0], P2s[0]])
+        #σsq = np.cov([PBDs[0], PGRs[0]])
         #ΔB_matrix = ΔB[0]
-        #ΔB_manual = B[0] * np.sqrt(σsq[0,0]/P1[0]**2 + σsq[1,1]/P2[0]**2 - 2*σsq[0,1]/(P1[0]*P2[0]))
+        #ΔB_manual = B[0] * np.sqrt(σsq[0,0]/PBD[0]**2 + σsq[1,1]/PGR[0]**2 - 2*σsq[0,1]/(PBD[0]*PGR[0]))
         #assert np.isclose(ΔB_matrix, ΔB_manual), "error propagation is wrong"
 
+        # remove h factoring # TODO: correct?
+        hBD = self.sims_BD[0].params["h"]
+        hGR = self.sims_GR[0].params["h"]
+        B  *= (hGR / hBD)**3
+        ΔB *= (hGR / hBD)**3
+
         return k, B, ΔB
+
+def parameters_BD_to_GR(params_BD, params_BD_derived):
+    params_GR = params_BD.copy() # don't modify input
+
+    del params_GR["lgω"]  # remove BD-specific parameter
+    del params_GR["G0/G"] # remove BD-specific parameter
+    params_GR["h"] = params_BD["h"] * np.sqrt(params_BD_derived["ϕini"]) # TODO: ensure similar Hubble evolution (of E=H/H0) during radiation domination
+
+    return params_GR
 
 def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfunc = lambda params: "black"):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
@@ -541,8 +563,8 @@ def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfun
 def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, plot_linear = True):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
 
-    ax.set_xlabel(r"$\lg\left[k / (1/\mathrm{Mpc})\right]$")
-    ax.set_ylabel(r"$B = P_\mathrm{BD} / P_\mathrm{GR}$")
+    ax.set_xlabel(r"$\lg\left[k_\mathrm{BD} / (1/\mathrm{Mpc})\right]$")
+    ax.set_ylabel(r"$B = P_\mathrm{BD}(k_\mathrm{BD}) \big/ P_\mathrm{GR}(k_\mathrm{GR})$")
 
     # Dummy legend plot
     ax2 = ax.twinx() # use invisible twin axis to create second legend
@@ -552,31 +574,27 @@ def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda 
     ax2.plot(        [-3, -2], [0, 1], alpha=0.5, color="black", linestyle="dashed", linewidth=1, label=r"$B = B_\mathrm{lin}$")
     ax2.legend(loc="upper left", bbox_to_anchor=(-0.02, 0.97))
 
-    for params_bd in paramss:
-        params_gr = params_bd.copy()
-        del params_gr["lgω"] # remove BD-specific parameters
-        del params_gr["G0/G"] # remove BD-specific parameters
-
-        sims = SimulationGroupPair(BDSimulation, GRSimulation, params_bd, params_gr, nsims)
+    for params_BD in paramss:
+        sims = SimulationGroupPair(params_BD, nsims)
 
         if plot_linear:
             k, B, _ = sims.power_spectrum_ratio(linear=True)
             k, B = k[k>0.9e-2], B[k>0.9e-2] # cut away k < 10^-2 / Mpc
-            ax.plot(np.log10(k), B, linewidth=1, color=colorfunc(params_bd), alpha=0.5, linestyle="dashed", label=None, zorder=1)
+            ax.plot(np.log10(k), B, linewidth=1, color=colorfunc(params_BD), alpha=0.5, linestyle="dashed", label=None, zorder=1)
 
         k, B, ΔB = sims.power_spectrum_ratio(linear=False)
-        ax.fill_between(np.log10(k), B-ΔB, B+ΔB, color=colorfunc(params_bd), alpha=0.2, edgecolor=None)
-        ax.plot(        np.log10(k), B,          color=colorfunc(params_bd), alpha=1.0, linewidth=1, linestyle="solid", label=None, zorder=2)
+        ax.fill_between(np.log10(k), B-ΔB, B+ΔB, color=colorfunc(params_BD), alpha=0.2, edgecolor=None)
+        ax.plot(        np.log10(k), B,          color=colorfunc(params_BD), alpha=1.0, linewidth=1, linestyle="solid", label=None, zorder=2)
 
     ax.set_xlim(-2, +1)
-    ax.set_ylim(0.99-1e-10, 1.15+1e-10) # +/- 1e-10 shows first and last minor tick
+    ax.set_ylim(0.95-1e-10, 1.05+1e-10) # +/- 1e-10 shows first and last minor tick
     ax.set_xticks([-2, -1, 0, 1])
-    ax.set_yticks([1.0, 1.1])
+    ax.set_yticks([0.95, 1.0, 1.05])
     ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
     ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
 
-    labels = [labelfunc(params_bd) for params_bd in paramss]
-    colors = [colorfunc(params_bd) for params_bd in paramss]
+    labels = [labelfunc(params_BD) for params_BD in paramss]
+    colors = [colorfunc(params_BD) for params_BD in paramss]
     cax  = make_axes_locatable(ax).append_axes("top", size="7%", pad="0%") # align colorbar axis with plot
     cmap = matplotlib.colors.ListedColormap(colors)
     cbar = plt.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap), cax=cax, orientation="horizontal")
