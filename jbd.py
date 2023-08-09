@@ -560,11 +560,11 @@ def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfun
 
 # TODO: plot_single and plot_pair generic functions?
 
-def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, plot_linear = True):
+def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, divide_linear = False):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
 
     ax.set_xlabel(r"$\lg\left[k_\mathrm{BD} / (1/\mathrm{Mpc})\right]$")
-    ax.set_ylabel(r"$B = P_\mathrm{BD}(k_\mathrm{BD}) \big/ P_\mathrm{GR}(k_\mathrm{GR})$")
+    ax.set_ylabel(r"$B(k_\mathrm{BD})" + (" / B_\mathrm{linear}(k_\mathrm{BD})" if divide_linear else "") + "$")
 
     # Dummy legend plot
     ax2 = ax.twinx() # use invisible twin axis to create second legend
@@ -577,17 +577,23 @@ def plot_sequence(filename, paramss, nsims, labeltitle=None, labelfunc = lambda 
     for params_BD in paramss:
         sims = SimulationGroupPair(params_BD, nsims)
 
-        if plot_linear:
-            k, B, _ = sims.power_spectrum_ratio(linear=True)
-            k, B = k[k>0.9e-2], B[k>0.9e-2] # cut away k < 10^-2 / Mpc
-            ax.plot(np.log10(k), B, linewidth=1, color=colorfunc(params_BD), alpha=0.5, linestyle="dashed", label=None, zorder=1)
+        klin, Blin, _  = sims.power_spectrum_ratio(linear=True)
+        k,    B   , ΔB = sims.power_spectrum_ratio(linear=False)
 
-        k, B, ΔB = sims.power_spectrum_ratio(linear=False)
-        ax.fill_between(np.log10(k), B-ΔB, B+ΔB, color=colorfunc(params_BD), alpha=0.2, edgecolor=None)
-        ax.plot(        np.log10(k), B,          color=colorfunc(params_BD), alpha=1.0, linewidth=1, linestyle="solid", label=None, zorder=2)
+        y = B
+        Δy = ΔB
+        ylin = Blin
+        if divide_linear:
+            y  /= np.interp(k, klin, Blin)
+            Δy /= np.interp(k, klin, Blin)
+            ylin /= Blin
+
+        ax.plot(np.log10(klin), ylin, color=colorfunc(params_BD), alpha=1.0, linewidth=1, linestyle="dashed", label=None)
+        ax.plot(np.log10(k),    y,    color=colorfunc(params_BD), alpha=1.0, linewidth=1, linestyle="solid",  label=None)
+        ax.fill_between(np.log10(k), y-Δy, y+Δy, color=colorfunc(params_BD), alpha=0.2, edgecolor=None) # error band
 
     ax.set_xlim(-2, +1)
-    ax.set_ylim(0.95-1e-10, 1.05+1e-10) # +/- 1e-10 shows first and last minor tick
+    ax.set_ylim(0.94-1e-10, 1.06+1e-10) # +/- 1e-10 shows first and last minor tick
     ax.set_xticks([-2, -1, 0, 1])
     ax.set_yticks([0.95, 1.0, 1.05])
     ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
