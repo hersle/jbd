@@ -434,14 +434,20 @@ class BDSimulation(Simulation):
 
 # TODO: rather use a SimulationPairGroup when running pairs with same initial seed
 class SimulationGroup:
-    def __init__(self, simtype, params0, nsims, hash=None):
+    def __init__(self, simtype, params, nsims, hash=None):
         if hash is None:
-            hash = hashdict(params0) # unique hash of base (without seed) simulation parameters
+            hash = hashdict(params) # unique hash of base (without seed) simulation parameters
             hash = int(hash, 16)     # convert MD5 hexadecimal (base 16) hash to integer (needed to seed numpy's rng)
         rng = np.random.default_rng(hash) # deterministic random number generator from simulation parameters
         seeds = rng.integers(0, 2**31-1, size=nsims, dtype=int) # will be the same for the same simulation parameters
         seeds = [int(seed) for seed in seeds] # convert to python ints to make compatible with JSON dict hashing
-        self.sims = [simtype(params0 | {"seed": seed}) for seed in seeds] # run simulations with all seeds
+        self.sims = [simtype(params | {"seed": seed}) for seed in seeds] # run simulations with all seeds # TODO: take seed as keyword in Simulation, then append to internal dictionary there
+
+        # extend independent parameters with derived parameters
+        self.params = self.sims[0].params_extended()
+        del self.params["seed"] # TODO: get rid of
+        for sim in self.sims:
+            assert set(sim.params_extended().keys() - set(self.params.keys())) == {"seed"} # make sure they all have the same derived parameters, except for the random seed
 
     def __iter__(self): yield from self.sims
     def __len__(self): return len(self.sims)
@@ -473,17 +479,9 @@ class SimulationGroupPair:
         hash = int(hash, 16) # make an integer out of it
 
         self.sims_BD = SimulationGroup(BDSimulation, params_BD, nsims, hash=hash)
-        params_BD_ext = self.sims_BD[0].params_extended()
-        del params_BD_ext["seed"]
 
-        # make sure all BD simulations (except the appended random seed) have the same derived/extended parameters
-        for sim_BD in self.sims_BD:
-            params_BD_ext_candidate = sim_BD.params_extended()
-            del params_BD_ext_candidate["seed"]
-            assert params_BD_ext_candidate == params_BD_ext
-
-        params_GR = params_BD_to_GR(params_BD, params_BD_ext) # θGR = θGR(θBD)
-        self.sims_GR = SimulationGroup(GRSimulation, params_GR, nsims, hash=hash)
+        self.params_GR = params_BD_to_GR(params_BD, self.sims_BD.params) # θGR = θGR(θBD)
+        self.sims_GR = SimulationGroup(GRSimulation, self.params_GR, nsims, hash=hash)
 
         self.nsims = nsims
 
@@ -500,7 +498,7 @@ class SimulationGroupPair:
         else:
             # kBD / hBD == kGR / hGR if the simulations are run with equal L / (Mpc/h)
             assert np.all(kBD == kGR), f"simulations output different k-values: {kBD[:3]}...{kBD[-3:]} vs {kGR[:3]}...{kGR[-3:]}"
-        k = kBD / self.sims_BD[0].params["h"] # take the BD wavenumbers as the reference wavenumbers
+        k = kBD / self.sims_BD.params["h"] # take the BD wavenumbers as the reference wavenumbers
 
         # from a statistical viewpoint,
         # we view P(k) as a random variable with samples from each simulation,
@@ -526,11 +524,8 @@ class SimulationGroupPair:
         #assert np.isclose(ΔB_matrix, ΔB_manual), "error propagation is wrong"
 
         # remove h factoring # TODO: correct?
-        hBD = self.sims_BD[0].params["h"]
-        hGR = self.sims_GR[0].params["h"]
-        B  *= (hGR / hBD)**3
-        ΔB *= (hGR / hBD)**3
-
+        B  *= (self.sims_GR.params["h"] / self.sims_BD.params["h"])**3
+        ΔB *= (self.sims_GR.params["h"] / self.sims_BD.params["h"])**3
         return k, B, ΔB
 
 def θGR_identity(θBD, θBDext):
