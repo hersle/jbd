@@ -146,13 +146,13 @@ class ParameterSpace:
         return [self.sample() for i in range(0, n)]
 
 class Simulation:
-    def __init__(self, params=None, path=None):
+    def __init__(self, params=None, seed=None, path=None):
         if path is not None:
             self.directory = "sims/" + path + "/"
             params = json.loads(self.read_file("parameters.json"))
             return Simulation.__init__(self, params=params)
 
-        self.params = params.copy() # will be modified
+        self.params = params | {"seed": seed} # copy (will be modified); make seed part of parameters only internally
         self.name = self.name()
         self.directory = "sims/" + self.name + "/"
 
@@ -172,8 +172,7 @@ class Simulation:
         assert self.completed()
         self.validate_output()
         print(f"Simulated {self.name} with derived parameters:")
-        params_extended = self.params_extended()
-        print("\n".join(f"{param} = {params_extended[param]}" for param in sorted(params_extended)))
+        print("\n".join(f"{param} = {value}" for param, value in sorted(self.params_extended().items())))
 
     # unique string identifier for the simulation
     def name(self):
@@ -367,7 +366,9 @@ class Simulation:
 
     # extend independent parameters used to run the sim with its derived parameters
     def params_extended(self):
-        return self.params.copy()
+        params_ext = self.params.copy()
+        del params_ext["seed"] # only used internally; don't expose outside
+        return params_ext
 
 class GRSimulation(Simulation):
     def params_cola(self):
@@ -441,13 +442,12 @@ class SimulationGroup:
         rng = np.random.default_rng(hash) # deterministic random number generator from simulation parameters
         seeds = rng.integers(0, 2**31-1, size=nsims, dtype=int) # will be the same for the same simulation parameters
         seeds = [int(seed) for seed in seeds] # convert to python ints to make compatible with JSON dict hashing
-        self.sims = [simtype(params | {"seed": seed}) for seed in seeds] # run simulations with all seeds # TODO: take seed as keyword in Simulation, then append to internal dictionary there
+        self.sims = [simtype(params, seed) for seed in seeds] # run simulations with all seeds # TODO: take seed as keyword in Simulation, then append to internal dictionary there
 
         # extend independent parameters with derived parameters
-        self.params = self.sims[0].params_extended()
-        del self.params["seed"] # TODO: get rid of
+        self.params = self.sims[0].params_extended() # loop checks they are equal across sims
         for sim in self.sims:
-            assert set(sim.params_extended().keys() - set(self.params.keys())) == {"seed"} # make sure they all have the same derived parameters, except for the random seed
+            assert set(sim.params_extended().keys()) == set(self.params.keys()), f"simulations with same independent parameters have different dependent parameters"
 
     def __iter__(self): yield from self.sims
     def __len__(self): return len(self.sims)
