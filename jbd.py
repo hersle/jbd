@@ -611,13 +611,14 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
     ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
     ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
 
-    labels = [labelfunc(params_BD) for params_BD in paramss]
+    labels = [f"${labelfunc(params_BD)}$" for params_BD in paramss]
     colors = [colorfunc(params_BD) for params_BD in paramss]
     cax  = make_axes_locatable(ax).append_axes("top", size="7%", pad="0%") # align colorbar axis with plot
     cmap = matplotlib.colors.ListedColormap(colors)
     cbar = plt.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap), cax=cax, orientation="horizontal")
     cbar.ax.set_title(labeltitle)
     cax.xaxis.set_ticks_position("top")
+    cax.xaxis.set_tick_params(direction="out")
     cax.xaxis.set_ticks(np.linspace(0.5/len(labels), 1-0.5/len(labels), len(labels)), labels=labels)
 
     ax.grid(which="both")
