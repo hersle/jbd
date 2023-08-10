@@ -568,11 +568,14 @@ def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfun
 
 # TODO: plot_single and plot_pair generic functions?
 
-def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, divide_linear = True):
+def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, divide_linear = False, logy = False):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
 
     ax.set_xlabel(r"$\lg\left[k_\mathrm{BD} / (1/\mathrm{Mpc})\right]$")
-    ax.set_ylabel(r"$B(k_\mathrm{BD})" + (" / B_\mathrm{linear}(k_\mathrm{BD})" if divide_linear else "") + "$")
+    ylabel = r"B(k_\mathrm{BD})"
+    if divide_linear: ylabel = f"{ylabel} / B_\mathrm{{linear}}(k_\mathrm{{BD}})"
+    if logy:          ylabel = f"\lg [ |{ylabel}| - 1 ]"
+    ax.set_ylabel(f"${ylabel}$")
 
     # Dummy legend plot
     ax2 = ax.twinx() # use invisible twin axis to create second legend
@@ -588,24 +591,26 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
         klin, Blin, _  = sims.power_spectrum_ratio(linear=True)
         k,    B   , ΔB = sims.power_spectrum_ratio(linear=False)
 
-        y = B
-        Δy = ΔB
-        ylin = Blin
-        if divide_linear:
-            y  /= np.interp(k, klin, Blin)
-            Δy /= np.interp(k, klin, Blin)
-            ylin /= Blin
+        klin, Blin = klin[klin>1e-2], Blin[klin>1e-2] # cut k < 1e-2 / (1/Mpc)
+        k, B, ΔB = k[k>1e-2], B[k>1e-2], ΔB[k>1e-2]   # cut k < 1e-2 / (1/Mpc)
 
-        ax.plot(np.log10(klin), ylin, color=colorfunc(params_BD), alpha=1.0, linewidth=1, linestyle="dashed", label=None)
-        ax.plot(np.log10(k),    y,    color=colorfunc(params_BD), alpha=1.0, linewidth=1, linestyle="solid",  label=None)
-        ax.fill_between(np.log10(k), y-Δy, y+Δy, color=colorfunc(params_BD), alpha=0.2, edgecolor=None) # error band
+        y    = B    / np.interp(k, klin, Blin) if divide_linear else B
+        Δy   = ΔB   / np.interp(k, klin, Blin) if divide_linear else ΔB
+        ylin = Blin /                    Blin  if divide_linear else Blin
 
+        def T(y): return np.log10(np.abs(y-1)) if logy else y
+
+        ax.plot(np.log10(klin),      T(ylin),          color=colorfunc(params_BD), alpha=1.0, linewidth=1, linestyle="dashed", label=None)
+        ax.plot(np.log10(k),         T(y),             color=colorfunc(params_BD), alpha=1.0, linewidth=1, linestyle="solid",  label=None)
+        ax.fill_between(np.log10(k), T(y-Δy), T(y+Δy), color=colorfunc(params_BD), alpha=0.2, edgecolor=None) # error band
+
+    Δy = 1.0 if logy else 0.05
     ymin, ymax = ax.get_ylim()
-    ymin = to_nearest(ymin, 0.05, "floor")
-    ymax = to_nearest(ymax, 0.05, "ceil")
+    ymin = to_nearest(ymin, Δy, "floor")
+    ymax = to_nearest(ymax, Δy, "ceil")
 
     ax.set_xticks([-2, -1, 0, 1])
-    ax.set_yticks(np.linspace(0, 2, 41)) # every 0.05
+    ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/Δy))+1)) # every Δy
     ax.set_xlim(-2, +1)
     ax.set_ylim(ymin, ymax)
     ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
@@ -771,10 +776,10 @@ params_varying = {
 #plot_power_spectra("plots/power_spectra_fiducial.pdf", sims)
 #exit()
 
-plot_convergence("plots/boost_fiducial_sameh.pdf",        params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_identity,    divide_linear=False, paramlabel=latex_labels["lgω"])
-plot_convergence("plots/boost_fiducial_diffh.pdf",        params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_different_h, divide_linear=False, paramlabel=latex_labels["lgω"])
-plot_convergence("plots/boost_fiducial_sameh_divlin.pdf", params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_identity,    divide_linear=True,  paramlabel=latex_labels["lgω"])
-plot_convergence("plots/boost_fiducial_diffh_divlin.pdf", params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_different_h, divide_linear=True,  paramlabel=latex_labels["lgω"])
+for θGR, suffix1 in zip([θGR_identity, θGR_different_h], ["_sameh", "_diffh"]):
+    for divide_linear, suffix2 in zip([False, True], ["", "_divlin"]):
+        for logy, suffix3 in zip([False, True], ["", "_log"]):
+            plot_convergence(f"plots/boost_fiducial{suffix1}{suffix2}{suffix3}.pdf", params0_BD, "lgω", [2.0, 3.0, 4.0, 5.0], nsims=5, θGR=θGR, divide_linear=divide_linear, logy=logy, paramlabel=latex_labels["lgω"])
 exit()
 
 # Convergence plots (computational parameters)
