@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+# TODO: does hiclass crash with G0/G very different from 1 with small ω?
+# TODO: run "properly" with and without hGR parameter transformation
+# TODO: GR emulators (?): Bacco, CosmicEmu, EuclidEmulator2, references within
+# TODO: compare boost with nonlinear prediction from hiclass' hmcode?
 # TODO: look at PPN to understand cosmological (large) -> solar system (small) scales of G in BD
 # TODO: compare P(k) with fig. 2 on https://journals.aps.org/prd/pdf/10.1103/PhysRevD.97.023520#page=13
 # TODO: don't output snapshot
@@ -276,15 +280,15 @@ class Simulation:
             "output": "mPk",
             "write background": "yes",
             "root": "class_",
-            "P_k_max_1/Mpc": 11.0, # output linear power spectrum to fill my plots
+            "P_k_max_h/Mpc": 20.0, # output linear power spectrum to fill my plots
 
             # log verbosity (increase integers to make more talkative)
             "input_verbose": 10,
             "background_verbose": 10,
-            "thermodynamics_verbose": 1,
-            "perturbations_verbose": 1,
-            "spectra_verbose": 1,
-            "output_verbose": 1,
+            "thermodynamics_verbose": 2,
+            "perturbations_verbose": 2,
+            "spectra_verbose": 2,
+            "output_verbose": 2,
         }
 
     # run CLASS and return today's matter power spectrum
@@ -493,6 +497,7 @@ class SimulationGroupPair:
             # class outputs linear P at slightly different k/(h/Mpc) in BD and GR,
             # so interpolate PGR(kGR) -> PGR(kBD)
             # TODO: avoid interpolation by make class output linear P at same kBD and kGR (in hunits)
+            # TODO: using e.g. k_output_values in (hi)class?
             for isim in range(0, self.nsims):
                 PGRs[isim,:] = np.interp(kBD, kGR, PGRs[isim,:]) # interpolate PGR(kGR) to kBD values # TODO: avoid
         else:
