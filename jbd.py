@@ -361,12 +361,13 @@ class Simulation:
             assert self.completed_cola()
             data = self.read_data(f"pofk_{self.name}_cb_z0.000.txt") # pk: "total matter"; pk_cb: "cdm+b"; pk_lin: "total matter" (linear?)
 
-        k, P = data[0], data[1] # k / (h/Mpc); P / (Mpc/h)^3 (in "h-units", common to CLASS and COLA)
-        if not hunits:
-            k = k / self.params["h"]    # k / Mpc
-            P = P * self.params["h"]**3 # P / Mpc^3
-
-        return k, P
+        k_h, Ph3 = data[0], data[1] # k / (h/Mpc); P / (Mpc/h)^3 (in "h-units", common to CLASS and COLA)
+        if hunits:
+            return k_h, Ph3
+        else:
+            k = k_h * self.params["h"]    # k / (1/Mpc)
+            P = Ph3 / self.params["h"]**3 # P / Mpc^3
+            return k, P
 
     # extend independent parameters used to run the sim with its derived parameters
     def params_extended(self):
