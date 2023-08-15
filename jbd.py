@@ -20,6 +20,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.stats import qmc
+from scipy.interpolate import interp1d
 
 print("Matplotlib default rcParams:")
 print(matplotlib.rcParams.keys())
@@ -280,7 +281,7 @@ class Simulation:
             "output": "mPk",
             "write background": "yes",
             "root": "class_",
-            "P_k_max_h/Mpc": 20.0, # output linear power spectrum to fill my plots
+            "P_k_max_h/Mpc": 100.0, # output linear power spectrum to fill my plots
 
             # log verbosity (increase integers to make more talkative)
             "input_verbose": 10,
@@ -491,20 +492,15 @@ class SimulationGroupPair:
         self.nsims = nsims
 
     def power_spectrum_ratio(self, linear=False):
-        kBD, PBDs = self.sims_BD.power_spectra(linear=linear, hunits=True) # kBD / (hBD/Mpc), PBD / (Mpc/hBD)^3
-        kGR, PGRs = self.sims_GR.power_spectra(linear=linear, hunits=True) # kGR / (hGR/Mpc), PGR / (Mpc/hGR)^3
+        kBD, PBDs = self.sims_BD.power_spectra(linear=linear, hunits=False) # kBD / (1/Mpc), PBD / Mpc^3
+        kGR, PGRs = self.sims_GR.power_spectra(linear=linear, hunits=False) # kGR / (1/Mpc), PGR / Mpc^3
+        hBD = self.sims_BD.params["h"]
+        hGR = self.sims_GR.params["h"]
 
-        if linear:
-            # class outputs linear P at slightly different k/(h/Mpc) in BD and GR,
-            # so interpolate PGR(kGR) -> PGR(kBD)
-            # TODO: avoid interpolation by make class output linear P at same kBD and kGR (in hunits)
-            # TODO: using e.g. k_output_values in (hi)class?
-            for isim in range(0, self.nsims):
-                PGRs[isim,:] = np.interp(kBD, kGR, PGRs[isim,:]) # interpolate PGR(kGR) to kBD values # TODO: avoid
-        else:
-            # kBD / hBD == kGR / hGR if the simulations are run with equal L / (Mpc/h)
-            assert np.all(kBD == kGR), f"simulations output different k-values: {kBD[:3]}...{kBD[-3:]} vs {kGR[:3]}...{kGR[-3:]}"
-        k = kBD / self.sims_BD.params["h"] # take the BD wavenumbers as the reference wavenumbers
+        assert linear or np.all(np.isclose(kBD/hBD, kGR/hGR)) or self.sims_BD.params["Lh"] != self.sims_GR.params["Lh"], f"simulations with equal L*h should output equal non-linear k/h"
+        PGRs = interp1d(kGR, PGRs, axis=1, kind="cubic", bounds_error=False, fill_value=np.nan)(kBD*hGR/hBD) # interpolate PGR(kGR) to kBD*hGR/hBD, # TODO: avoid? unnecessary in NL case. specify class' k-values?
+        kGR = kBD * hGR/hBD # so we compare modes with kGR/hGR == kBD/hBD (has no effect on code, just for clarification)
+        k = kBD * hBD # take the BD wavenumbers as the reference wavenumbers # TODO: or (kBD+kGR)/2 and interpolate both PBD and PGR?
 
         # from a statistical viewpoint,
         # we view P(k) as a random variable with samples from each simulation,
@@ -513,11 +509,11 @@ class SimulationGroupPair:
         PGRs = np.transpose(PGRs)
 
         # boost (of means)
-        PBD = np.mean(PBDs, axis=1) # average over simulations
-        PGR = np.mean(PGRs, axis=1) # average over simulations
         B = np.mean(PBDs/PGRs, axis=1)
 
         # boost error (propagate from errors in PBD and PGR)
+        PBD = np.mean(PBDs, axis=1) # average over simulations
+        PGR = np.mean(PGRs, axis=1) # average over simulations
         dB_dPBD =    1 / PGR    # dB/dPBD evaluated at means
         dB_dPGR = -PBD / PGR**2 # dB/dPGR evaluated at means
         ΔB = np.array([propagate_error([dB_dPBD[ik], dB_dPGR[ik]], [PBDs[ik], PGRs[ik]]) for ik in range(0, len(k))])
@@ -529,9 +525,6 @@ class SimulationGroupPair:
         #ΔB_manual = B[0] * np.sqrt(σsq[0,0]/PBD[0]**2 + σsq[1,1]/PGR[0]**2 - 2*σsq[0,1]/(PBD[0]*PGR[0]))
         #assert np.isclose(ΔB_matrix, ΔB_manual), "error propagation is wrong"
 
-        # remove h factoring # TODO: correct?
-        B  *= (self.sims_GR.params["h"] / self.sims_BD.params["h"])**3
-        ΔB *= (self.sims_GR.params["h"] / self.sims_BD.params["h"])**3
         return k, B, ΔB
 
 def θGR_identity(θBD, θBDext):
@@ -721,7 +714,7 @@ params0_GR = {
     "Nstep": 30,
     "Npart": 512,
     "Ncell": 512,
-    "Lh":    512.0, # L / (Mpc/h)
+    "Lh":    512.0, # L / (Mpc/h) = L*h / Mpc
 }
 params0_BD = params0_GR | {
     "lgω":    2.0,    # lowest value to consider (larger values should only be "easier" to simulate?)
