@@ -44,10 +44,12 @@ matplotlib.rcParams |= {
 parser = argparse.ArgumentParser(prog="jbd.py")
 parser.add_argument("--nbody", metavar="path/to/FML/FML/COLASolver/nbody", default="./FML/FML/COLASolver/nbody")
 parser.add_argument("--class", metavar="path/to/hi_class_public/class", default="./hi_class_public/class")
+parser.add_argument("--simdir", metavar="path/to/simulation/directory/", default="./sims/")
 args = parser.parse_args()
 
 COLAEXEC = os.path.abspath(os.path.expanduser(vars(args)["nbody"]))
 CLASSEXEC = os.path.abspath(os.path.expanduser(vars(args)["class"]))
+SIMDIR = vars(args)["simdir"].rstrip("/") + "/" # enforce trailing /
 
 def to_nearest(number, nearest, mode="round"):
     if mode == "round":
@@ -124,7 +126,7 @@ def propagate_error(df_dx, xs):
     return np.sqrt(np.transpose(df_dx) @ np.cov(xs) @ df_dx)
 
 def list_simulations():
-    for path in os.scandir("sims/"):
+    for path in os.scandir(SIMDIR):
         if os.path.isdir(path):
             print(f"{path.name}: {BDSimulation(path=path.name).params}")
 
@@ -153,13 +155,13 @@ class ParameterSpace:
 class Simulation:
     def __init__(self, params=None, seed=None, path=None):
         if path is not None:
-            self.directory = "sims/" + path + "/"
+            self.directory = SIMDIR + path + "/"
             params = json.loads(self.read_file("parameters.json"))
             return Simulation.__init__(self, params=params)
 
         self.params = params | {"seed": seed} # copy (will be modified); make seed part of parameters only internally
         self.name = self.name()
-        self.directory = "sims/" + self.name + "/"
+        self.directory = SIMDIR + self.name + "/"
 
         # initialize simulation, validate input, create working directory, write parameters
         print(f"Simulating {self.name} with independent parameters:")
