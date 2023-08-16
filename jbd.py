@@ -20,7 +20,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.stats import qmc
-from scipy.interpolate import interp1d
+from scipy.interpolate import interp1d, CubicSpline
 
 print("Matplotlib default rcParams:")
 print(matplotlib.rcParams.keys())
@@ -39,6 +39,8 @@ matplotlib.rcParams |= {
     "ytick.right": True,
     "xtick.direction": "in",
     "ytick.direction": "in",
+    "axes.xmargin": 0,
+    "axes.ymargin": 0,
 }
 
 parser = argparse.ArgumentParser(prog="jbd.py")
@@ -60,7 +62,15 @@ def to_nearest(number, nearest, mode="round"):
         func = np.floor
     else:
         assert f"unknown mode {mode}"
-    return func(number / nearest) * nearest
+    return func(np.round(number / nearest, 7)) * nearest # round to many digits first to eliminate floating point errors (this is only used for plotting purposes, anyway)
+
+def ax_set_ylim_nearest(ax, Δy):
+    ymin, ymax = ax.get_ylim()
+    ymin = to_nearest(ymin, Δy, "floor")
+    ymax = to_nearest(ymax, Δy, "ceil")
+    ax.set_ylim(ymin, ymax)
+    ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/Δy))+1)) # TODO: set minor ticks every 1, 0.1, 0.01 etc. here?
+    return ymin, ymax
 
 def dictjson(dict, sort=False, unicode=False):
     return json.dumps(dict, sort_keys=sort, ensure_ascii=not unicode)
@@ -656,6 +666,64 @@ def plot_convergence(filename, params0, param, vals, nsims=5, θGR=lambda ΘBD, 
 
     plot_sequence(filename, paramss, nsims, θGR, paramlabel, labelfunc, colorfunc, **kwargs)
 
+def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", ylabel="", logabs=False, Δyrel=None, Δyabs=None):
+    sims = SimulationGroupPair(params0_BD, θGR)
+
+    bg_BD = sims.sims_BD[0].read_data("class_background.dat")
+    bg_GR = sims.sims_GR[0].read_data("class_background.dat")
+
+    aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
+    aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
+    arec_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "recombination at z") + 1) # = 1 / (z + 1)
+    arec_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "recombination at z") + 1) # = 1 / (z + 1)
+
+    a_BD = 1 / (bg_BD[0] + 1) # = 1 / (z + 1)
+    a_GR = 1 / (bg_GR[0] + 1) # = 1 / (z + 1)
+
+    # want to plot 1e-10 <= a <= 1, so cut away a < 1e-11
+    bg_BD = bg_BD[:, a_BD > 1e-11]
+    bg_GR = bg_GR[:, a_GR > 1e-11]
+    a_BD  = a_BD[a_BD > 1e-11]
+    a_GR  = a_GR[a_GR > 1e-11]
+
+    fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': (1, 1.618)}, figsize=(3.0, 3.5), sharex=True)
+    ax2.set_xlabel(r"$\lg a$")
+    ax2.set_ylabel(f"$\lg[{ylabel}]$" if logabs else f"${ylabel}$")
+
+    ax1.axhline(1.0, color="gray", linestyle="dashed", linewidth=0.5)
+    ax1.plot(np.log10(a_BD), qty_BD(bg_BD, sims.params_BD) / qty_GR(bg_GR, sims.params_GR), color="black")
+    ax1.set_ylabel(f"${qty}_\mathrm{{BD}}(a) / {qty}_\mathrm{{GR}}(a)$")
+
+    ax2.plot(np.log10(a_BD), np.log10(qty_BD(bg_BD, sims.params_BD)) if logabs else qty_BD(bg_BD, sims.params_BD), label=f"${qty}(a) = {qty}_\mathrm{{BD}}(a)$", color="blue")
+    ax2.plot(np.log10(a_GR), np.log10(qty_GR(bg_GR, sims.params_GR)) if logabs else qty_GR(bg_GR, sims.params_GR), label=f"${qty}(a) = {qty}_\mathrm{{GR}}(a)$", color="red")
+
+    ax2.set_xlim(-10, 0)
+    ax2.set_xticks(np.linspace(-10, 0, 11))
+
+    if Δyrel: ax_set_ylim_nearest(ax1, Δyrel)
+    if Δyabs: ax_set_ylim_nearest(ax2, Δyabs)
+
+    ymin, ymax = ax2.get_ylim()
+
+    # mark some times
+    for a_BD_GR, label in zip(((aeq_BD, aeq_GR), (arec_BD, arec_GR)), (r"$a=a_\mathrm{eq}$", r"$a=a_\mathrm{rec}$")):
+        for a, color, dashoffset in zip(a_BD_GR, ("blue", "red"), (0, 5)):
+            for ax in [ax1, ax2]:
+                ax.axvline(np.log10(a), color=color, linestyle=(dashoffset, (5, 5)), alpha=0.5, linewidth=1.0)
+        ax2.text(np.log10(np.average(a_BD_GR)) - 0.05, ymin + 0.5*(ymax-ymin), label, va="bottom", rotation=90, rotation_mode="anchor")
+
+    ax1.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
+    ax2.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
+    ax1.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
+    ax2.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
+
+    ax1.yaxis.set_label_coords(-0.15, 0.5) # manually position to align for different invocations of this function
+    ax2.yaxis.set_label_coords(-0.15, 0.5) # manually position to align for different invocations of this function
+
+    ax2.legend()
+    fig.subplots_adjust(left=0.17, right=0.99, bottom=0.10, top=0.98, hspace=0.1) # trial and error to get consistent plot layout...
+    fig.savefig(filename)
+
 def plot_parameter_samples(filename, samples, lo, hi, labels):
     params = list(lo.keys())
     dimension = len(params)
@@ -776,6 +844,24 @@ params_varying = {
 #exit()
 #plot_power_spectra("plots/power_spectra_fiducial.pdf", sims)
 #exit()
+
+# Plot evolution of (background) quantities
+def G_G0_BD(bg, params): return (4+2*params["G0/G"]) / (4+2*params["G0/G"]) / (bg[25] / CubicSpline(np.log10(1/(bg[0]+1)), bg[25])(0.0)) # TODO: wrong for small ω
+def G_G0_GR(bg, params): return np.ones_like(bg[0]) # = 1.0
+def H_H0_GR(bg, params): return bg[3] / CubicSpline(np.log10(1/(bg[0]+1)), bg[3])(0.0)
+def D_BD(bg, params):    return bg[13] / CubicSpline(np.log10(1/(bg[0]+1)), bg[13])(-10.0) # columns are different in GR and BD!
+def D_GR(bg, params):    return bg[14] / CubicSpline(np.log10(1/(bg[0]+1)), bg[14])(-10.0) # columns are different in GR and BD!
+def f_BD(bg, params):    return bg[14] # columns are different in GR and BD!
+def f_GR(bg, params):    return bg[15] # / CubicSpline(np.log10(1/(bg[0]+1)), bg[14])(-10.0) # columns are different in GR and BD!
+series = [
+    ("G", G_G0_BD, G_G0_GR, False, "G(a)/G", 0.05, 0.05),
+    ("H", H_H0_GR, H_H0_GR, True,  "H(a)/H_0", 5.0, 0.01),
+    ("D", D_BD,    D_GR,    True,  "D(a)/D(10^{-10})", 1.0, 0.1),
+    ("f", f_BD,    f_GR,    False,  "f(a)", 0.1, 0.01),
+]
+for q, qBD, qGR, logabs, ylabel, Δyabs, Δyrel in series:
+    plot_quantity_evolution(f"plots/evolution_{q}.pdf",       params0_BD, qBD, qGR, θGR_different_h, qty=q, ylabel=ylabel, logabs=logabs, Δyabs=Δyabs, Δyrel=Δyrel)
+exit()
 
 for θGR, suffix1 in zip([θGR_identity, θGR_different_h], ["_sameh", "_diffh"]):
     for divide_linear, suffix2 in zip([False, True], ["", "_divlin"]):
