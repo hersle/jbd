@@ -455,7 +455,7 @@ class SimulationGroup:
         # extend independent parameters with derived parameters
         self.params = self.sims[0].params_extended() # loop checks they are equal across sims
         for sim in self.sims:
-            assert set(sim.params_extended().keys()) == set(self.params.keys()), f"simulations with same independent parameters have different dependent parameters"
+            assert set(sim.params_extended().items()) == set(self.params.items()), f"simulations with same independent parameters have different dependent parameters"
 
     def __iter__(self): yield from self.sims
     def __len__(self): return len(self.sims)
