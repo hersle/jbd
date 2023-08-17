@@ -42,13 +42,13 @@ matplotlib.rcParams |= {
 }
 
 parser = argparse.ArgumentParser(prog="jbd.py")
-parser.add_argument("action", help="action to execute")
+parser.add_argument("action", help="action(s) to execute", nargs="+")
 parser.add_argument("--nbody", metavar="path/to/FML/FML/COLASolver/nbody", default="./FML/FML/COLASolver/nbody")
 parser.add_argument("--class", metavar="path/to/hi_class_public/class", default="./hi_class_public/class")
 parser.add_argument("--simdir", metavar="path/to/simulation/directory/", default="./sims/")
 args = parser.parse_args()
 
-ACTION = vars(args)["action"]
+ACTIONS = vars(args)["action"]
 COLAEXEC = os.path.abspath(os.path.expanduser(vars(args)["nbody"]))
 CLASSEXEC = os.path.abspath(os.path.expanduser(vars(args)["class"]))
 SIMDIR = vars(args)["simdir"].rstrip("/") + "/" # enforce trailing /
@@ -877,12 +877,12 @@ params_varying = {
 #GRSimulation(params0_GR)
 #exit()
 
-if ACTION in ("plot_options", "rcParams", "rcparams", "rc"):
+if "rcparams" in ACTIONS:
     print("Matplotlib rcParams:")
     print(matplotlib.rcParams.keys())
 
 # List simulations
-if ACTION in ("list", "ls"):
+if "list" in ACTIONS:
     list_simulations()
 
 # Power spectrum plots
@@ -893,7 +893,7 @@ if ACTION in ("list", "ls"):
 #exit()
 
 # Plot evolution of (background) densities
-if ACTION in ("evolution", "evo"):
+if "evolution" in ACTIONS:
     plot_density_evolution("plots/evolution_density.pdf", params0_BD, θGR_different_h)
 
     # Plot evolution of (background) quantities
@@ -914,14 +914,14 @@ if ACTION in ("evolution", "evo"):
 #plot_convergence(f"plots/boost_fiducial.pdf", params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_different_h, paramlabel=latex_labels["lgω"])
 #exit()
 
-if ACTION in ("compare_parametrizations", "cmp"):
+if "compare" in ACTIONS:
     for θGR, suffix1 in zip([θGR_identity, θGR_different_h], ["_sameh", "_diffh"]):
         for divide_linear, suffix2 in zip([False, True], ["", "_divlin"]):
             for logy, suffix3 in zip([False, True], ["", "_log"]):
                 plot_convergence(f"plots/boost_fiducial{suffix1}{suffix2}{suffix3}.pdf", params0_BD, "lgω", [2.0, 3.0, 4.0, 5.0], nsims=5, θGR=θGR, divide_linear=divide_linear, logy=logy, paramlabel=latex_labels["lgω"])
 
 # Convergence plots (computational parameters)
-if ACTION in ("convergence", "conv"):
+if "convergence" in ACTIONS:
     plot_convergence("plots/convergence_L.pdf",     params0_BD, "Lh",     [256.0, 384.0, 512.0, 768.0, 1024.0], θGR_different_h, paramlabel=latex_labels["Lh"],    lfunc=lambda Lh:    f"${Lh:.0f}$", cfunc=lambda Lh: np.log2(Lh))
     plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           θGR_different_h, paramlabel=latex_labels["Npart"], lfunc=lambda Npart: f"${Npart}^3$")
     plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           θGR_different_h, paramlabel=latex_labels["Ncell"], lfunc=lambda Ncell: f"${Ncell}^3$")
@@ -929,7 +929,7 @@ if ACTION in ("convergence", "conv"):
     plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   θGR_different_h, paramlabel=latex_labels["zinit"], lfunc=lambda zinit: f"${zinit:.0f}$")
 
 # Variation plots (cosmological parameters)
-if ACTION in ("variation", "var"):
+if "variation" in ACTIONS:
     plot_convergence("plots/convergence_omega.pdf",   params0_BD, "lgω",    [2.0, 3.0, 4.0, 5.0],     θGR_different_h, paramlabel=latex_labels["lgω"],    lfunc=lambda lgω: f"${lgω}$")
     plot_convergence("plots/convergence_G0.pdf",      params0_BD, "G0/G",   [0.99, 1.0, 1.01],        θGR_different_h, paramlabel=latex_labels["G0/G"],   lfunc=lambda G0_G: f"${G0_G:.02f}$")
     plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],       θGR_different_h, paramlabel=latex_labels["h"],      lfunc=lambda h: f"${h}$")
@@ -938,7 +938,7 @@ if ACTION in ("variation", "var"):
     plot_convergence("plots/convergence_As.pdf",      params0_BD, "Ase9",   [1.6, 2.1, 2.6],          θGR_different_h, paramlabel=latex_labels["Ase9"],   lfunc=lambda Ase9: f"${Ase9}$")
     plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],    θGR_different_h, paramlabel=latex_labels["ns"],     lfunc=lambda ns:  f"${ns}$")
 
-if ACTION in ("sample"):
+if "sample" in ACTIONS:
     paramspace = ParameterSpace(params_varying)
     samples = paramspace.samples(500)
     plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), latex_labels)
