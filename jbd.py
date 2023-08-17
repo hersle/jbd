@@ -30,7 +30,7 @@ matplotlib.rcParams |= {
     "figure.figsize": (6.0, 4.0), # default (6.4, 4.8)
     "grid.linewidth": 0.3,
     "grid.alpha": 0.2,
-    "legend.labelspacing": 0.2,
+    "legend.labelspacing": 0.3,
     "legend.columnspacing": 1.5,
     "legend.handlelength": 1.5,
     "legend.handletextpad": 0.3,
@@ -724,6 +724,62 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
     fig.subplots_adjust(left=0.17, right=0.99, bottom=0.10, top=0.98, hspace=0.1) # trial and error to get consistent plot layout...
     fig.savefig(filename)
 
+def plot_density_evolution(filename, params0_BD, θGR):
+    sims = SimulationGroupPair(params0_BD, θGR)
+
+    bg_BD = sims.sims_BD[0].read_data("class_background.dat")
+    bg_GR = sims.sims_GR[0].read_data("class_background.dat")
+
+    aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
+    aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
+    arec_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "recombination at z") + 1) # = 1 / (z + 1)
+    arec_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "recombination at z") + 1) # = 1 / (z + 1)
+
+    a_BD = 1 / (bg_BD[0] + 1) # = 1 / (z + 1)
+    a_GR = 1 / (bg_GR[0] + 1) # = 1 / (z + 1)
+
+    ργ_GR = bg_GR[8]
+    ρb_GR = bg_GR[9]
+    ρc_GR = bg_GR[10]
+    ρΛ_GR = bg_GR[11]
+    ρν_GR = bg_GR[12]
+    ρcrit_GR = bg_GR[13]
+    Ωr_GR = (ργ_GR + ρν_GR) / ρcrit_GR
+    Ωm_GR = (ρb_GR + ρc_GR) / ρcrit_GR
+    ΩΛ_GR =  ρΛ_GR          / ρcrit_GR
+    Ω_GR = Ωr_GR + Ωm_GR + ΩΛ_GR
+
+    ργ_BD = bg_BD[8]
+    ρb_BD = bg_BD[9]
+    ρc_BD = bg_BD[10]
+    ρν_BD = bg_BD[11]
+    ρϕ_BD = bg_BD[15]
+    ρcrit_BD = bg_BD[12]
+    Ωr_BD = (ργ_BD + ρν_BD) / ρcrit_BD
+    Ωm_BD = (ρb_BD + ρc_BD) / ρcrit_BD
+    Ωϕ_BD =  ρϕ_BD          / ρcrit_BD
+    Ω_BD = Ωr_BD + Ωm_BD + Ωϕ_BD
+
+    fig, ax = plt.subplots(figsize=(6.0, 3.0))
+    ax.plot(np.log10(a_BD), Ωr_BD, color="C0",    linestyle="solid", alpha=0.8, label=r"$\Omega_r^\mathrm{BD}$")
+    ax.plot(np.log10(a_BD), Ωm_BD, color="C1",    linestyle="solid", alpha=0.8, label=r"$\Omega_m^\mathrm{BD}$")
+    ax.plot(np.log10(a_BD), Ωϕ_BD, color="C2",    linestyle="solid", alpha=0.8, label=r"$\Omega_\Lambda^\mathrm{BD}+\Omega_\phi^\mathrm{BD}$")
+    ax.plot(np.log10(a_BD), Ω_BD,  color="black", linestyle="solid", alpha=0.8, label=r"$\Omega^\mathrm{BD}$")
+    ax.plot(np.log10(a_GR), Ωr_GR, color="C0",    linestyle="dashed",  alpha=0.8, label=r"$\Omega_r^\mathrm{GR}$")
+    ax.plot(np.log10(a_GR), Ωm_GR, color="C1",    linestyle="dashed",  alpha=0.8, label=r"$\Omega_m^\mathrm{GR}$")
+    ax.plot(np.log10(a_GR), ΩΛ_GR, color="C2",    linestyle="dashed",  alpha=0.8, label=r"$\Omega_\Lambda^\mathrm{GR}$")
+    ax.plot(np.log10(a_GR), Ω_GR,  color="black", linestyle="dashed",  alpha=0.8, label=r"$\Omega^\mathrm{GR}$")
+    ax.set_xlabel(r"$\lg a$")
+    ax.set_xlim(-7, 0)
+    ax.set_ylim(0.0, 1.1)
+    ax_set_ylim_nearest(ax, 0.1)
+    ax.set_xticks(np.linspace(-7, 0, 8))
+    ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # minor ticks
+    ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # minor ticks
+    ax.legend(ncol=2)
+    fig.tight_layout()
+    fig.savefig(filename)
+
 def plot_parameter_samples(filename, samples, lo, hi, labels):
     params = list(lo.keys())
     dimension = len(params)
@@ -844,6 +900,10 @@ params_varying = {
 #exit()
 #plot_power_spectra("plots/power_spectra_fiducial.pdf", sims)
 #exit()
+
+# Plot evolution of (background) densities
+plot_density_evolution("plots/evolution_density.pdf", params0_BD, θGR_different_h)
+exit()
 
 # Plot evolution of (background) quantities
 def G_G0_BD(bg, params): return (4+2*10**params["lgω"]) / (3+2*10**params["lgω"]) / bg[25]
