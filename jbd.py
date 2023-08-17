@@ -491,11 +491,12 @@ class SimulationGroup:
         return k, P, ΔP
 
 class SimulationGroupPair:
-    def __init__(self, params_BD, nsims, params_BD_to_GR):
+    def __init__(self, params_BD, params_BD_to_GR, nsims=1):
         # choose hash so each simulation in PBD/PGR is run with the same seed and thus similar initial conditions
         hash = hashdict(params_BD) # BD parameters is a superset, so use them to make a hash for both BD and GR
         hash = int(hash, 16) # make an integer out of it
 
+        self.params_BD = params_BD
         self.sims_BD = SimulationGroup(BDSimulation, params_BD, nsims, hash=hash)
 
         self.params_GR = params_BD_to_GR(params_BD, self.sims_BD.params) # θGR = θGR(θBD)
@@ -597,13 +598,10 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
     ax2.legend(loc="upper left", bbox_to_anchor=(-0.02, 0.97))
 
     for params_BD in paramss:
-        sims = SimulationGroupPair(params_BD, nsims, θGR)
+        sims = SimulationGroupPair(params_BD, θGR, nsims)
 
         klin, Blin, _  = sims.power_spectrum_ratio(linear=True)
         k,    B   , ΔB = sims.power_spectrum_ratio(linear=False)
-
-        klin, Blin = klin[klin>1e-2], Blin[klin>1e-2] # cut k < 1e-2 / (1/Mpc)
-        k, B, ΔB = k[k>1e-2], B[k>1e-2], ΔB[k>1e-2]   # cut k < 1e-2 / (1/Mpc)
 
         y    = B    / np.interp(k, klin, Blin) if divide_linear else B
         Δy   = ΔB   / np.interp(k, klin, Blin) if divide_linear else ΔB
