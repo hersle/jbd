@@ -679,8 +679,6 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
 
     aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
     aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
-    arec_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "recombination at z") + 1) # = 1 / (z + 1)
-    arec_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "recombination at z") + 1) # = 1 / (z + 1)
 
     a_BD = 1 / (bg_BD[0] + 1) # = 1 / (z + 1)
     a_GR = 1 / (bg_GR[0] + 1) # = 1 / (z + 1)
@@ -711,11 +709,11 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
     ymin, ymax = ax2.get_ylim()
 
     # mark some times
-    for a_BD_GR, label in zip(((aeq_BD, aeq_GR), (arec_BD, arec_GR)), (r"$a=a_\mathrm{eq}$", r"$a=a_\mathrm{rec}$")):
+    for a_BD_GR, label in zip(((aeq_BD, aeq_GR),), (r"$\rho_r = \rho_m$",)):
         for a, color, dashoffset in zip(a_BD_GR, ("blue", "red"), (0, 5)):
             for ax in [ax1, ax2]:
                 ax.axvline(np.log10(a), color=color, linestyle=(dashoffset, (5, 5)), alpha=0.5, linewidth=1.0)
-        ax2.text(np.log10(np.average(a_BD_GR)) - 0.05, ymin + 0.5*(ymax-ymin), label, va="bottom", rotation=90, rotation_mode="anchor")
+        ax2.text(np.log10(np.average(a_BD_GR)) - 0.10, ymin + 0.5*(ymax-ymin), label, va="bottom", rotation=90, rotation_mode="anchor")
 
     ax1.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
     ax2.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10))
@@ -738,8 +736,6 @@ def plot_density_evolution(filename, params0_BD, θGR):
 
     aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
     aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
-    arec_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "recombination at z") + 1) # = 1 / (z + 1)
-    arec_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "recombination at z") + 1) # = 1 / (z + 1)
 
     a_BD = 1 / (bg_BD[0] + 1) # = 1 / (z + 1)
     a_GR = 1 / (bg_GR[0] + 1) # = 1 / (z + 1)
