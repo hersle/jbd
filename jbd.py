@@ -220,17 +220,13 @@ class Simulation:
     def validate_output(self):
         print("Checking consistency between quantities computed separately by CLASS and COLA/FML:")
 
-        # Read background tables and their scale factors (which we use as the free time variable)
-        bg_class = self.read_data("class_background.dat")
-        bg_cola  = self.read_data(f"cosmology_{self.name}.txt")
-        z_class  = bg_class[0]
+        # Read background quantities
+        z_class, H_class = self.read_data("class_background.dat", dict=True, cols=("z", "H [1/Mpc]"))
+        a_cola, E_cola = self.read_data(f"cosmology_{self.name}.txt", dict=True, cols=("a", "H/H0"))
         a_class  = 1 / (1 + z_class)
-        a_cola   = bg_cola[0]
 
         # Compare E = H/H0
-        H_class = bg_class[3]
         E_class = H_class / H_class[-1] # E = H/H0 (assuming final value is at a=1)
-        E_cola  = bg_cola[1]
         check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)", rtol=1e-4)
 
         # Compare ΩΛ0
@@ -249,9 +245,33 @@ class Simulation:
         np.savetxt(self.directory + filename, np.transpose(cols), header=header)
 
     # load a data file associated with the simulation
-    def read_data(self, filename):
+    def read_data(self, filename, dict=False, cols=None):
         data = np.loadtxt(self.directory + filename)
-        data = np.transpose(data)
+        data = np.transpose(data) # index by [icol, irow] (or just [icol] to get a whole column)
+
+        # if requested, read header and generate {header[icol]: data[icol]} dictionary
+        if dict:
+            with open(self.directory + filename) as file:
+                # the header line (with column titles) is always the last commented line
+                while True:
+                    line = file.readline()
+                    if not line.startswith("#"):
+                        break
+                    header = line
+
+                header = header.lstrip('#').lstrip().rstrip() # remove starting comment sign (#) and starting and trailing whitespace (spaces and newlines)
+
+                header = re.split(r"\s{2,}", header) # split only on >=2 spaces because class likes to have spaces in column titles :/
+                header = header[:len(data)] # remove any trailing whitespace because class outputs trailing whitespace :/
+                assert len(header) == len(data) # make sure the hacks we do because of class seem consistent :/
+                header = [head[1+head.find(":"):] for head in header] # ugly hack because class outputs weird and ugly column titles :/
+
+            data = {header[col]: data[col] for col in range(0, len(data))}
+
+        # if requested, return only requested column numbers (or titles)
+        if cols is not None:
+            data = tuple(data[col] for col in cols)
+
         return data
 
     # save a file associated with the simulation
@@ -377,14 +397,8 @@ class Simulation:
         assert self.completed_cola(), f"ERROR: see {log} for details"
 
     def power_spectrum(self, linear=False, hunits=False):
-        if linear:
-            assert self.completed_class()
-            data = self.read_data("class_pk.dat")
-        else:
-            assert self.completed_cola()
-            data = self.read_data(f"pofk_{self.name}_cb_z0.000.txt") # pk: "total matter"; pk_cb: "cdm+b"; pk_lin: "total matter" (linear?)
+        k_h, Ph3 = self.read_data("class_pk.dat" if linear else f"pofk_{self.name}_cb_z0.000.txt", cols=(0, 1))
 
-        k_h, Ph3 = data[0], data[1] # k / (h/Mpc); P / (Mpc/h)^3 (in "h-units", common to CLASS and COLA)
         if hunits:
             return k_h, Ph3
         else:
@@ -434,23 +448,15 @@ class BDSimulation(Simulation):
         Simulation.validate_output(self) # do any validation in parent class
 
         # Read background tables and their scale factors (which we use as the free time variable)
-        bg_class = self.read_data("class_background.dat")
-        bg_cola  = self.read_data(f"cosmology_{self.name}.txt")
-        z_class  = bg_class[0]
+        z_class, H_class, ϕ_class, dϕ_dη_class = self.read_data("class_background.dat", dict=True, cols=("z", "H [1/Mpc]", "phi_smg", "phi'"))
+        a_cola, ϕ_cola, dlogϕ_dloga_cola = self.read_data(f"cosmology_{self.name}.txt", dict=True, cols=("a", "phi", "dlogphi/dloga"))
         a_class  = 1 / (1 + z_class)
-        a_cola   = bg_cola[0]
-
-        H_class = bg_class[3]
 
         # Compare ϕ
-        ϕ_class = bg_class[25]
-        ϕ_cola = bg_cola[9]
         check_values_are_close(ϕ_class, ϕ_cola, a_class, a_cola, name="ϕ", rtol=1e-5)
 
         # Compare dlogϕ/dloga
-        dϕ_dη_class       = bg_class[26]
-        dlogϕ_dloga_class = dϕ_dη_class / ϕ_class / (H_class * a_class)
-        dlogϕ_dloga_cola  = bg_cola[10]
+        dlogϕ_dloga_class = dϕ_dη_class / ϕ_class / (H_class * a_class) # convert by chain rule
         check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4)
 
     def params_extended(self):
@@ -671,20 +677,18 @@ def plot_convergence(filename, params0, param, vals, θGR, nsims=5, paramlabel=N
 def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", ylabel="", logabs=False, Δyrel=None, Δyabs=None):
     sims = SimulationGroupPair(params0_BD, θGR)
 
-    bg_BD = sims.sims_BD[0].read_data("class_background.dat")
-    bg_GR = sims.sims_GR[0].read_data("class_background.dat")
+    bg_BD = sims.sims_BD[0].read_data("class_background.dat", dict=True)
+    bg_GR = sims.sims_GR[0].read_data("class_background.dat", dict=True)
+
+    # want to plot 1e-10 <= a <= 1, so cut away a < 1e-11
+    bg_BD = {key: bg_BD[key][1/(bg_BD["z"]+1) > 1e-11] for key in bg_BD}
+    bg_GR = {key: bg_GR[key][1/(bg_GR["z"]+1) > 1e-11] for key in bg_GR}
+
+    a_BD = 1 / (bg_BD["z"] + 1) # = 1 / (z + 1)
+    a_GR = 1 / (bg_GR["z"] + 1) # = 1 / (z + 1)
 
     aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
     aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
-
-    a_BD = 1 / (bg_BD[0] + 1) # = 1 / (z + 1)
-    a_GR = 1 / (bg_GR[0] + 1) # = 1 / (z + 1)
-
-    # want to plot 1e-10 <= a <= 1, so cut away a < 1e-11
-    bg_BD = bg_BD[:, a_BD > 1e-11]
-    bg_GR = bg_GR[:, a_GR > 1e-11]
-    a_BD  = a_BD[a_BD > 1e-11]
-    a_GR  = a_GR[a_GR > 1e-11]
 
     fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': (1, 1.618)}, figsize=(3.0, 3.5), sharex=True)
     ax2.set_xlabel(r"$\lg a$")
@@ -728,46 +732,33 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
 def plot_density_evolution(filename, params0_BD, θGR):
     sims = SimulationGroupPair(params0_BD, θGR)
 
-    bg_BD = sims.sims_BD[0].read_data("class_background.dat")
-    bg_GR = sims.sims_GR[0].read_data("class_background.dat")
+    z_BD, ργ_BD, ρν_BD, ρb_BD, ρc_BD, ρΛϕ_BD, ρcrit_BD = sims.sims_BD[0].read_data("class_background.dat", dict=True, cols=("z", "(.)rho_g", "(.)rho_ur", "(.)rho_b", "(.)rho_cdm", "(.)rho_smg",    "(.)rho_crit"))
+    z_GR, ργ_GR, ρν_GR, ρb_GR, ρc_GR, ρΛ_GR,  ρcrit_GR = sims.sims_GR[0].read_data("class_background.dat", dict=True, cols=("z", "(.)rho_g", "(.)rho_ur", "(.)rho_b", "(.)rho_cdm", "(.)rho_lambda", "(.)rho_crit"))
 
     aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
     aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
 
-    a_BD = 1 / (bg_BD[0] + 1) # = 1 / (z + 1)
-    a_GR = 1 / (bg_GR[0] + 1) # = 1 / (z + 1)
+    a_BD   = 1 / (z_BD + 1)
+    Ωr_BD  = (ργ_BD + ρν_BD) / ρcrit_BD
+    Ωm_BD  = (ρb_BD + ρc_BD) / ρcrit_BD
+    ΩΛϕ_BD =  ρΛϕ_BD          / ρcrit_BD
+    Ω_BD   = Ωr_BD + Ωm_BD + ΩΛϕ_BD
 
-    ργ_GR = bg_GR[8]
-    ρb_GR = bg_GR[9]
-    ρc_GR = bg_GR[10]
-    ρΛ_GR = bg_GR[11]
-    ρν_GR = bg_GR[12]
-    ρcrit_GR = bg_GR[13]
-    Ωr_GR = (ργ_GR + ρν_GR) / ρcrit_GR
-    Ωm_GR = (ρb_GR + ρc_GR) / ρcrit_GR
-    ΩΛ_GR =  ρΛ_GR          / ρcrit_GR
-    Ω_GR = Ωr_GR + Ωm_GR + ΩΛ_GR
-
-    ργ_BD = bg_BD[8]
-    ρb_BD = bg_BD[9]
-    ρc_BD = bg_BD[10]
-    ρν_BD = bg_BD[11]
-    ρϕ_BD = bg_BD[15]
-    ρcrit_BD = bg_BD[12]
-    Ωr_BD = (ργ_BD + ρν_BD) / ρcrit_BD
-    Ωm_BD = (ρb_BD + ρc_BD) / ρcrit_BD
-    Ωϕ_BD =  ρϕ_BD          / ρcrit_BD
-    Ω_BD = Ωr_BD + Ωm_BD + Ωϕ_BD
+    a_GR   = 1 / (z_GR + 1)
+    Ωr_GR  = (ργ_GR + ρν_GR) / ρcrit_GR
+    Ωm_GR  = (ρb_GR + ρc_GR) / ρcrit_GR
+    ΩΛ_GR  =  ρΛ_GR          / ρcrit_GR
+    Ω_GR   = Ωr_GR + Ωm_GR + ΩΛ_GR
 
     fig, ax = plt.subplots(figsize=(6.0, 3.0))
-    ax.plot(np.log10(a_BD), Ωr_BD, color="C0",    linestyle="solid", alpha=0.8, label=r"$\Omega_r^\mathrm{BD}$")
-    ax.plot(np.log10(a_BD), Ωm_BD, color="C1",    linestyle="solid", alpha=0.8, label=r"$\Omega_m^\mathrm{BD}$")
-    ax.plot(np.log10(a_BD), Ωϕ_BD, color="C2",    linestyle="solid", alpha=0.8, label=r"$\Omega_\Lambda^\mathrm{BD}+\Omega_\phi^\mathrm{BD}$")
-    ax.plot(np.log10(a_BD), Ω_BD,  color="black", linestyle="solid", alpha=0.8, label=r"$\Omega^\mathrm{BD}$")
-    ax.plot(np.log10(a_GR), Ωr_GR, color="C0",    linestyle="dashed",  alpha=0.8, label=r"$\Omega_r^\mathrm{GR}$")
-    ax.plot(np.log10(a_GR), Ωm_GR, color="C1",    linestyle="dashed",  alpha=0.8, label=r"$\Omega_m^\mathrm{GR}$")
-    ax.plot(np.log10(a_GR), ΩΛ_GR, color="C2",    linestyle="dashed",  alpha=0.8, label=r"$\Omega_\Lambda^\mathrm{GR}$")
-    ax.plot(np.log10(a_GR), Ω_GR,  color="black", linestyle="dashed",  alpha=0.8, label=r"$\Omega^\mathrm{GR}$")
+    ax.plot(np.log10(a_BD), Ωr_BD,  color="C0",    linestyle="solid", alpha=0.8, label=r"$\Omega_r^\mathrm{BD}$")
+    ax.plot(np.log10(a_BD), Ωm_BD,  color="C1",    linestyle="solid", alpha=0.8, label=r"$\Omega_m^\mathrm{BD}$")
+    ax.plot(np.log10(a_BD), ΩΛϕ_BD, color="C2",    linestyle="solid", alpha=0.8, label=r"$\Omega_\Lambda^\mathrm{BD}+\Omega_\phi^\mathrm{BD}$")
+    ax.plot(np.log10(a_BD), Ω_BD,   color="black", linestyle="solid", alpha=0.8, label=r"$\Omega^\mathrm{BD}$")
+    ax.plot(np.log10(a_GR), Ωr_GR,  color="C0",    linestyle="dashed",  alpha=0.8, label=r"$\Omega_r^\mathrm{GR}$")
+    ax.plot(np.log10(a_GR), Ωm_GR,  color="C1",    linestyle="dashed",  alpha=0.8, label=r"$\Omega_m^\mathrm{GR}$")
+    ax.plot(np.log10(a_GR), ΩΛ_GR,  color="C2",    linestyle="dashed",  alpha=0.8, label=r"$\Omega_\Lambda^\mathrm{GR}$")
+    ax.plot(np.log10(a_GR), Ω_GR,   color="black", linestyle="dashed",  alpha=0.8, label=r"$\Omega^\mathrm{GR}$")
     ax.set_xlabel(r"$\lg a$")
     ax.set_xlim(-7, 0)
     ax.set_ylim(0.0, 1.1)
@@ -906,21 +897,19 @@ if ACTION in ("evolution", "evo"):
     plot_density_evolution("plots/evolution_density.pdf", params0_BD, θGR_different_h)
 
     # Plot evolution of (background) quantities
-    def G_G0_BD(bg, params): return (4+2*10**params["lgω"]) / (3+2*10**params["lgω"]) / bg[25]
-    def G_G0_GR(bg, params): return np.ones_like(bg[0]) # = 1.0
-    def H_H0_GR(bg, params): return bg[3] / CubicSpline(np.log10(1/(bg[0]+1)), bg[3])(0.0)
-    def D_BD(bg, params):    return bg[13] / CubicSpline(np.log10(1/(bg[0]+1)), bg[13])(-10.0) # columns are different in GR and BD!
-    def D_GR(bg, params):    return bg[14] / CubicSpline(np.log10(1/(bg[0]+1)), bg[14])(-10.0) # columns are different in GR and BD!
-    def f_BD(bg, params):    return bg[14] # columns are different in GR and BD!
-    def f_GR(bg, params):    return bg[15] # / CubicSpline(np.log10(1/(bg[0]+1)), bg[14])(-10.0) # columns are different in GR and BD!
+    def G_G0_BD(bg, params):    return (4+2*10**params["lgω"]) / (3+2*10**params["lgω"]) / bg["phi_smg"]
+    def G_G0_GR(bg, params):    return np.ones_like(bg["z"]) # = 1.0, special case for GR
+    def H_H0_BD_GR(bg, params): return bg["H [1/Mpc]"] / CubicSpline(np.log10(1/(bg["z"]+1)), bg["H [1/Mpc]"])(0.0) # common to BD and GR
+    def D_Di_BD_GR(bg, params): return bg["gr.fac. D"] / CubicSpline(np.log10(1/(bg["z"]+1)), bg["gr.fac. D"])(-10.0) # common to BD and GR
+    def f_BD_GR(bg, params):    return bg["gr.fac. f"] # common to BD and GR
     series = [
-        ("G", G_G0_BD, G_G0_GR, False, "G(a)/G", 0.05, 0.05),
-        ("H", H_H0_GR, H_H0_GR, True,  "H(a)/H_0", 5.0, 0.01),
-        ("D", D_BD,    D_GR,    True,  "D(a)/D(10^{-10})", 1.0, 0.1),
-        ("f", f_BD,    f_GR,    False,  "f(a)", 0.1, 0.01),
+        ("G", G_G0_BD,    G_G0_GR,    False, "G(a)/G",           0.05, 0.05),
+        ("H", H_H0_BD_GR, H_H0_BD_GR, True,  "H(a)/H_0",         5.0,  0.01),
+        ("D", D_Di_BD_GR, D_Di_BD_GR, True,  "D(a)/D(10^{-10})", 1.0,  0.1),
+        ("f", f_BD_GR,    f_BD_GR,    False, "f(a)",             0.1,  0.01),
     ]
     for q, qBD, qGR, logabs, ylabel, Δyabs, Δyrel in series:
-        plot_quantity_evolution(f"plots/evolution_{q}.pdf",       params0_BD, qBD, qGR, θGR_different_h, qty=q, ylabel=ylabel, logabs=logabs, Δyabs=Δyabs, Δyrel=Δyrel)
+        plot_quantity_evolution(f"plots/evolution_{q}.pdf", params0_BD, qBD, qGR, θGR_different_h, qty=q, ylabel=ylabel, logabs=logabs, Δyabs=Δyabs, Δyrel=Δyrel)
 
 #plot_convergence(f"plots/boost_fiducial.pdf", params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_different_h, paramlabel=latex_labels["lgω"])
 #exit()
