@@ -143,7 +143,7 @@ def propagate_error(df_dx, xs):
 def list_simulations():
     for path in os.scandir(SIMDIR):
         if os.path.isdir(path):
-            Simulation(path=path.name, verbose=True)
+            Simulation(path=path.name, verbose=True, run=False)
 
 class ParameterSpace:
     def __init__(self, params, seed=1234):
@@ -168,12 +168,12 @@ class ParameterSpace:
         return [self.sample() for i in range(0, n)]
 
 class Simulation:
-    def __init__(self, params=None, seed=None, path=None, verbose=True):
+    def __init__(self, params=None, seed=None, path=None, verbose=True, run=True):
         if path is not None:
             self.directory = SIMDIR + path + "/"
             params = json.loads(self.read_file("parameters.json"))
             seed = params.pop("seed") # remove seed key
-            return Simulation.__init__(self, params=params, seed=seed, verbose=verbose)
+            return Simulation.__init__(self, params=params, seed=seed, verbose=verbose, run=run)
 
         if seed is None:
             seed = params2seeds(params)
@@ -183,7 +183,7 @@ class Simulation:
         self.directory = SIMDIR + self.name + "/"
 
         if verbose:
-            print(f"{self.directory}: {self.params}")
+            print(f"{self.directory}: {self.params}", "COMPLETE" if self.completed() else "INCOMPLETE")
 
         # initialize simulation, validate input, create working directory, write parameters
         os.makedirs(self.directory, exist_ok=True)
@@ -191,11 +191,10 @@ class Simulation:
 
         # create initial conditions with CLASS, store derived parameters, run COLA simulation
         # TODO: be lazy
-        k, P = self.run_class()
-        self.run_cola(k, P, np=16)
-
-        # verify successful completion
-        assert self.completed()
+        if run:
+            k, P = self.run_class()
+            self.run_cola(k, P, np=16)
+            assert self.completed() # verify successful completion
 
     # unique string identifier for the simulation
     def name(self):
@@ -313,8 +312,6 @@ class Simulation:
     # run CLASS and return today's matter power spectrum
     def run_class(self, input="class_input.ini", log="class.log"):
         if not self.completed_class():
-            print(f"Simulating {self.name} with independent parameters:")
-            print("\n".join(f"{param} = {self.params[param]}" for param in sorted(self.params)))
             self.validate_input()
 
             # write input and run class
@@ -376,8 +373,6 @@ class Simulation:
             self.run_command(cmd, log=log, verbose=True)
 
             self.validate_output()
-            print(f"Simulated {self.name} with derived parameters:")
-            print("\n".join(f"{param} = {value}" for param, value in sorted(self.params_extended().items())))
 
         assert self.completed_cola(), f"ERROR: see {log} for details"
 
