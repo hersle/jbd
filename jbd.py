@@ -846,7 +846,7 @@ params_varying = {
 #exit()
 
 # Plot evolution of (background) quantities
-def G_G0_BD(bg, params): return (4+2*params["G0/G"]) / (4+2*params["G0/G"]) / (bg[25] / CubicSpline(np.log10(1/(bg[0]+1)), bg[25])(0.0)) # TODO: wrong for small ω
+def G_G0_BD(bg, params): return (4+2*10**params["lgω"]) / (3+2*10**params["lgω"]) / bg[25]
 def G_G0_GR(bg, params): return np.ones_like(bg[0]) # = 1.0
 def H_H0_GR(bg, params): return bg[3] / CubicSpline(np.log10(1/(bg[0]+1)), bg[3])(0.0)
 def D_BD(bg, params):    return bg[13] / CubicSpline(np.log10(1/(bg[0]+1)), bg[13])(-10.0) # columns are different in GR and BD!
