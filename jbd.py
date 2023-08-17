@@ -81,6 +81,11 @@ def hashstr(str):
 def hashdict(dict):
     return hashstr(dictjson(dict, sort=True)) # https://stackoverflow.com/a/10288255
 
+def params2seeds(params, n=None):
+    rng = np.random.default_rng(int(hashdict(params), 16)) # deterministic random number generator from simulation parameters
+    seeds = rng.integers(0, 2**31-1, size=n, dtype=int) # output python (not numpy) ints to make compatible with JSON dict hashing
+    return int(seeds) if n is None else [int(seed) for seed in seeds]
+
 def luastr(var):
     if isinstance(var, bool):
         return str(var).lower() # Lua uses true, not True
@@ -169,6 +174,9 @@ class Simulation:
             params = json.loads(self.read_file("parameters.json"))
             seed = params.pop("seed") # remove seed key
             return Simulation.__init__(self, params=params, seed=seed, verbose=verbose)
+
+        if seed is None:
+            seed = params2seeds(params)
 
         self.params = params | {"seed": seed} # copy (will be modified); make seed part of parameters only internally
         self.name = self.name()
@@ -460,14 +468,10 @@ class BDSimulation(Simulation):
 
 # TODO: rather use a SimulationPairGroup when running pairs with same initial seed
 class SimulationGroup:
-    def __init__(self, simtype, params, nsims, hash=None):
-        if hash is None:
-            hash = hashdict(params) # unique hash of base (without seed) simulation parameters
-            hash = int(hash, 16)     # convert MD5 hexadecimal (base 16) hash to integer (needed to seed numpy's rng)
-        rng = np.random.default_rng(hash) # deterministic random number generator from simulation parameters
-        seeds = rng.integers(0, 2**31-1, size=nsims, dtype=int) # will be the same for the same simulation parameters
-        seeds = [int(seed) for seed in seeds] # convert to python ints to make compatible with JSON dict hashing
-        self.sims = [simtype(params, seed) for seed in seeds] # run simulations with all seeds # TODO: take seed as keyword in Simulation, then append to internal dictionary there
+    def __init__(self, simtype, params, nsims, seeds=None):
+        if seeds is None:
+            seeds = params2seeds(params, nsims)
+        self.sims = [simtype(params, seed) for seed in seeds] # run simulations with all seeds
 
         # extend independent parameters with derived parameters
         self.params = self.sims[0].params_extended() # loop checks they are equal across sims
@@ -499,15 +503,13 @@ class SimulationGroup:
 
 class SimulationGroupPair:
     def __init__(self, params_BD, params_BD_to_GR, nsims=1):
-        # choose hash so each simulation in PBD/PGR is run with the same seed and thus similar initial conditions
-        hash = hashdict(params_BD) # BD parameters is a superset, so use them to make a hash for both BD and GR
-        hash = int(hash, 16) # make an integer out of it
+        seeds = params2seeds(params_BD, nsims) # BD parameters is a superset, so use them to make common seeds for BD and GR
 
         self.params_BD = params_BD
-        self.sims_BD = SimulationGroup(BDSimulation, params_BD, nsims, hash=hash)
+        self.sims_BD = SimulationGroup(BDSimulation, params_BD, nsims, seeds=seeds)
 
         self.params_GR = params_BD_to_GR(params_BD, self.sims_BD.params) # θGR = θGR(θBD)
-        self.sims_GR = SimulationGroup(GRSimulation, self.params_GR, nsims, hash=hash)
+        self.sims_GR = SimulationGroup(GRSimulation, self.params_GR, nsims, seeds=seeds)
 
         self.nsims = nsims
 
