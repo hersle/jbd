@@ -22,8 +22,6 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 from scipy.stats import qmc
 from scipy.interpolate import interp1d, CubicSpline
 
-print("Matplotlib default rcParams:")
-print(matplotlib.rcParams.keys())
 matplotlib.rcParams |= {
     "text.usetex": True,
     "font.size": 9,
@@ -44,11 +42,13 @@ matplotlib.rcParams |= {
 }
 
 parser = argparse.ArgumentParser(prog="jbd.py")
+parser.add_argument("action", help="action to execute")
 parser.add_argument("--nbody", metavar="path/to/FML/FML/COLASolver/nbody", default="./FML/FML/COLASolver/nbody")
 parser.add_argument("--class", metavar="path/to/hi_class_public/class", default="./hi_class_public/class")
 parser.add_argument("--simdir", metavar="path/to/simulation/directory/", default="./sims/")
 args = parser.parse_args()
 
+ACTION = vars(args)["action"]
 COLAEXEC = os.path.abspath(os.path.expanduser(vars(args)["nbody"]))
 CLASSEXEC = os.path.abspath(os.path.expanduser(vars(args)["class"]))
 SIMDIR = vars(args)["simdir"].rstrip("/") + "/" # enforce trailing /
@@ -138,7 +138,7 @@ def propagate_error(df_dx, xs):
 def list_simulations():
     for path in os.scandir(SIMDIR):
         if os.path.isdir(path):
-            print(f"{path.name}: {BDSimulation(path=path.name).params}")
+            Simulation(path=path.name, verbose=True)
 
 class ParameterSpace:
     def __init__(self, params, seed=1234):
@@ -163,20 +163,21 @@ class ParameterSpace:
         return [self.sample() for i in range(0, n)]
 
 class Simulation:
-    def __init__(self, params=None, seed=None, path=None):
+    def __init__(self, params=None, seed=None, path=None, verbose=False):
         if path is not None:
             self.directory = SIMDIR + path + "/"
             params = json.loads(self.read_file("parameters.json"))
-            return Simulation.__init__(self, params=params)
+            seed = params.pop("seed") # remove seed key
+            return Simulation.__init__(self, params=params, seed=seed, verbose=verbose)
 
         self.params = params | {"seed": seed} # copy (will be modified); make seed part of parameters only internally
         self.name = self.name()
         self.directory = SIMDIR + self.name + "/"
 
+        if verbose:
+            print(f"{self.directory}: {self.params}")
+
         # initialize simulation, validate input, create working directory, write parameters
-        print(f"Simulating {self.name} with independent parameters:")
-        print("\n".join(f"{param} = {self.params[param]}" for param in sorted(self.params)))
-        self.validate_input()
         os.makedirs(self.directory, exist_ok=True)
         self.write_file("parameters.json", dictjson(self.params, unicode=True))
 
@@ -187,9 +188,6 @@ class Simulation:
 
         # verify successful completion
         assert self.completed()
-        self.validate_output()
-        print(f"Simulated {self.name} with derived parameters:")
-        print("\n".join(f"{param} = {value}" for param, value in sorted(self.params_extended().items())))
 
     # unique string identifier for the simulation
     def name(self):
@@ -307,10 +305,14 @@ class Simulation:
     # run CLASS and return today's matter power spectrum
     def run_class(self, input="class_input.ini", log="class.log"):
         if not self.completed_class():
+            print(f"Simulating {self.name} with independent parameters:")
+            print("\n".join(f"{param} = {self.params[param]}" for param in sorted(self.params)))
+            self.validate_input()
+
             # write input and run class
             self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
             self.run_command([CLASSEXEC, input], log=log, verbose=True)
-        assert self.completed_class(), f"ERROR: see {log} for details"
+            assert self.completed_class(), f"ERROR: see {log} for details"
 
         # get output power spectrum (COLA needs class' output power spectrum, just without comments)
         return self.power_spectrum(linear=True, hunits=True) # COLA wants power spectrum in h units
@@ -364,6 +366,11 @@ class Simulation:
             self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
             cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh and run?
             self.run_command(cmd, log=log, verbose=True)
+
+            self.validate_output()
+            print(f"Simulated {self.name} with derived parameters:")
+            print("\n".join(f"{param} = {value}" for param, value in sorted(self.params_extended().items())))
+
         assert self.completed_cola(), f"ERROR: see {log} for details"
 
     def power_spectrum(self, linear=False, hunits=False):
@@ -721,6 +728,7 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
     ax2.legend()
     fig.subplots_adjust(left=0.17, right=0.99, bottom=0.10, top=0.98, hspace=0.1) # trial and error to get consistent plot layout...
     fig.savefig(filename)
+    print("Plotted", filename)
 
 def plot_density_evolution(filename, params0_BD, θGR):
     sims = SimulationGroupPair(params0_BD, θGR)
@@ -777,6 +785,7 @@ def plot_density_evolution(filename, params0_BD, θGR):
     ax.legend(ncol=2)
     fig.tight_layout()
     fig.savefig(filename)
+    print("Plotted", filename)
 
 def plot_parameter_samples(filename, samples, lo, hi, labels):
     params = list(lo.keys())
@@ -862,10 +871,6 @@ latex_labels = {
 
 # TODO: split up into different "run files"
 
-# List simulations
-#list_simulations()
-#exit()
-
 # Plot LHS samples seen through each parameter space face
 params_varying = {
     "lgω":    (2.0, 5.0),
@@ -876,10 +881,6 @@ params_varying = {
     "Ase9":   (1.6, 2.6),
     "ns":     (0.866, 1.066),
 }
-#paramspace = ParameterSpace(params_varying)
-#samples = paramspace.samples(500)
-#plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), latex_labels)
-#exit()
 
 # Check that CLASS and COLA outputs consistent background cosmology parameters
 # for a "non-standard" BD cosmology with small wBD and G0/G != 1
@@ -892,6 +893,14 @@ params_varying = {
 #GRSimulation(params0_GR)
 #exit()
 
+if ACTION in ("plot_options", "rcParams", "rcparams", "rc"):
+    print("Matplotlib rcParams:")
+    print(matplotlib.rcParams.keys())
+
+# List simulations
+if ACTION in ("list", "ls"):
+    list_simulations()
+
 # Power spectrum plots
 #sims = SimulationGroup(BDSimulation, params0_BD, 1)
 #sims = SimulationGroup(GRSimulation, params0_GR, 1)
@@ -900,46 +909,54 @@ params_varying = {
 #exit()
 
 # Plot evolution of (background) densities
-plot_density_evolution("plots/evolution_density.pdf", params0_BD, θGR_different_h)
-exit()
+if ACTION in ("evolution", "evo"):
+    plot_density_evolution("plots/evolution_density.pdf", params0_BD, θGR_different_h)
 
-# Plot evolution of (background) quantities
-def G_G0_BD(bg, params): return (4+2*10**params["lgω"]) / (3+2*10**params["lgω"]) / bg[25]
-def G_G0_GR(bg, params): return np.ones_like(bg[0]) # = 1.0
-def H_H0_GR(bg, params): return bg[3] / CubicSpline(np.log10(1/(bg[0]+1)), bg[3])(0.0)
-def D_BD(bg, params):    return bg[13] / CubicSpline(np.log10(1/(bg[0]+1)), bg[13])(-10.0) # columns are different in GR and BD!
-def D_GR(bg, params):    return bg[14] / CubicSpline(np.log10(1/(bg[0]+1)), bg[14])(-10.0) # columns are different in GR and BD!
-def f_BD(bg, params):    return bg[14] # columns are different in GR and BD!
-def f_GR(bg, params):    return bg[15] # / CubicSpline(np.log10(1/(bg[0]+1)), bg[14])(-10.0) # columns are different in GR and BD!
-series = [
-    ("G", G_G0_BD, G_G0_GR, False, "G(a)/G", 0.05, 0.05),
-    ("H", H_H0_GR, H_H0_GR, True,  "H(a)/H_0", 5.0, 0.01),
-    ("D", D_BD,    D_GR,    True,  "D(a)/D(10^{-10})", 1.0, 0.1),
-    ("f", f_BD,    f_GR,    False,  "f(a)", 0.1, 0.01),
-]
-for q, qBD, qGR, logabs, ylabel, Δyabs, Δyrel in series:
-    plot_quantity_evolution(f"plots/evolution_{q}.pdf",       params0_BD, qBD, qGR, θGR_different_h, qty=q, ylabel=ylabel, logabs=logabs, Δyabs=Δyabs, Δyrel=Δyrel)
-exit()
+    # Plot evolution of (background) quantities
+    def G_G0_BD(bg, params): return (4+2*10**params["lgω"]) / (3+2*10**params["lgω"]) / bg[25]
+    def G_G0_GR(bg, params): return np.ones_like(bg[0]) # = 1.0
+    def H_H0_GR(bg, params): return bg[3] / CubicSpline(np.log10(1/(bg[0]+1)), bg[3])(0.0)
+    def D_BD(bg, params):    return bg[13] / CubicSpline(np.log10(1/(bg[0]+1)), bg[13])(-10.0) # columns are different in GR and BD!
+    def D_GR(bg, params):    return bg[14] / CubicSpline(np.log10(1/(bg[0]+1)), bg[14])(-10.0) # columns are different in GR and BD!
+    def f_BD(bg, params):    return bg[14] # columns are different in GR and BD!
+    def f_GR(bg, params):    return bg[15] # / CubicSpline(np.log10(1/(bg[0]+1)), bg[14])(-10.0) # columns are different in GR and BD!
+    series = [
+        ("G", G_G0_BD, G_G0_GR, False, "G(a)/G", 0.05, 0.05),
+        ("H", H_H0_GR, H_H0_GR, True,  "H(a)/H_0", 5.0, 0.01),
+        ("D", D_BD,    D_GR,    True,  "D(a)/D(10^{-10})", 1.0, 0.1),
+        ("f", f_BD,    f_GR,    False,  "f(a)", 0.1, 0.01),
+    ]
+    for q, qBD, qGR, logabs, ylabel, Δyabs, Δyrel in series:
+        plot_quantity_evolution(f"plots/evolution_{q}.pdf",       params0_BD, qBD, qGR, θGR_different_h, qty=q, ylabel=ylabel, logabs=logabs, Δyabs=Δyabs, Δyrel=Δyrel)
 
-for θGR, suffix1 in zip([θGR_identity, θGR_different_h], ["_sameh", "_diffh"]):
-    for divide_linear, suffix2 in zip([False, True], ["", "_divlin"]):
-        for logy, suffix3 in zip([False, True], ["", "_log"]):
-            plot_convergence(f"plots/boost_fiducial{suffix1}{suffix2}{suffix3}.pdf", params0_BD, "lgω", [2.0, 3.0, 4.0, 5.0], nsims=5, θGR=θGR, divide_linear=divide_linear, logy=logy, paramlabel=latex_labels["lgω"])
-exit()
+#plot_convergence(f"plots/boost_fiducial.pdf", params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_different_h, paramlabel=latex_labels["lgω"])
+#exit()
+
+if ACTION in ("compare_parametrizations", "cmp"):
+    for θGR, suffix1 in zip([θGR_identity, θGR_different_h], ["_sameh", "_diffh"]):
+        for divide_linear, suffix2 in zip([False, True], ["", "_divlin"]):
+            for logy, suffix3 in zip([False, True], ["", "_log"]):
+                plot_convergence(f"plots/boost_fiducial{suffix1}{suffix2}{suffix3}.pdf", params0_BD, "lgω", [2.0, 3.0, 4.0, 5.0], nsims=5, θGR=θGR, divide_linear=divide_linear, logy=logy, paramlabel=latex_labels["lgω"])
 
 # Convergence plots (computational parameters)
-plot_convergence("plots/convergence_L.pdf",     params0_BD, "Lh",     [256.0, 384.0, 512.0, 768.0, 1024.0], paramlabel=latex_labels["Lh"],    lfunc=lambda Lh:    f"${Lh:.0f}$", cfunc=lambda Lh: np.log2(Lh))
-plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           paramlabel=latex_labels["Npart"], lfunc=lambda Npart: f"${Npart}^3$")
-plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           paramlabel=latex_labels["Ncell"], lfunc=lambda Ncell: f"${Ncell}^3$")
-plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 paramlabel=latex_labels["Nstep"], lfunc=lambda Nstep: f"${Nstep}$")
-plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   paramlabel=latex_labels["zinit"], lfunc=lambda zinit: f"${zinit:.0f}$")
+if ACTION in ("convergence", "conv"):
+    plot_convergence("plots/convergence_L.pdf",     params0_BD, "Lh",     [256.0, 384.0, 512.0, 768.0, 1024.0], paramlabel=latex_labels["Lh"],    lfunc=lambda Lh:    f"${Lh:.0f}$", cfunc=lambda Lh: np.log2(Lh))
+    #plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           paramlabel=latex_labels["Npart"], lfunc=lambda Npart: f"${Npart}^3$")
+    #plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           paramlabel=latex_labels["Ncell"], lfunc=lambda Ncell: f"${Ncell}^3$")
+    #plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 paramlabel=latex_labels["Nstep"], lfunc=lambda Nstep: f"${Nstep}$")
+    #plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   paramlabel=latex_labels["zinit"], lfunc=lambda zinit: f"${zinit:.0f}$")
 
 # Variation plots (cosmological parameters)
-plot_convergence("plots/convergence_omega.pdf",   params0_BD, "lgω",    [2.0, 3.0, 4.0, 5.0],     paramlabel=latex_labels["lgω"],    lfunc=lambda lgω: f"${lgω}$")
-plot_convergence("plots/convergence_G0.pdf",      params0_BD, "G0/G",   [0.99, 1.0, 1.01],        paramlabel=latex_labels["G0/G"],   lfunc=lambda G0_G: f"${G0_G:.02f}$")
-plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],       paramlabel=latex_labels["h"],      lfunc=lambda h: f"${h}$")
-plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],    paramlabel=latex_labels["ωb0"],    lfunc=lambda ωb0: f"${ωb0}$")
-plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],    paramlabel=latex_labels["ωc0"],    lfunc=lambda ωc0: f"${ωc0}$")
-plot_convergence("plots/convergence_As.pdf",      params0_BD, "Ase9",   [1.6, 2.1, 2.6],          paramlabel=latex_labels["Ase9"],   lfunc=lambda Ase9: f"${Ase9}$")
-plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],    paramlabel=latex_labels["ns"],     lfunc=lambda ns:  f"${ns}$")
-exit()
+if ACTION in ("variation", "var"):
+    plot_convergence("plots/convergence_omega.pdf",   params0_BD, "lgω",    [2.0, 3.0, 4.0, 5.0],     paramlabel=latex_labels["lgω"],    lfunc=lambda lgω: f"${lgω}$")
+    plot_convergence("plots/convergence_G0.pdf",      params0_BD, "G0/G",   [0.99, 1.0, 1.01],        paramlabel=latex_labels["G0/G"],   lfunc=lambda G0_G: f"${G0_G:.02f}$")
+    plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],       paramlabel=latex_labels["h"],      lfunc=lambda h: f"${h}$")
+    plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],    paramlabel=latex_labels["ωb0"],    lfunc=lambda ωb0: f"${ωb0}$")
+    plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],    paramlabel=latex_labels["ωc0"],    lfunc=lambda ωc0: f"${ωc0}$")
+    plot_convergence("plots/convergence_As.pdf",      params0_BD, "Ase9",   [1.6, 2.1, 2.6],          paramlabel=latex_labels["Ase9"],   lfunc=lambda Ase9: f"${Ase9}$")
+    plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],    paramlabel=latex_labels["ns"],     lfunc=lambda ns:  f"${ns}$")
+
+if ACTION in ("sample"):
+    paramspace = ParameterSpace(params_varying)
+    samples = paramspace.samples(500)
+    plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), latex_labels)
