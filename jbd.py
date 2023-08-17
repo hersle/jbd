@@ -163,7 +163,7 @@ class ParameterSpace:
         return [self.sample() for i in range(0, n)]
 
 class Simulation:
-    def __init__(self, params=None, seed=None, path=None, verbose=False):
+    def __init__(self, params=None, seed=None, path=None, verbose=True):
         if path is not None:
             self.directory = SIMDIR + path + "/"
             params = json.loads(self.read_file("parameters.json"))
@@ -647,7 +647,7 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_convergence(filename, params0, param, vals, nsims=5, θGR=lambda ΘBD, θBDext: ΘBD, paramlabel=None, lfunc=None, cfunc=None, **kwargs):
+def plot_convergence(filename, params0, param, vals, θGR, nsims=5, paramlabel=None, lfunc=None, cfunc=None, **kwargs):
     paramss = [params0 | {param: val} for val in vals] # generate all parameter combinations
 
     if lfunc is None:
@@ -940,21 +940,21 @@ if ACTION in ("compare_parametrizations", "cmp"):
 
 # Convergence plots (computational parameters)
 if ACTION in ("convergence", "conv"):
-    plot_convergence("plots/convergence_L.pdf",     params0_BD, "Lh",     [256.0, 384.0, 512.0, 768.0, 1024.0], paramlabel=latex_labels["Lh"],    lfunc=lambda Lh:    f"${Lh:.0f}$", cfunc=lambda Lh: np.log2(Lh))
-    #plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           paramlabel=latex_labels["Npart"], lfunc=lambda Npart: f"${Npart}^3$")
-    #plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           paramlabel=latex_labels["Ncell"], lfunc=lambda Ncell: f"${Ncell}^3$")
-    #plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 paramlabel=latex_labels["Nstep"], lfunc=lambda Nstep: f"${Nstep}$")
-    #plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   paramlabel=latex_labels["zinit"], lfunc=lambda zinit: f"${zinit:.0f}$")
+    plot_convergence("plots/convergence_L.pdf",     params0_BD, "Lh",     [256.0, 384.0, 512.0, 768.0, 1024.0], θGR_different_h, paramlabel=latex_labels["Lh"],    lfunc=lambda Lh:    f"${Lh:.0f}$", cfunc=lambda Lh: np.log2(Lh))
+    plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           θGR_different_h, paramlabel=latex_labels["Npart"], lfunc=lambda Npart: f"${Npart}^3$")
+    plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           θGR_different_h, paramlabel=latex_labels["Ncell"], lfunc=lambda Ncell: f"${Ncell}^3$")
+    plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 θGR_different_h, paramlabel=latex_labels["Nstep"], lfunc=lambda Nstep: f"${Nstep}$")
+    plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   θGR_different_h, paramlabel=latex_labels["zinit"], lfunc=lambda zinit: f"${zinit:.0f}$")
 
 # Variation plots (cosmological parameters)
 if ACTION in ("variation", "var"):
-    plot_convergence("plots/convergence_omega.pdf",   params0_BD, "lgω",    [2.0, 3.0, 4.0, 5.0],     paramlabel=latex_labels["lgω"],    lfunc=lambda lgω: f"${lgω}$")
-    plot_convergence("plots/convergence_G0.pdf",      params0_BD, "G0/G",   [0.99, 1.0, 1.01],        paramlabel=latex_labels["G0/G"],   lfunc=lambda G0_G: f"${G0_G:.02f}$")
-    plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],       paramlabel=latex_labels["h"],      lfunc=lambda h: f"${h}$")
-    plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],    paramlabel=latex_labels["ωb0"],    lfunc=lambda ωb0: f"${ωb0}$")
-    plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],    paramlabel=latex_labels["ωc0"],    lfunc=lambda ωc0: f"${ωc0}$")
-    plot_convergence("plots/convergence_As.pdf",      params0_BD, "Ase9",   [1.6, 2.1, 2.6],          paramlabel=latex_labels["Ase9"],   lfunc=lambda Ase9: f"${Ase9}$")
-    plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],    paramlabel=latex_labels["ns"],     lfunc=lambda ns:  f"${ns}$")
+    plot_convergence("plots/convergence_omega.pdf",   params0_BD, "lgω",    [2.0, 3.0, 4.0, 5.0],     θGR_different_h, paramlabel=latex_labels["lgω"],    lfunc=lambda lgω: f"${lgω}$")
+    plot_convergence("plots/convergence_G0.pdf",      params0_BD, "G0/G",   [0.99, 1.0, 1.01],        θGR_different_h, paramlabel=latex_labels["G0/G"],   lfunc=lambda G0_G: f"${G0_G:.02f}$")
+    plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],       θGR_different_h, paramlabel=latex_labels["h"],      lfunc=lambda h: f"${h}$")
+    plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],    θGR_different_h, paramlabel=latex_labels["ωb0"],    lfunc=lambda ωb0: f"${ωb0}$")
+    plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],    θGR_different_h, paramlabel=latex_labels["ωc0"],    lfunc=lambda ωc0: f"${ωc0}$")
+    plot_convergence("plots/convergence_As.pdf",      params0_BD, "Ase9",   [1.6, 2.1, 2.6],          θGR_different_h, paramlabel=latex_labels["Ase9"],   lfunc=lambda Ase9: f"${Ase9}$")
+    plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],    θGR_different_h, paramlabel=latex_labels["ns"],     lfunc=lambda ns:  f"${ns}$")
 
 if ACTION in ("sample"):
     paramspace = ParameterSpace(params_varying)
