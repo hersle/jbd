@@ -624,9 +624,9 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
         ax.fill_between(np.log10(k), T(y-Δy), T(y+Δy), color=colorfunc(params_BD), alpha=0.2, edgecolor=None) # error band
 
     Δy = 1.0 if logy else 0.05
-    ymin, ymax = ax.get_ylim()
-    ymin = to_nearest(ymin, Δy, "floor")
-    ymax = to_nearest(ymax, Δy, "ceil")
+    #ymin, ymax = ax.get_ylim()
+    ymin = np.log10(0.95) if logy else 0.95 #ymin = to_nearest(ymin, Δy, "floor")
+    ymax = np.log10(1.05) if logy else 1.05 #ymax = to_nearest(ymax, Δy, "ceil")
 
     ax.set_xticks([-2, -1, 0, 1])
     ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/Δy))+1)) # every Δy
