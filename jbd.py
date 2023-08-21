@@ -230,8 +230,8 @@ class Simulation:
         check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)", rtol=1e-4)
 
         # Compare ΩΛ0
-        ΩΛ0_class = self.read_variable("class.log", "Lambda")
-        ΩΛ0_cola  = self.read_variable("cola.log", "OmegaLambda      ", between=" : ")
+        ΩΛ0_class = self.read_variable("class.log", "Lambda = ")
+        ΩΛ0_cola  = self.read_variable("cola.log", "OmegaLambda       : ")
         check_values_are_close(ΩΛ0_class, ΩΛ0_cola, name="ΩΛ0", rtol=1e-4)
 
     # save a data file associated with the simulation
@@ -284,10 +284,10 @@ class Simulation:
         with open(self.directory + filename, "r", encoding="utf-8") as file:
             return file.read()
 
-    # read a string like "variable = numerical_value" and return the numerical value
-    def read_variable(self, filename, variable, between=" = "):
-        pattern = variable + between + r"([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)" # e.g. "var = 1.2e-34"
-        matches = re.findall(pattern, self.read_file(filename))
+    # read a string like "[prefix][number]" from a file and return number
+    # example: if file contains "Omega_Lambda = 1.23", read_variable(filename, "Omega_Lambda = ") returns 1.23
+    def read_variable(self, filename, prefix):
+        matches = re.findall(prefix + r"([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)", self.read_file(filename))
         assert len(matches) == 1, f"found {len(matches)} != 1 matches: {matches}"
         return float(matches[0][0])
 
@@ -461,9 +461,9 @@ class BDSimulation(Simulation):
 
     def params_extended(self):
         params = Simulation.params_extended(self)
-        params["ϕini"] = self.read_variable("class.log", "phi_ini")
-        params["ϕ0"]   = self.read_variable("class.log", "phi_0")
-        params["ΩΛ0"]  = self.read_variable("class.log", "Lambda") / params["ϕ0"] # ρΛ0 / (3*H0^2*ϕ0/8*π)
+        params["ϕini"] = self.read_variable("class.log", "phi_ini = ")
+        params["ϕ0"]   = self.read_variable("class.log", "phi_0 = ")
+        params["ΩΛ0"]  = self.read_variable("class.log", "Lambda = ") / params["ϕ0"] # ρΛ0 / (3*H0^2*ϕ0/8*π)
         params["ωΛ0"]  = params["ΩΛ0"] * params["h"]**2 * params["ϕ0"]            # ∝ ρΛ0
         return params
 
@@ -687,8 +687,8 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
     a_BD = 1 / (bg_BD["z"] + 1) # = 1 / (z + 1)
     a_GR = 1 / (bg_GR["z"] + 1) # = 1 / (z + 1)
 
-    aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
-    aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
+    aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
+    aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': (1, 1.618)}, figsize=(3.0, 3.5), sharex=True)
     ax2.set_xlabel(r"$\lg a$")
@@ -735,8 +735,8 @@ def plot_density_evolution(filename, params0_BD, θGR):
     z_BD, ργ_BD, ρν_BD, ρb_BD, ρc_BD, ρΛϕ_BD, ρcrit_BD = sims.sims_BD[0].read_data("class_background.dat", dict=True, cols=("z", "(.)rho_g", "(.)rho_ur", "(.)rho_b", "(.)rho_cdm", "(.)rho_smg",    "(.)rho_crit"))
     z_GR, ργ_GR, ρν_GR, ρb_GR, ρc_GR, ρΛ_GR,  ρcrit_GR = sims.sims_GR[0].read_data("class_background.dat", dict=True, cols=("z", "(.)rho_g", "(.)rho_ur", "(.)rho_b", "(.)rho_cdm", "(.)rho_lambda", "(.)rho_crit"))
 
-    aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
-    aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z") + 1) # = 1 / (z + 1)
+    aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
+    aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
 
     a_BD   = 1 / (z_BD + 1)
     Ωr_BD  = (ργ_BD + ρν_BD) / ρcrit_BD
