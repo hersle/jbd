@@ -209,7 +209,11 @@ class Simulation:
         if run and not self.completed():
             self.validate_input(params)
 
-            # TODO: parametrize with ωm0 and ωb0 (letting ωc0 be derived)
+            # parametrize with ωm0 and ωb0 (letting ωc0 be derived)
+            if "ωb0" not in self.params:
+                self.params["ωb0"] = self.params["ωm0"] - self.params["ωc0"]
+            elif "ωc0" not in self.params:
+                self.params["ωc0"] = self.params["ωm0"] - self.params["ωb0"]
 
             # find As that gives desired σ8
             if "σ8" in self.params: # overrides Ase9
@@ -879,6 +883,7 @@ latex_labels = {
     "h":      r"$h$",
     "ωb0":    r"$\omega_{b0}$",
     "ωc0":    r"$\omega_{c0}$",
+    "ωm0":    r"$\omega_{m0}$",
     "Lh":     r"$L / (\mathrm{Mpc}/h)$",
     "Npart":  r"$N_\mathrm{part}$",
     "Ncell":  r"$N_\mathrm{cell}$",
@@ -968,14 +973,23 @@ if "convergence" in ACTIONS:
 
 # Variation plots (cosmological parameters)
 if "variation" in ACTIONS:
-    plot_convergence("plots/convergence_omega.pdf",   params0_BD, "lgω",              [2.0, 3.0, 4.0, 5.0],     θGR_different_h, lfunc=lambda lgω: f"${lgω}$")
-    plot_convergence("plots/convergence_G0.pdf",      params0_BD, "G0/G",             [0.99, 1.0, 1.01],        θGR_different_h, lfunc=lambda G0_G: f"${G0_G:.02f}$")
-    plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",                [0.63, 0.68, 0.73],       θGR_different_h, lfunc=lambda h: f"${h}$")
-    plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",              [0.016, 0.022, 0.028],    θGR_different_h, lfunc=lambda ωb0: f"${ωb0}$")
-    plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",              [0.090, 0.120, 0.150],    θGR_different_h, lfunc=lambda ωc0: f"${ωc0}$")
-    plot_convergence("plots/convergence_As.pdf",      params0_BD, "Ase9",             [1.6, 2.1, 2.6],          θGR_different_h, lfunc=lambda Ase9: f"${Ase9}$")
-    plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",               [0.866, 0.966, 1.066],    θGR_different_h, lfunc=lambda ns:  f"${ns}$")
-    plot_convergence("plots/convergence_s8.pdf",      params0_BD | {"σ8": 0.8}, "σ8", [0.7, 0.8, 0.9],          θGR_different_h, lfunc=lambda σ8:  f"${σ8}$")
+    params0 = params0_BD
+    plot_convergence("plots/convergence_omega.pdf",   params0, "lgω",              [2.0, 3.0, 4.0, 5.0],     θGR_different_h, lfunc=lambda lgω: f"${lgω}$")
+    plot_convergence("plots/convergence_G0.pdf",      params0, "G0/G",             [0.99, 1.0, 1.01],        θGR_different_h, lfunc=lambda G0_G: f"${G0_G:.02f}$")
+    plot_convergence("plots/convergence_h.pdf",       params0, "h",                [0.63, 0.68, 0.73],       θGR_different_h, lfunc=lambda h: f"${h}$")
+    plot_convergence("plots/convergence_omegab0.pdf", params0, "ωb0",              [0.016, 0.022, 0.028],    θGR_different_h, lfunc=lambda ωb0: f"${ωb0}$")
+    plot_convergence("plots/convergence_omegac0.pdf", params0, "ωc0",              [0.090, 0.120, 0.150],    θGR_different_h, lfunc=lambda ωc0: f"${ωc0}$")
+    plot_convergence("plots/convergence_As.pdf",      params0, "Ase9",             [1.6, 2.1, 2.6],          θGR_different_h, lfunc=lambda Ase9: f"${Ase9}$")
+    plot_convergence("plots/convergence_ns.pdf",      params0, "ns",               [0.866, 0.966, 1.066],    θGR_different_h, lfunc=lambda ns:  f"${ns}$")
+
+    # parametrize with ωm0 and ωb0 (instead of ωc0)
+    params0 = dictupdate(params0_BD, {"ωm0": 0.142}, ["ωc0"])
+    plot_convergence("plots/convergence_omegam0_fixed_omegab0.pdf", params0, "ωm0", [0.082, 0.142, 0.202], θGR_different_h, lfunc=lambda ωm0: f"${ωm0}$")
+    plot_convergence("plots/convergence_omegab0_fixed_omegam0.pdf", params0, "ωb0", [0.016, 0.022, 0.028], θGR_different_h, lfunc=lambda ωb0: f"${ωb0}$")
+
+    # parametrize with σ8 today (instead of As)
+    params0 = dictupdate(params0_BD, {"σ8": 0.8}, ["Ase9"])
+    plot_convergence("plots/convergence_s8.pdf",      params0, "σ8", [0.7, 0.8, 0.9], θGR_different_h, lfunc=lambda σ8:f"${σ8}$")
 
 if "sample" in ACTIONS:
     paramspace = ParameterSpace(params_varying)
