@@ -72,6 +72,14 @@ def ax_set_ylim_nearest(ax, Δy):
     ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/Δy))+1)) # TODO: set minor ticks every 1, 0.1, 0.01 etc. here?
     return ymin, ymax
 
+def dictupdate(dict, add={}, remove=[]):
+    dict = dict.copy() # don't modify input!
+    for key in remove:
+        del dict[key]
+    for key in add:
+        dict[key] = add[key]
+    return dict
+
 def dictjson(dict, sort=False, unicode=False):
     return json.dumps(dict, sort_keys=sort, ensure_ascii=not unicode)
 
@@ -181,7 +189,7 @@ class Simulation:
         if seed is None:
             seed = params2seeds(params)
 
-        self.params = params | {"seed": seed} # copy (will be modified); make seed part of parameters only internally
+        self.params = dictupdate(params, {"seed": seed}) # make seed part of parameters only internally
         self.name = self.name()
         self.directory = SIMDIR + self.name + "/"
 
@@ -440,10 +448,10 @@ class Simulation:
 
 class GRSimulation(Simulation):
     def params_cola(self):
-        return Simulation.params_cola(self) | { # combine dictionaries
+        return dictupdate(Simulation.params_cola(self), {
             "cosmology_model": "LCDM",
             "gravity_model": "GR",
-        }
+        })
 
 class BDSimulation(Simulation):
     def validate_input(self):
@@ -451,7 +459,7 @@ class BDSimulation(Simulation):
 
     def params_class(self):
         ω = 10 ** self.params["lgω"]
-        return Simulation.params_class(self) | { # combine dictionaries
+        return dictupdate(Simulation.params_class(self), {
             "gravity_model": "brans_dicke", # select BD gravity
             "Omega_Lambda": 0, # rather include Λ through potential term (first entry in parameters_smg; should be equivalent)
             "Omega_fld": 0, # no dark energy fluid
@@ -460,15 +468,15 @@ class BDSimulation(Simulation):
             "M_pl_today_smg": (4+2*ω)/(3+2*ω) / self.params["G0/G"], # see https://github.com/HAWinther/hi_class_pub_devel/blob/3160be0e0482ac2284c20b8878d9a81efdf09f2a/gravity_smg/gravity_models_smg.c#L462
             "a_min_stability_test_smg": 1e-6, # BD has early-time instability, so lower tolerance to pass stability checker
             "output_background_smg": 2, # >= 2 needed to output phi to background table (https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/background.c#L3031)
-        }
+        })
 
     def params_cola(self):
-        return Simulation.params_cola(self) | { # combine dictionaries
+        return dictupdate(Simulation.params_cola(self), {
             "gravity_model": "JBD",
             "cosmology_model": "JBD",
             "cosmology_JBD_wBD": 10 ** self.params["lgω"],
             "cosmology_JBD_GeffG_today": self.params["G0/G"],
-        }
+        })
 
     def validate_output(self):
         Simulation.validate_output(self) # do any validation in parent class
@@ -577,10 +585,7 @@ class SimulationGroupPair:
         return k, B, ΔB
 
 def θGR_identity(θBD, θBDext):
-    θGR = θBD.copy() # don't modify input
-    del θGR["lgω"]  # remove BD-specific parameter
-    del θGR["G0/G"] # remove BD-specific parameter
-    return θGR
+    return dictupdate(θBD, remove=["lgω", "G0/G"]) # remove BD-specific parameters
 
 def θGR_different_h(θBD, θBDext):
     θGR = θGR_identity(θBD, θBDext)
@@ -679,7 +684,7 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
     print("Plotted", filename)
 
 def plot_convergence(filename, params0, param, vals, θGR, nsims=5, lfunc=None, cfunc=None, **kwargs):
-    paramss = [params0 | {param: val} for val in vals] # generate all parameter combinations
+    paramss = [dictupdate(params0, {param: val}) for val in vals] # generate all parameter combinations
 
     if lfunc is None:
         def lfunc(val): return f"{val}"
@@ -861,10 +866,10 @@ params0_GR = {
     "Ncell": 512,
     "Lh":    512.0, # L / (Mpc/h) = L*h / Mpc
 }
-params0_BD = params0_GR | {
+params0_BD = dictupdate(params0_GR, {
     "lgω":    2.0,    # lowest value to consider (larger values should only be "easier" to simulate?)
     "G0/G":   1.0,    # G0 == G        (ϕ0 = (4+2*ω)/(3+2*ω) * 1/(G0/G))
-}
+})
 
 latex_labels = {
     "h":      r"$h$",
