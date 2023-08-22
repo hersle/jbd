@@ -948,8 +948,8 @@ if "compare" in ACTIONS:
 # Convergence plots (computational parameters)
 if "convergence" in ACTIONS:
     plot_convergence("plots/convergence_L.pdf",     params0_BD, "Lh",     [256.0, 384.0, 512.0, 768.0, 1024.0], θGR_different_h, paramlabel=latex_labels["Lh"],    lfunc=lambda Lh:    f"${Lh:.0f}$", cfunc=lambda Lh: np.log2(Lh))
-    plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           θGR_different_h, paramlabel=latex_labels["Npart"], lfunc=lambda Npart: f"${Npart}^3$")
-    plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           θGR_different_h, paramlabel=latex_labels["Ncell"], lfunc=lambda Ncell: f"${Ncell}^3$")
+    plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           θGR_different_h, paramlabel=latex_labels["Npart"], lfunc=lambda Npart: f"${Npart}^3$", cfunc=lambda N: np.log2(N))
+    plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           θGR_different_h, paramlabel=latex_labels["Ncell"], lfunc=lambda Ncell: f"${Ncell}^3$", cfunc=lambda N: np.log2(N))
     plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 θGR_different_h, paramlabel=latex_labels["Nstep"], lfunc=lambda Nstep: f"${Nstep}$")
     plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   θGR_different_h, paramlabel=latex_labels["zinit"], lfunc=lambda zinit: f"${zinit:.0f}$")
 
