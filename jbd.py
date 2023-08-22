@@ -361,6 +361,8 @@ class Simulation:
             "n_s": self.params["ns"],
             "k_pivot": self.params["kpivot"],
 
+            "YHe": 0.25,
+
             # output control
             "output": "mPk",
             "write background": "yes",
