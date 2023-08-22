@@ -75,6 +75,9 @@ def ax_set_ylim_nearest(ax, Δy):
 def dictjson(dict, sort=False, unicode=False):
     return json.dumps(dict, sort_keys=sort, ensure_ascii=not unicode)
 
+def jsondict(jsonstr):
+    return json.loads(jsonstr)
+
 def hashstr(str):
     return hashlib.md5(str.encode('utf-8')).hexdigest()
 
@@ -171,7 +174,7 @@ class Simulation:
     def __init__(self, params=None, seed=None, path=None, verbose=True, run=True):
         if path is not None:
             self.directory = SIMDIR + path + "/"
-            params = json.loads(self.read_file("parameters.json"))
+            params = jsondict(self.read_file("parameters.json"))
             seed = params.pop("seed") # remove seed key
             return Simulation.__init__(self, params=params, seed=seed, verbose=verbose, run=run)
 
@@ -191,8 +194,23 @@ class Simulation:
 
         # create initial conditions with CLASS, store derived parameters, run COLA simulation
         # TODO: be lazy
-        if run:
-            k, P = self.run_class()
+        if run and not self.completed():
+            # TODO: read self.params from params extended json file
+            self.params = jsondict(self.read_file("parameters.json"))
+
+            if "σ8" in self.params:
+                σ8_target = self.params["σ8"]
+                Ase9 = 1.0 # initial guess
+                while True: # "σ8" not in self.params_extended() or np.abs(self.params_extended()["σ8"] - σ8_target) > 1e-5:
+                    self.params["Ase9"] = Ase9
+                    k, P = self.run_class()
+                    σ8 = self.params_extended()["σ8"]
+                    if np.abs(σ8 - σ8_target) < 1e-10:
+                        break
+                    Ase9 = (σ8_target/σ8)**2 * Ase9 # exploit σ8^2 ∝ As to fixed-point iterate efficiently (should only require one iteration)
+            else:
+                k, P = self.run_class()
+
             self.run_cola(k, P, np=16)
             self.write_file("parameters_extended.json", dictjson(self.params_extended(), unicode=True))
             assert self.completed() # verify successful completion
@@ -215,6 +233,7 @@ class Simulation:
 
     # check that the combination of parameters passed to the simulation is allowed
     def validate_input(self):
+        assert "Ase9" in self.params or "σ8" in self.params, "specify either Ase9 or σ8"
         assert "ωΛ0" not in self.params, "derived parameter ωΛ0 is specified"
 
     # check that the output from CLASS and COLA is consistent
@@ -234,6 +253,11 @@ class Simulation:
         ΩΛ0_class = self.read_variable("class.log", "Lambda = ")
         ΩΛ0_cola  = self.read_variable("cola.log", "OmegaLambda       : ")
         check_values_are_close(ΩΛ0_class, ΩΛ0_cola, name="ΩΛ0", rtol=1e-4)
+
+        # Compare σ8 today
+        σ8_class = self.read_variable("class.log", "sigma8=")
+        σ8_cola  = self.read_variable("cola.log",  "Sigma\(R = 8 Mpc/h, z = 0.0 \) :\s+")
+        check_values_are_close(σ8_class, σ8_cola, name="σ8", rtol=1e-3)
 
     # save a data file associated with the simulation
     def write_data(self, filename, cols, colnames=None):
@@ -332,13 +356,12 @@ class Simulation:
 
     # run CLASS and return today's matter power spectrum
     def run_class(self, input="class_input.ini", log="class.log"):
-        if not self.completed_class():
-            self.validate_input()
+        self.validate_input()
 
-            # write input and run class
-            self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
-            self.run_command([CLASSEXEC, input], log=log, verbose=True)
-            assert self.completed_class(), f"ERROR: see {log} for details"
+        # write input and run class
+        self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
+        self.run_command([CLASSEXEC, input], log=log, verbose=True)
+        assert self.completed_class(), f"ERROR: see {log} for details"
 
         # get output power spectrum (COLA needs class' output power spectrum, just without comments)
         return self.power_spectrum(linear=True, hunits=True) # COLA wants power spectrum in h units
@@ -387,13 +410,12 @@ class Simulation:
 
     # run COLA simulation from back-scaling today's matter power spectrum (from CLASS)
     def run_cola(self, khs, Phs, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
-        if not self.completed_cola():
-            self.write_data(ic, {"k/(h/Mpc)": khs, "P/(Mpc/h)^3": Phs}) # COLA wants "h-units" # TODO: give cola the actual used h for ICs?
-            self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
-            cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh and run?
-            self.run_command(cmd, log=log, verbose=True)
+        self.write_data(ic, {"k/(h/Mpc)": khs, "P/(Mpc/h)^3": Phs}) # COLA wants "h-units" # TODO: give cola the actual used h for ICs?
+        self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
+        cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh and run?
+        self.run_command(cmd, log=log, verbose=True)
 
-            self.validate_output()
+        self.validate_output()
 
         assert self.completed_cola(), f"ERROR: see {log} for details"
 
@@ -411,6 +433,7 @@ class Simulation:
     def params_extended(self):
         params_ext = self.params.copy()
         del params_ext["seed"] # only used internally; don't expose outside
+        params_ext["σ8"] = self.read_variable("class.log", "sigma8=") # TODO: sigma8
         return params_ext
 
 class GRSimulation(Simulation):
@@ -852,6 +875,7 @@ latex_labels = {
     "G0/G":   r"$G_0/G$",
     "Ase9":   r"$A_s / 10^{-9}$",
     "ns":     r"$n_s$",
+    "σ8":     r"$\sigma_8$",
 }
 
 # TODO: split up into different "run files"
@@ -938,6 +962,9 @@ if "variation" in ACTIONS:
     plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],    θGR_different_h, paramlabel=latex_labels["ωc0"],    lfunc=lambda ωc0: f"${ωc0}$")
     plot_convergence("plots/convergence_As.pdf",      params0_BD, "Ase9",   [1.6, 2.1, 2.6],          θGR_different_h, paramlabel=latex_labels["Ase9"],   lfunc=lambda Ase9: f"${Ase9}$")
     plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],    θGR_different_h, paramlabel=latex_labels["ns"],     lfunc=lambda ns:  f"${ns}$")
+    # TODO: use derived (all) parameters in convergence plots
+    params0 = params0_BD | {"σ8": 0.8}
+    plot_convergence("plots/convergence_s8.pdf",      params0,    "σ8",     [0.7, 0.8, 0.9],          θGR_different_h, paramlabel=latex_labels["σ8"],     lfunc=lambda σ8:  f"${σ8}$")
 
 if "sample" in ACTIONS:
     paramspace = ParameterSpace(params_varying)
