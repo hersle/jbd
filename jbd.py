@@ -80,6 +80,10 @@ def dictupdate(dict, add={}, remove=[]):
         dict[key] = add[key]
     return dict
 
+def dictkeycount(dict, keys, number=None):
+    if number is None: number = len(keys)
+    return len(set(dict).intersection(set(keys))) == number
+
 def dictjson(dict, sort=False, unicode=False):
     return json.dumps(dict, sort_keys=sort, ensure_ascii=not unicode)
 
@@ -203,13 +207,11 @@ class Simulation:
         # create initial conditions with CLASS, store derived parameters, run COLA simulation
         # TODO: be lazy
         if run and not self.completed():
-            self.validate_input()
-
-            # TODO: read self.params from params extended json file
-            self.params = jsondict(self.read_file("parameters.json"))
+            self.validate_input(params)
 
             # TODO: parametrize with ωm0 and ωb0 (letting ωc0 be derived)
 
+            # find As that gives desired σ8
             if "σ8" in self.params: # overrides Ase9
                 σ8_target = self.params["σ8"]
                 Ase9 = 1.0 # initial guess
@@ -246,9 +248,10 @@ class Simulation:
         return os.path.isfile(self.directory + "parameters_extended.json")
 
     # check that the combination of parameters passed to the simulation is allowed
-    def validate_input(self):
-        assert "Ase9" in self.params or "σ8" in self.params, "specify either Ase9 or σ8"
-        assert "ωΛ0" not in self.params, "derived parameter ωΛ0 is specified"
+    def validate_input(self, params):
+        assert dictkeycount(params, {"ωb0", "ωc0", "ωm0"}, 2), "specify two of ωb0, ωc0, ωm0"
+        assert dictkeycount(params, {"Ase9", "σ8"}, 1), "specify one of Ase9, σ8"
+        assert dictkeycount(params, {"ωΛ0"}, 0), "don't specify derived parameter ωΛ0"
 
     # check that the output from CLASS and COLA is consistent
     def validate_output(self):
@@ -326,8 +329,9 @@ class Simulation:
     # read a string like "[prefix][number]" from a file and return number
     # example: if file contains "Omega_Lambda = 1.23", read_variable(filename, "Omega_Lambda = ") returns 1.23
     def read_variable(self, filename, prefix):
-        matches = re.findall(prefix + r"([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)", self.read_file(filename))
-        assert len(matches) == 1, f"found {len(matches)} != 1 matches: {matches}"
+        regex = prefix + r"([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)"
+        matches = re.findall(regex, self.read_file(filename))
+        assert len(matches) == 1, f"found {len(matches)} ≠ 1 matches {matches} for regex \"{regex}\" in file {filename}"
         return float(matches[0][0])
 
     # run a command in the simulation's directory
@@ -454,8 +458,8 @@ class GRSimulation(Simulation):
         })
 
 class BDSimulation(Simulation):
-    def validate_input(self):
-        Simulation.validate_input(self)
+    def validate_input(self, params):
+        Simulation.validate_input(self, params)
 
     def params_class(self):
         ω = 10 ** self.params["lgω"]
