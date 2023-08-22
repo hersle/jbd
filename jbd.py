@@ -198,7 +198,9 @@ class Simulation:
             # TODO: read self.params from params extended json file
             self.params = jsondict(self.read_file("parameters.json"))
 
-            if "σ8" in self.params:
+            # TODO: parametrize with ωm0 and ωb0 (letting ωc0 be derived)
+
+            if "σ8" in self.params: # overrides Ase9
                 σ8_target = self.params["σ8"]
                 Ase9 = 1.0 # initial guess
                 while True: # "σ8" not in self.params_extended() or np.abs(self.params_extended()["σ8"] - σ8_target) > 1e-5:
@@ -626,9 +628,9 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
     # Dummy legend plot
     ax2 = ax.twinx() # use invisible twin axis to create second legend
     ax2.get_yaxis().set_visible(False) # make invisible
-    ax2.fill_between([-3, -2], [0, 1], alpha=0.2, color="black", edgecolor=None,                  label=r"$B = \langle B \rangle \pm \Delta B$")
-    ax2.plot(        [-3, -2], [0, 1], alpha=1.0, color="black", linestyle="solid",  linewidth=1, label=r"$B = \langle B \rangle$")
-    ax2.plot(        [-3, -2], [0, 1], alpha=0.5, color="black", linestyle="dashed", linewidth=1, label=r"$B = B_\mathrm{lin}$")
+    ax2.fill_between([-4, -4], [0, 1], alpha=0.2, color="black", edgecolor=None,                  label=r"$B = \langle B \rangle \pm \Delta B$")
+    ax2.plot(        [-4, -4], [0, 1], alpha=1.0, color="black", linestyle="solid",  linewidth=1, label=r"$B = \langle B \rangle$")
+    ax2.plot(        [-4, -4], [0, 1], alpha=0.5, color="black", linestyle="dashed", linewidth=1, label=r"$B = B_\mathrm{lin}$")
     ax2.legend(loc="upper left", bbox_to_anchor=(-0.02, 0.97))
 
     for params_BD in paramss:
@@ -648,13 +650,15 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
         ax.fill_between(np.log10(k), T(y-Δy), T(y+Δy), color=colorfunc(params_BD), alpha=0.2, edgecolor=None) # error band
 
     Δy = 1.0 if logy else 0.05
-    #ymin, ymax = ax.get_ylim()
-    ymin = np.log10(0.95) if logy else 0.95 #ymin = to_nearest(ymin, Δy, "floor")
-    ymax = np.log10(1.05) if logy else 1.05 #ymax = to_nearest(ymax, Δy, "ceil")
+    ymin, ymax = ax.get_ylim()
+    #ymin = np.log10(0.95) if logy else 0.95
+    #ymax = np.log10(1.05) if logy else 1.05
+    ymin = to_nearest(ymin, Δy, "floor")
+    ymax = to_nearest(ymax, Δy, "ceil")
 
-    ax.set_xticks([-2, -1, 0, 1])
+    ax.set_xticks([-3, -2, -1, 0, 1])
     ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/Δy))+1)) # every Δy
-    ax.set_xlim(-2, +1)
+    ax.set_xlim(-3, +1)
     ax.set_ylim(ymin, ymax)
     ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
     ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
@@ -955,16 +959,14 @@ if "convergence" in ACTIONS:
 
 # Variation plots (cosmological parameters)
 if "variation" in ACTIONS:
-    plot_convergence("plots/convergence_omega.pdf",   params0_BD, "lgω",    [2.0, 3.0, 4.0, 5.0],     θGR_different_h, paramlabel=latex_labels["lgω"],    lfunc=lambda lgω: f"${lgω}$")
-    plot_convergence("plots/convergence_G0.pdf",      params0_BD, "G0/G",   [0.99, 1.0, 1.01],        θGR_different_h, paramlabel=latex_labels["G0/G"],   lfunc=lambda G0_G: f"${G0_G:.02f}$")
-    plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",      [0.63, 0.68, 0.73],       θGR_different_h, paramlabel=latex_labels["h"],      lfunc=lambda h: f"${h}$")
-    plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",    [0.016, 0.022, 0.028],    θGR_different_h, paramlabel=latex_labels["ωb0"],    lfunc=lambda ωb0: f"${ωb0}$")
-    plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",    [0.090, 0.120, 0.150],    θGR_different_h, paramlabel=latex_labels["ωc0"],    lfunc=lambda ωc0: f"${ωc0}$")
-    plot_convergence("plots/convergence_As.pdf",      params0_BD, "Ase9",   [1.6, 2.1, 2.6],          θGR_different_h, paramlabel=latex_labels["Ase9"],   lfunc=lambda Ase9: f"${Ase9}$")
-    plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",     [0.866, 0.966, 1.066],    θGR_different_h, paramlabel=latex_labels["ns"],     lfunc=lambda ns:  f"${ns}$")
-    # TODO: use derived (all) parameters in convergence plots
-    params0 = params0_BD | {"σ8": 0.8}
-    plot_convergence("plots/convergence_s8.pdf",      params0,    "σ8",     [0.7, 0.8, 0.9],          θGR_different_h, paramlabel=latex_labels["σ8"],     lfunc=lambda σ8:  f"${σ8}$")
+    plot_convergence("plots/convergence_omega.pdf",   params0_BD, "lgω",              [2.0, 3.0, 4.0, 5.0],     θGR_different_h, paramlabel=latex_labels["lgω"],    lfunc=lambda lgω: f"${lgω}$")
+    plot_convergence("plots/convergence_G0.pdf",      params0_BD, "G0/G",             [0.99, 1.0, 1.01],        θGR_different_h, paramlabel=latex_labels["G0/G"],   lfunc=lambda G0_G: f"${G0_G:.02f}$")
+    plot_convergence("plots/convergence_h.pdf",       params0_BD, "h",                [0.63, 0.68, 0.73],       θGR_different_h, paramlabel=latex_labels["h"],      lfunc=lambda h: f"${h}$")
+    plot_convergence("plots/convergence_omegab0.pdf", params0_BD, "ωb0",              [0.016, 0.022, 0.028],    θGR_different_h, paramlabel=latex_labels["ωb0"],    lfunc=lambda ωb0: f"${ωb0}$")
+    plot_convergence("plots/convergence_omegac0.pdf", params0_BD, "ωc0",              [0.090, 0.120, 0.150],    θGR_different_h, paramlabel=latex_labels["ωc0"],    lfunc=lambda ωc0: f"${ωc0}$")
+    plot_convergence("plots/convergence_As.pdf",      params0_BD, "Ase9",             [1.6, 2.1, 2.6],          θGR_different_h, paramlabel=latex_labels["Ase9"],   lfunc=lambda Ase9: f"${Ase9}$")
+    plot_convergence("plots/convergence_ns.pdf",      params0_BD, "ns",               [0.866, 0.966, 1.066],    θGR_different_h, paramlabel=latex_labels["ns"],     lfunc=lambda ns:  f"${ns}$")
+    plot_convergence("plots/convergence_s8.pdf",      params0_BD | {"σ8": 0.8}, "σ8", [0.7, 0.8, 0.9],          θGR_different_h, paramlabel=latex_labels["σ8"],     lfunc=lambda σ8:  f"${σ8}$")
 
 if "sample" in ACTIONS:
     paramspace = ParameterSpace(params_varying)
