@@ -195,6 +195,8 @@ class Simulation:
         # create initial conditions with CLASS, store derived parameters, run COLA simulation
         # TODO: be lazy
         if run and not self.completed():
+            self.validate_input()
+
             # TODO: read self.params from params extended json file
             self.params = jsondict(self.read_file("parameters.json"))
 
@@ -215,6 +217,8 @@ class Simulation:
 
             self.run_cola(k, P, np=16)
             self.write_file("parameters_extended.json", dictjson(self.params_extended(), unicode=True))
+
+            self.validate_output()
             assert self.completed() # verify successful completion
 
     # unique string identifier for the simulation
@@ -358,8 +362,6 @@ class Simulation:
 
     # run CLASS and return today's matter power spectrum
     def run_class(self, input="class_input.ini", log="class.log"):
-        self.validate_input()
-
         # write input and run class
         self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
         self.run_command([CLASSEXEC, input], log=log, verbose=True)
@@ -416,8 +418,6 @@ class Simulation:
         self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
         cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh and run?
         self.run_command(cmd, log=log, verbose=True)
-
-        self.validate_output()
 
         assert self.completed_cola(), f"ERROR: see {log} for details"
 
