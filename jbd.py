@@ -194,6 +194,7 @@ class Simulation:
         if run:
             k, P = self.run_class()
             self.run_cola(k, P, np=16)
+            self.write_file("parameters_extended.json", dictjson(self.params_extended(), unicode=True))
             assert self.completed() # verify successful completion
 
     # unique string identifier for the simulation
@@ -210,7 +211,7 @@ class Simulation:
 
     # whether CLASS and COLA has been run
     def completed(self):
-        return self.completed_class() and self.completed_cola()
+        return os.path.isfile(self.directory + "parameters_extended.json")
 
     # check that the combination of parameters passed to the simulation is allowed
     def validate_input(self):
