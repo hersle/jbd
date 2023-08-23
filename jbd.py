@@ -7,6 +7,7 @@
 # TODO: look at PPN to understand cosmological (large) -> solar system (small) scales of G in BD
 # TODO: compare P(k) with fig. 2 on https://journals.aps.org/prd/pdf/10.1103/PhysRevD.97.023520#page=13
 # TODO: don't output snapshot
+# TODO: fix GeffG in FML (currently in large-ω limit)
 
 import os
 import re
@@ -188,7 +189,9 @@ class Simulation:
             self.directory = SIMDIR + path + "/"
             params = jsondict(self.read_file("parameters.json"))
             seed = params.pop("seed") # remove seed key
-            return Simulation.__init__(self, params=params, seed=seed, verbose=verbose, run=run)
+            constructor = BDSimulation if "lgω" in params else GRSimulation
+            constructor(params=params, seed=seed, verbose=verbose, run=run)
+            return None
 
         if seed is None:
             seed = params2seeds(params)
@@ -198,7 +201,11 @@ class Simulation:
         self.directory = SIMDIR + self.name + "/"
 
         if verbose:
-            print(f"{self.directory}: {self.params}", "COMPLETE" if self.completed() else "INCOMPLETE")
+            print(f"{self.directory}: {self.params}", end="")
+            if self.completed():
+                params_derived = self.params_extended()
+                params_derived = dict(set(params_derived.items()) - set(self.params.items()))
+                print(f" -> {params_derived}")
 
         # initialize simulation, validate input, create working directory, write parameters
         os.makedirs(self.directory, exist_ok=True)
@@ -214,6 +221,7 @@ class Simulation:
                 self.params["ωb0"] = self.params["ωm0"] - self.params["ωc0"]
             elif "ωc0" not in self.params:
                 self.params["ωc0"] = self.params["ωm0"] - self.params["ωb0"]
+            # else: "ωm0" not in self.params, so both "ωb0" and "ωc0" are specified
 
             # find As that gives desired σ8
             if "σ8" in self.params: # overrides Ase9
@@ -454,6 +462,14 @@ class Simulation:
         params_ext = self.params.copy()
         del params_ext["seed"] # only used internally; don't expose outside
         params_ext["σ8"] = self.read_variable("class.log", "sigma8=") # TODO: sigma8
+        if "Ase9" not in params_ext:
+            params_ext["Ase9"] = jsondict(self.read_file("parameters_extended.json"))["Ase9"] # TODO: find better way!
+        if "ωb0" not in params_ext:
+            params_ext["ωb0"] = params_ext["ωm0"] - params_ext["ωc0"]
+        elif "ωc0" not in params_ext:
+            params_ext["ωc0"] = params_ext["ωm0"] - params_ext["ωb0"]
+        elif "ωm0" not in params_ext:
+            params_ext["ωm0"] = params_ext["ωb0"] + params_ext["ωc0"]
         return params_ext
 
 class GRSimulation(Simulation):
@@ -653,6 +669,9 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
 
         klin, Blin, _  = sims.power_spectrum_ratio(linear=True)
         k,    B   , ΔB = sims.power_spectrum_ratio(linear=False)
+
+        klin, Blin = klin[klin > 1e-3], Blin[klin > 1e-3]
+        k, B, ΔB = k[k > 1e-3], B[k > 1e-3], ΔB[k > 1e-3]
 
         y    = B    / np.interp(k, klin, Blin) if divide_linear else B
         Δy   = ΔB   / np.interp(k, klin, Blin) if divide_linear else ΔB
@@ -895,8 +914,9 @@ latex_labels = {
     "G0/G":   r"$G_0/G$",
     "Ase9":   r"$A_s / 10^{-9}$",
     "ns":     r"$n_s$",
-    "σ8":     r"$\sigma_8$",
+    "σ8":     r"$\sigma(R=8\,\mathrm{Mpc}/h,\,z=0)$",
 }
+# TODO: make similar dict for value formatting?
 
 # TODO: split up into different "run files"
 
