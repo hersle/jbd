@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 
 # TODO: does hiclass crash with G0/G very different from 1 with small ω?
-# TODO: run "properly" with and without hGR parameter transformation
 # TODO: GR emulators (?): Bacco, CosmicEmu, EuclidEmulator2, references within
 # TODO: compare boost with nonlinear prediction from hiclass' hmcode?
-# TODO: look at PPN to understand cosmological (large) -> solar system (small) scales of G in BD
 # TODO: compare P(k) with fig. 2 on https://journals.aps.org/prd/pdf/10.1103/PhysRevD.97.023520#page=13
-# TODO: don't output snapshot
 # TODO: fix GeffG in FML (currently in large-ω limit)
 
 import os
@@ -212,33 +209,33 @@ class Simulation:
         os.makedirs(self.directory, exist_ok=True)
         self.write_file("parameters.json", dictjson(self.params, unicode=True))
 
-        # create initial conditions with CLASS, store derived parameters, run COLA simulation
-        # TODO: be lazy
+        # create initial conditions with CLASS, store derived parameters, run COLA simulation # TODO: be lazy
         if run and not self.completed():
             self.validate_input(params)
 
             # parametrize with ωm0 and ωb0 (letting ωc0 be derived)
+            # if given ωm0 and (ωb0 xor ωc0), find corresponding ωb0 xor ωc0
             if "ωb0" not in self.params:
                 self.params["ωb0"] = self.params["ωm0"] - self.params["ωc0"]
             elif "ωc0" not in self.params:
                 self.params["ωc0"] = self.params["ωm0"] - self.params["ωb0"]
-            # else: "ωm0" not in self.params, so both "ωb0" and "ωc0" are specified
+            # otherwise ωm0 is not given, so both ωb0 and ωc0 are given
 
-            # find As that gives desired σ8
-            if "σ8" in self.params: # overrides Ase9
+            # if σ8(z=0) is given, find corresponding As
+            if "σ8" in self.params:
                 σ8_target = self.params["σ8"]
                 Ase9 = 1.0 # initial guess
-                while True: # "σ8" not in self.params_extended() or np.abs(self.params_extended()["σ8"] - σ8_target) > 1e-5:
+                while True:
                     self.params["Ase9"] = Ase9
                     k, P = self.run_class()
                     σ8 = self.params_extended()["σ8"]
                     if np.abs(σ8 - σ8_target) < 1e-10:
                         break
-                    Ase9 = (σ8_target/σ8)**2 * Ase9 # exploit σ8^2 ∝ As to fixed-point iterate efficiently (should only require one iteration)
+                    Ase9 = (σ8_target/σ8)**2 * Ase9 # exploit σ8^2 ∝ As to iterate efficiently (usually requires only one retry)
             else:
-                k, P = self.run_class()
+                k_h, Ph3 = self.run_class()
 
-            self.run_cola(k, P, np=16)
+            self.run_cola(k_h, Ph3, np=16)
             self.write_file("parameters_extended.json", dictjson(self.params_extended(), unicode=True))
 
             self.validate_output()
@@ -393,9 +390,7 @@ class Simulation:
         self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
         self.run_command([CLASSEXEC, input], log=log, verbose=True)
         assert self.completed_class(), f"ERROR: see {log} for details"
-
-        # get output power spectrum (COLA needs class' output power spectrum, just without comments)
-        return self.power_spectrum(linear=True, hunits=True) # COLA wants power spectrum in h units
+        return self.power_spectrum(linear=True, hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
 
     # dictionary of parameters that should be passed to COLA
     def params_cola(self):
@@ -420,7 +415,6 @@ class Simulation:
 
             "timestep_nsteps": [self.params["Nstep"]],
 
-            # TODO: look into σ8 normalization stuff
             "ic_random_field_type": "gaussian",
             "ic_random_seed": self.params["seed"],
             "ic_fix_amplitude": True, # use P(k) when generating Gaussian random field # TODO: (?)
@@ -440,12 +434,11 @@ class Simulation:
         }
 
     # run COLA simulation from back-scaling today's matter power spectrum (from CLASS)
-    def run_cola(self, khs, Phs, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
-        self.write_data(ic, {"k/(h/Mpc)": khs, "P/(Mpc/h)^3": Phs}) # COLA wants "h-units" # TODO: give cola the actual used h for ICs?
+    def run_cola(self, k_h, Ph3, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
+        self.write_data(ic, {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
         self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
-        cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh and run?
+        cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh out to list of machines
         self.run_command(cmd, log=log, verbose=True)
-
         assert self.completed_cola(), f"ERROR: see {log} for details"
 
     def power_spectrum(self, linear=False, hunits=False):
@@ -460,11 +453,11 @@ class Simulation:
 
     # extend independent parameters used to run the sim with its derived parameters
     def params_extended(self):
-        params_ext = self.params.copy()
-        del params_ext["seed"] # only used internally; don't expose outside
-        params_ext["σ8"] = self.read_variable("class.log", "sigma8=") # TODO: sigma8
+        params_ext = dictupdate(self.params, remove=["seed"]) # seed is only used internally, don't expose it outside
         if "Ase9" not in params_ext:
-            params_ext["Ase9"] = jsondict(self.read_file("parameters_extended.json"))["Ase9"] # TODO: find better way!
+            params_ext["Ase9"] = jsondict(self.read_file("parameters_extended.json"))["Ase9"] # TODO: find a better way!
+        elif "σ8" not in params_ext:
+            params_ext["σ8"] = self.read_variable("class.log", "sigma8=")
         if "ωb0" not in params_ext:
             params_ext["ωb0"] = params_ext["ωm0"] - params_ext["ωc0"]
         elif "ωc0" not in params_ext:
@@ -528,7 +521,6 @@ class BDSimulation(Simulation):
         params["ωΛ0"]  = params["ΩΛ0"] * params["h"]**2 * params["ϕ0"]            # ∝ ρΛ0
         return params
 
-# TODO: rather use a SimulationPairGroup when running pairs with same initial seed
 class SimulationGroup:
     def __init__(self, simtype, params, nsims, seeds=None):
         if seeds is None:
@@ -616,7 +608,7 @@ def θGR_identity(θBD, θBDext):
 
 def θGR_different_h(θBD, θBDext):
     θGR = θGR_identity(θBD, θBDext)
-    θGR["h"] = θBD["h"] * np.sqrt(θBDext["ϕini"]) # TODO: ensure similar Hubble evolution (of E=H/H0) during radiation domination
+    θGR["h"] = θBD["h"] * np.sqrt(θBDext["ϕini"]) # ensure similar Hubble evolution (of E=H/H0) during radiation domination
     return θGR
 
 def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfunc = lambda params: "black"):
@@ -932,17 +924,6 @@ params_varying = {
     "ns":     (0.866, 1.066),
 }
 
-# Check that CLASS and COLA outputs consistent background cosmology parameters
-# for a "non-standard" BD cosmology with small wBD and G0/G != 1
-# (using cheap COLA computational parameters, so the simulation finishes near-instantly)
-#GRSimulation(params0_GR | {"Npart": 0, "Ncell": 16, "Nstep": 0, "Lh": 4})
-#BDSimulation(params0_BD | {"Npart": 0, "Ncell": 16, "Nstep": 0, "Lh": 4, "lgω": 2.0, "G0/G": 1.1})
-#exit()
-
-#BDSimulation(params0_BD)
-#GRSimulation(params0_GR)
-#exit()
-
 if "rcparams" in ACTIONS:
     print("Matplotlib rcParams:")
     print(matplotlib.rcParams.keys())
@@ -950,13 +931,6 @@ if "rcparams" in ACTIONS:
 # List simulations
 if "list" in ACTIONS:
     list_simulations()
-
-# Power spectrum plots
-#sims = SimulationGroup(BDSimulation, params0_BD, 1)
-#sims = SimulationGroup(GRSimulation, params0_GR, 1)
-#exit()
-#plot_power_spectra("plots/power_spectra_fiducial.pdf", sims)
-#exit()
 
 # Plot evolution of (background) densities
 if "evolution" in ACTIONS:
@@ -977,8 +951,6 @@ if "evolution" in ACTIONS:
     for q, qBD, qGR, logabs, ylabel, Δyabs, Δyrel in series:
         plot_quantity_evolution(f"plots/evolution_{q}.pdf", params0_BD, qBD, qGR, θGR_different_h, qty=q, ylabel=ylabel, logabs=logabs, Δyabs=Δyabs, Δyrel=Δyrel)
 
-#plot_convergence(f"plots/boost_fiducial.pdf", params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_different_h, paramlabel=latex_labels["lgω"])
-#exit()
 
 if "compare" in ACTIONS:
     for θGR, suffix1 in zip([θGR_identity, θGR_different_h], ["_sameh", "_diffh"]):
@@ -1015,7 +987,7 @@ if "variation" in ACTIONS:
         plot_convergence(f"plots/variation_{prefix}_omegam0_vary_omegab0.pdf", params0 | {"ωm0": 0.142, "ωb0": 0.022}, "ωb0", [0.016, 0.022, 0.028], θGR_different_h, lfunc=lambda ωb0: f"${ωb0}$", ylims=ylims)
         plot_convergence(f"plots/variation_{prefix}_omegam0_vary_omegac0.pdf", params0 | {"ωm0": 0.142, "ωc0": 0.120}, "ωc0", [0.100, 0.120, 0.140], θGR_different_h, lfunc=lambda ωc0: f"${ωc0}$", ylims=ylims)
         plot_convergence(f"plots/variation_{prefix}_omegab0_vary_omegam0.pdf", params0 | {"ωm0": 0.142, "ωb0": 0.022}, "ωm0", [0.082, 0.142, 0.202], θGR_different_h, lfunc=lambda ωm0: f"${ωm0}$", ylims=ylims)
-        #plot_convergence(f"plots/variation_omegam0_fixed_omegac0.pdf", params0 | {"ωm0": 0.142, "ωc0": 0.120}, "ωm0", [0.082, 0.142, 0.202], θGR_different_h, lfunc=lambda ωm0: f"${ωm0}$")
+        #plot_convergence(f"plots/variation_omegam0_fixed_omegac0.pdf", params0 | {"ωm0": 0.142, "ωc0": 0.120}, "ωm0", [0.082, 0.142, 0.202], θGR_different_h, lfunc=lambda ωm0: f"${ωm0}$") # TODO: need to update values to not get negative mass density
 
 if "sample" in ACTIONS:
     paramspace = ParameterSpace(params_varying)
