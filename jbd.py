@@ -201,11 +201,12 @@ class Simulation:
         self.directory = SIMDIR + self.name + "/"
 
         if verbose:
-            print(f"{self.directory}: {self.params}", end="")
+            print(f"{self.directory}: {self.params}", end="") # print independend parameters
             if self.completed():
                 params_derived = self.params_extended()
                 params_derived = dict(set(params_derived.items()) - set(self.params.items()))
-                print(f" -> {params_derived}")
+                print(f" -> {params_derived}", end="") # print dependend/derived parameters
+            print() # end line
 
         # initialize simulation, validate input, create working directory, write parameters
         os.makedirs(self.directory, exist_ok=True)
