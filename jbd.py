@@ -648,7 +648,7 @@ def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfun
 
 # TODO: plot_single and plot_pair generic functions?
 
-def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, divide_linear = False, logy = False):
+def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, divide_linear = False, logy = False, ylims = None):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
 
     ax.set_xlabel(r"$\lg\left[k_\mathrm{BD} / (1/\mathrm{Mpc})\right]$")
@@ -685,7 +685,7 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
         ax.fill_between(np.log10(k), T(y-Δy), T(y+Δy), color=colorfunc(params_BD), alpha=0.2, edgecolor=None) # error band
 
     Δy = 1.0 if logy else 0.05
-    ymin, ymax = ax.get_ylim()
+    ymin, ymax = ax.get_ylim() if ylims is None else ylims
     #ymin = np.log10(0.95) if logy else 0.95
     #ymax = np.log10(1.05) if logy else 1.05
     ymin = to_nearest(ymin, Δy, "floor")
@@ -996,25 +996,25 @@ if "convergence" in ACTIONS:
 
 # Variation plots (cosmological parameters)
 if "variation" in ACTIONS:
-    for param, value, prefix in (("Ase9", 2.1, "parametrize_As"), ("σ8", 0.8, "parametrize_s8")):
-        params0 = dictupdate(params0_BD, {param: value})
+    for param, value, prefix, ylims in (("Ase9", 2.1, "parametrize_As", (0.95, 1.05)), ("σ8", 0.8, "parametrize_s8", (0.85, 1.05))):
+        params0 = dictupdate(params0_BD, {param: value}, remove=["Ase9"])
         if True:
-            plot_convergence(f"plots/variation_{prefix}_vary_omega.pdf",   params0, "lgω",  [2.0, 3.0, 4.0, 5.0],  θGR_different_h, lfunc=lambda lgω: f"${lgω}$")
-            plot_convergence(f"plots/variation_{prefix}_vary_G0.pdf",      params0, "G0/G", [0.99, 1.0, 1.01],     θGR_different_h, lfunc=lambda G0_G: f"${G0_G:.02f}$")
-            plot_convergence(f"plots/variation_{prefix}_vary_h.pdf",       params0, "h",    [0.63, 0.68, 0.73],    θGR_different_h, lfunc=lambda h: f"${h}$")
-            plot_convergence(f"plots/variation_{prefix}_vary_omegab0.pdf", params0, "ωb0",  [0.016, 0.022, 0.028], θGR_different_h, lfunc=lambda ωb0: f"${ωb0}$")
-            plot_convergence(f"plots/variation_{prefix}_vary_omegac0.pdf", params0, "ωc0",  [0.100, 0.120, 0.140], θGR_different_h, lfunc=lambda ωc0: f"${ωc0}$")
-            plot_convergence(f"plots/variation_{prefix}_vary_ns.pdf",      params0, "ns",   [0.866, 0.966, 1.066], θGR_different_h, lfunc=lambda ns:  f"${ns}$")
+            plot_convergence(f"plots/variation_{prefix}_vary_omega.pdf",   params0, "lgω",  [2.0, 3.0, 4.0, 5.0],  θGR_different_h, lfunc=lambda lgω: f"${lgω}$", ylims=ylims)
+            plot_convergence(f"plots/variation_{prefix}_vary_G0.pdf",      params0, "G0/G", [0.99, 1.0, 1.01],     θGR_different_h, lfunc=lambda G0_G: f"${G0_G:.02f}$", ylims=ylims)
+            plot_convergence(f"plots/variation_{prefix}_vary_h.pdf",       params0, "h",    [0.63, 0.68, 0.73],    θGR_different_h, lfunc=lambda h: f"${h}$", ylims=ylims)
+            plot_convergence(f"plots/variation_{prefix}_vary_omegab0.pdf", params0, "ωb0",  [0.016, 0.022, 0.028], θGR_different_h, lfunc=lambda ωb0: f"${ωb0}$", ylims=ylims)
+            plot_convergence(f"plots/variation_{prefix}_vary_omegac0.pdf", params0, "ωc0",  [0.100, 0.120, 0.140], θGR_different_h, lfunc=lambda ωc0: f"${ωc0}$", ylims=ylims)
+            plot_convergence(f"plots/variation_{prefix}_vary_ns.pdf",      params0, "ns",   [0.866, 0.966, 1.066], θGR_different_h, lfunc=lambda ns:  f"${ns}$", ylims=ylims)
         if "Ase9" in params0:
-            plot_convergence(f"plots/variation_{prefix}_vary_As.pdf",      params0, "Ase9", [1.6, 2.1, 2.6],       θGR_different_h, lfunc=lambda Ase9: f"${Ase9}$")
+            plot_convergence(f"plots/variation_{prefix}_vary_As.pdf",      params0, "Ase9", [1.6, 2.1, 2.6],       θGR_different_h, lfunc=lambda Ase9: f"${Ase9}$", ylims=ylims)
         if "σ8" in params0:
-            plot_convergence(f"plots/variation_{prefix}_vary_s8.pdf",      params0, "σ8",   [0.7, 0.8, 0.9],       θGR_different_h, lfunc=lambda σ8: f"${σ8}$")
+            plot_convergence(f"plots/variation_{prefix}_vary_s8.pdf",      params0, "σ8",   [0.7, 0.8, 0.9],       θGR_different_h, lfunc=lambda σ8: f"${σ8}$", ylims=ylims)
 
         # parametrize with ωm0 and ωb0 (instead of ωc0)
         params0 = dictupdate(params0, remove=["ωc0", "ωb0"])
-        plot_convergence(f"plots/variation_{prefix}_omegam0_vary_omegab0.pdf", params0 | {"ωm0": 0.142, "ωb0": 0.022}, "ωb0", [0.016, 0.022, 0.028], θGR_different_h, lfunc=lambda ωb0: f"${ωb0}$")
-        plot_convergence(f"plots/variation_{prefix}_omegam0_vary_omegac0.pdf", params0 | {"ωm0": 0.142, "ωc0": 0.120}, "ωc0", [0.100, 0.120, 0.140], θGR_different_h, lfunc=lambda ωc0: f"${ωc0}$")
-        plot_convergence(f"plots/variation_{prefix}_omegab0_vary_omegam0.pdf", params0 | {"ωm0": 0.142, "ωb0": 0.022}, "ωm0", [0.082, 0.142, 0.202], θGR_different_h, lfunc=lambda ωm0: f"${ωm0}$")
+        plot_convergence(f"plots/variation_{prefix}_omegam0_vary_omegab0.pdf", params0 | {"ωm0": 0.142, "ωb0": 0.022}, "ωb0", [0.016, 0.022, 0.028], θGR_different_h, lfunc=lambda ωb0: f"${ωb0}$", ylims=ylims)
+        plot_convergence(f"plots/variation_{prefix}_omegam0_vary_omegac0.pdf", params0 | {"ωm0": 0.142, "ωc0": 0.120}, "ωc0", [0.100, 0.120, 0.140], θGR_different_h, lfunc=lambda ωc0: f"${ωc0}$", ylims=ylims)
+        plot_convergence(f"plots/variation_{prefix}_omegab0_vary_omegam0.pdf", params0 | {"ωm0": 0.142, "ωb0": 0.022}, "ωm0", [0.082, 0.142, 0.202], θGR_different_h, lfunc=lambda ωm0: f"${ωm0}$", ylims=ylims)
         #plot_convergence(f"plots/variation_omegam0_fixed_omegac0.pdf", params0 | {"ωm0": 0.142, "ωc0": 0.120}, "ωm0", [0.082, 0.142, 0.202], θGR_different_h, lfunc=lambda ωm0: f"${ωm0}$")
 
 if "sample" in ACTIONS:
