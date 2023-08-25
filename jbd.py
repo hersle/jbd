@@ -611,6 +611,23 @@ def θGR_different_h(θBD, θBDext):
     θGR["h"] = θBD["h"] * np.sqrt(θBDext["ϕini"]) # ensure similar Hubble evolution (of E=H/H0) during radiation domination
     return θGR
 
+PARAM_PLOT_INFO = {
+    "h":      {"label": r"$h$",                                 "format": lambda h:     f"${h}$",         "colorvalue": lambda h:     h},
+    "ωb0":    {"label": r"$\omega_{b0}$",                       "format": lambda ωb0:   f"${ωb0}$",       "colorvalue": lambda ωb0:   ωb0},
+    "ωc0":    {"label": r"$\omega_{c0}$",                       "format": lambda ωc0:   f"${ωc0}$",       "colorvalue": lambda ωc0:   ωc0},
+    "ωm0":    {"label": r"$\omega_{m0}$",                       "format": lambda ωm0:   f"${ωm0}$",       "colorvalue": lambda ωm0:   ωm0},
+    "Lh":     {"label": r"$L / (\mathrm{Mpc}/h)$",              "format": lambda Lh:    f"${Lh:.0f}$",    "colorvalue": lambda Lh:    np.log2(Lh)},
+    "Npart":  {"label": r"$N_\mathrm{part}$",                   "format": lambda Npart: f"${Npart}^3$",   "colorvalue": lambda Npart: np.log2(Npart)},
+    "Ncell":  {"label": r"$N_\mathrm{cell}$",                   "format": lambda Ncell: f"${Ncell}^3$",   "colorvalue": lambda Ncell: np.log2(Ncell)},
+    "Nstep":  {"label": r"$N_\mathrm{step}$",                   "format": lambda Nstep: f"${Nstep}$",     "colorvalue": lambda Nstep: Nstep},
+    "zinit":  {"label": r"$z_\mathrm{init}$",                   "format": lambda zinit: f"${zinit:.0f}$", "colorvalue": lambda zinit: zinit},
+    "lgω":    {"label": r"$\lg \omega$",                        "format": lambda lgω:   f"${lgω}$",       "colorvalue": lambda lgω:   lgω},
+    "G0/G":   {"label": r"$G_0/G$",                             "format": lambda G0_G:  f"${G0_G:.02f}$", "colorvalue": lambda G0_G:  G0_G},
+    "Ase9":   {"label": r"$A_s / 10^{-9}$",                     "format": lambda Ase9:  f"${Ase9}$",      "colorvalue": lambda Ase9:  Ase9},
+    "ns":     {"label": r"$n_s$",                               "format": lambda ns:    f"${ns}$",        "colorvalue": lambda ns:    ns},
+    "σ8":     {"label": r"$\sigma(R=8\,\mathrm{Mpc}/h,\,z=0)$", "format": lambda σ8:    f"${σ8}$",        "colorvalue": lambda σ8:    σ8},
+}
+
 def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfunc = lambda params: "black"):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
     ax.set_xlabel(r"$\lg[k / (1/\mathrm{Mpc})]$")
@@ -705,29 +722,24 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_convergence(filename, params0, param, vals, θGR, nsims=5, lfunc=None, cfunc=None, **kwargs):
+def plot_convergence(filename, params0, param, vals, θGR, nsims=5, lfunc=None, **kwargs):
     paramss = [dictupdate(params0, {param: val}) for val in vals] # generate all parameter combinations
-
-    if lfunc is None:
-        def lfunc(val): return f"{val}"
-    def labelfunc(params): return lfunc(params[param])
 
     # linear color C = A*v + B so C(v0) = 0.5 (black) and C(vmin) = 0.0 (blue) *or* C(vmax) = 1.0 (red)
     # (black = neutral = fiducial; red = warm = greater; blue = cold = smaller)
     cmap = matplotlib.colors.LinearSegmentedColormap.from_list("blueblackred", ["#0000ff", "#000000", "#ff0000"], N=256)
-    if cfunc is None:
-        def cfunc(v):
-            return v # identity
     def colorfunc(params):
-        v    = cfunc(params[param])  # current  (transformed) value
-        v0   = cfunc(params0[param]) # fiducial (transformed) value
-        vmin = np.min(cfunc(vals))   # minimum  (transformed) value
-        vmax = np.max(cfunc(vals))   # maximum  (transformed) value
+        v    = PARAM_PLOT_INFO[param]["colorvalue"](params[param])  # current  (transformed) value
+        v0   = PARAM_PLOT_INFO[param]["colorvalue"](params0[param]) # fiducial (transformed) value
+        vmin = np.min(PARAM_PLOT_INFO[param]["colorvalue"](vals))   # minimum  (transformed) value
+        vmax = np.max(PARAM_PLOT_INFO[param]["colorvalue"](vals))   # maximum  (transformed) value
         A = 0.5 / (vmax - v0) if vmax - v0 > v0 - vmin else 0.5 / (v0 - vmin) # if/else saturates one end of color spectrum
         B = 0.5 - A * v0
         return cmap(A * v + B)
 
-    plot_sequence(filename, paramss, nsims, θGR, latex_labels[param], labelfunc, colorfunc, **kwargs)
+    def labelfunc(params): return PARAM_PLOT_INFO[param]["format"](params[param])
+
+    plot_sequence(filename, paramss, nsims, θGR, PARAM_PLOT_INFO[param]["label"], labelfunc, colorfunc, **kwargs)
 
 def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", ylabel="", logabs=False, Δyrel=None, Δyabs=None):
     sims = SimulationGroupPair(params0_BD, θGR)
@@ -847,8 +859,8 @@ def plot_parameter_samples(filename, samples, lo, hi, labels):
                 ax.set_visible(False) # hide subplot
                 continue
 
-            ax.set_xlabel(latex_labels[paramx] if iy == dimension-1 else "")
-            ax.set_ylabel(latex_labels[paramy] if ix == 0           else "")
+            ax.set_xlabel(param_labels[paramx] if iy == dimension-1 else "")
+            ax.set_ylabel(param_labels[paramy] if ix == 0           else "")
             ax.set_xlim(lo[paramx], hi[paramx]) # [lo, hi]
             ax.set_ylim(lo[paramy], hi[paramy]) # [lo, hi]
             ax.set_xticks([lo[paramx], np.round((lo[paramx]+hi[paramx])/2, 10), hi[paramx]]) # [lo, mid, hi]
@@ -892,24 +904,6 @@ params0_BD = dictupdate(params0_GR, {
     "lgω":    2.0,    # lowest value to consider (larger values should only be "easier" to simulate?)
     "G0/G":   1.0,    # G0 == G        (ϕ0 = (4+2*ω)/(3+2*ω) * 1/(G0/G))
 })
-
-latex_labels = {
-    "h":      r"$h$",
-    "ωb0":    r"$\omega_{b0}$",
-    "ωc0":    r"$\omega_{c0}$",
-    "ωm0":    r"$\omega_{m0}$",
-    "Lh":     r"$L / (\mathrm{Mpc}/h)$",
-    "Npart":  r"$N_\mathrm{part}$",
-    "Ncell":  r"$N_\mathrm{cell}$",
-    "Nstep":  r"$N_\mathrm{step}$",
-    "zinit":  r"$z_\mathrm{init}$",
-    "lgω":    r"$\lg \omega$",
-    "G0/G":   r"$G_0/G$",
-    "Ase9":   r"$A_s / 10^{-9}$",
-    "ns":     r"$n_s$",
-    "σ8":     r"$\sigma(R=8\,\mathrm{Mpc}/h,\,z=0)$",
-}
-# TODO: make similar dict for value formatting?
 
 # TODO: split up into different "run files"
 
@@ -960,9 +954,9 @@ if "compare" in ACTIONS:
 
 # Convergence plots (computational parameters)
 if "convergence" in ACTIONS:
-    plot_convergence("plots/convergence_L.pdf",     params0_BD, "Lh",     [256.0, 384.0, 512.0, 768.0, 1024.0], θGR_different_h, lfunc=lambda Lh:    f"${Lh:.0f}$",  cfunc=lambda Lh: np.log2(Lh))
-    plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           θGR_different_h, lfunc=lambda Npart: f"${Npart}^3$", cfunc=lambda N: np.log2(N))
-    plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           θGR_different_h, lfunc=lambda Ncell: f"${Ncell}^3$", cfunc=lambda N: np.log2(N))
+    plot_convergence("plots/convergence_L.pdf",     params0_BD, "Lh",     [256.0, 384.0, 512.0, 768.0, 1024.0], θGR_different_h, lfunc=lambda Lh:    f"${Lh:.0f}$")
+    plot_convergence("plots/convergence_Npart.pdf", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           θGR_different_h, lfunc=lambda Npart: f"${Npart}^3$")
+    plot_convergence("plots/convergence_Ncell.pdf", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           θGR_different_h, lfunc=lambda Ncell: f"${Ncell}^3$")
     plot_convergence("plots/convergence_Nstep.pdf", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 θGR_different_h, lfunc=lambda Nstep: f"${Nstep}$")
     plot_convergence("plots/convergence_zinit.pdf", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   θGR_different_h, lfunc=lambda zinit: f"${zinit:.0f}$")
 
@@ -992,4 +986,4 @@ if "variation" in ACTIONS:
 if "sample" in ACTIONS:
     paramspace = ParameterSpace(params_varying)
     samples = paramspace.samples(500)
-    plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), latex_labels)
+    plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), paramspace.param_names)
