@@ -58,15 +58,20 @@ class Simulation:
 
             # if σ8(z=0) is given, find corresponding As
             if "σ8" in self.params:
-                σ8_target = self.params["σ8"]
-                Ase9 = 1.0 # initial guess
-                while True:
-                    self.params["Ase9"] = Ase9
-                    k_h, Ph3 = self.run_class()
-                    σ8 = self.read_variable("class.log", "sigma8=")
-                    if np.abs(σ8 - σ8_target) < 1e-10:
-                        break
-                    Ase9 = (σ8_target/σ8)**2 * Ase9 # exploit σ8^2 ∝ As to iterate efficiently (usually requires only one retry)
+                if self.file_exists("Ase9_from_s8.txt"):
+                    print("Reading Ase9 from file")
+                    self.params["Ase9"] = float(self.read_file("Ase9_from_s8.txt"))
+                else:
+                    σ8_target = self.params["σ8"]
+                    Ase9 = 1.0 # initial guess
+                    while True:
+                        self.params["Ase9"] = Ase9
+                        k_h, Ph3 = self.run_class(force=True)
+                        σ8 = self.read_variable("class.log", "sigma8=")
+                        if np.abs(σ8 - σ8_target) < 1e-10:
+                            break
+                        Ase9 = (σ8_target/σ8)**2 * Ase9 # exploit σ8^2 ∝ As to iterate efficiently (usually requires only one retry)
+                    self.write_file("Ase9_from_s8.txt", str(self.params["Ase9"]))
             else:
                 k_h, Ph3 = self.run_class()
 
@@ -293,7 +298,7 @@ class Simulation:
     def params_extended(self):
         params_ext = utils.dictupdate(self.params, remove=["seed"]) # seed is only used internally, don't expose it outside
         if "Ase9" not in params_ext:
-            params_ext["Ase9"] = utils.json2dict(self.read_file("parameters_extended.json"))["Ase9"] # TODO: find a better way!
+            params_ext["Ase9"] = float(self.read_file("Ase9_from_s8.txt"))
         elif "σ8" not in params_ext:
             params_ext["σ8"] = self.read_variable("class.log", "sigma8=")
         if "ωb0" not in params_ext:
