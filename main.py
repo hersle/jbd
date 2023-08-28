@@ -19,15 +19,8 @@ from scipy.stats import qmc
 
 parser = argparse.ArgumentParser(prog="jbd.py")
 parser.add_argument("action", help="action(s) to execute", nargs="+")
-parser.add_argument("--nbody", metavar="path/to/FML/FML/COLASolver/nbody", default="./FML/FML/COLASolver/nbody")
-parser.add_argument("--class", metavar="path/to/hi_class_public/class", default="./hi_class_public/class")
-parser.add_argument("--simdir", metavar="path/to/simulation/directory/", default="./sims/")
 args = parser.parse_args()
-
 ACTIONS = vars(args)["action"]
-COLAEXEC = os.path.abspath(os.path.expanduser(vars(args)["nbody"]))
-CLASSEXEC = os.path.abspath(os.path.expanduser(vars(args)["class"]))
-SIMDIR = vars(args)["simdir"].rstrip("/") + "/" # enforce trailing /
 
 def list_simulations():
     for path in os.scandir(SIMDIR):

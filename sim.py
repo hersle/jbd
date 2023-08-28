@@ -7,6 +7,10 @@ import subprocess
 import numpy as np
 from scipy.interpolate import interp1d, CubicSpline
 
+COLAEXEC = os.path.abspath(os.path.expanduser("./FML/FML/COLASolver/nbody"))
+CLASSEXEC = os.path.abspath(os.path.expanduser("./hi_class_public/class"))
+SIMDIR = "./sims/"
+
 def params2seeds(params, n=None):
     rng = np.random.default_rng(int(utils.hashdict(params), 16)) # deterministic random number generator from simulation parameters
     seeds = rng.integers(0, 2**31-1, size=n, dtype=int) # output python (not numpy) ints to make compatible with JSON dict hashing
