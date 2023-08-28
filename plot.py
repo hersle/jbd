@@ -93,8 +93,8 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
     for params_BD in paramss:
         sims = sim.SimulationGroupPair(params_BD, θGR, nsims)
 
-        klin, Blin, _  = sims.power_spectrum_ratio(linear=True)
-        k,    B   , ΔB = sims.power_spectrum_ratio(linear=False)
+        klin, Blin, _  = sims.power_spectrum_ratio(linear=True,  z=0.0)
+        k,    B   , ΔB = sims.power_spectrum_ratio(linear=False, z=0.0)
 
         klin, Blin = klin[klin > 1e-3], Blin[klin > 1e-3]
         k, B, ΔB = k[k > 1e-3], B[k > 1e-3], ΔB[k > 1e-3]

@@ -186,6 +186,10 @@ class Simulation:
         runcmd.wait() # wait for command to finish
         teecmd.stdin.close() # close stream
 
+    # list of output redshifts constructed equal to those that FML outputs
+    def output_redshifts(self):
+        return 1 / np.linspace(1/(self.params["zinit"]+1), 1, self.params["Nstep"]+1) - 1
+
     # dictionary of parameters that should be passed to CLASS
     def params_class(self):
         return {
@@ -203,7 +207,8 @@ class Simulation:
             "YHe": 0.25,
 
             # output control
-            "output": "mPk",
+            "output": "mPk", # output P(k,z)
+            "z_pk": ", ".join(str(z) for z in self.output_redshifts()), # output P(k,z) at same redshifts as FML/COLA, so interpolation behaves consistently
             "write background": "yes",
             "root": "class_",
             "P_k_max_h/Mpc": 100.0, # output linear power spectrum to fill my plots
@@ -277,15 +282,21 @@ class Simulation:
             self.validate_output()
             assert self.completed_cola(), f"ERROR: see {log} for details"
 
-    def power_spectrum(self, linear=False, hunits=False):
+    def power_spectrum(self, z=0, linear=False, hunits=False):
+        zs = self.output_redshifts()
         if linear:
             self.run_class()
-            filename = f"class_pk.dat"
+            filenames = [f"class_z{n+1}_pk.dat" for n in range(0, len(zs))]
         else:
             self.run_cola(np=16)
-            filename = f"pofk_{self.name}_cb_z0.000.txt"
+            filenames = [f"pofk_{self.name}_cb_z{z:.3f}.txt" for z in zs]
+        zs, filenames = zs[::-1], filenames[::-1] # CubicSpline() wants increasing z, so sort everything now
 
-        k_h, Ph3 = self.read_data(filename, cols=(0, 1)) # k/(h/Mpc), P/(Mpc/h)^3
+        k_h = self.read_data(filenames[0], cols=(0,))[0]
+        assert np.all(self.read_data(filename, cols=(0,))[0] == k_h for filename in filenames), "P(k,z) files have different k"
+        Ph3s = [self.read_data(filename, cols=(1,))[0] for filename in filenames] # indexed like Ph3s[iz][ik]
+        Ph3_spline = CubicSpline(zs, Ph3s, axis=0) # spline Ph3 along z for each k # TODO: interpolate a, z, loga, ...?
+        Ph3 = Ph3_spline(z)
 
         if hunits:
             return k_h, Ph3
@@ -411,9 +422,9 @@ class SimulationGroupPair:
 
         self.nsims = nsims
 
-    def power_spectrum_ratio(self, linear=False):
-        kBD, PBDs = self.sims_BD.power_spectra(linear=linear, hunits=False) # kBD / (1/Mpc), PBD / Mpc^3
-        kGR, PGRs = self.sims_GR.power_spectra(linear=linear, hunits=False) # kGR / (1/Mpc), PGR / Mpc^3
+    def power_spectrum_ratio(self, z=0, linear=False): # TODO: plot B(k/h) instead?
+        kBD, PBDs = self.sims_BD.power_spectra(z=z, linear=linear, hunits=False) # kBD / (1/Mpc), PBD / Mpc^3
+        kGR, PGRs = self.sims_GR.power_spectra(z=z, linear=linear, hunits=False) # kGR / (1/Mpc), PGR / Mpc^3
         hBD = self.sims_BD.params["h"]
         hGR = self.sims_GR.params["h"]
 
