@@ -46,9 +46,8 @@ class Simulation:
         self.write_file("parameters.json", utils.dict2json(self.params, unicode=True))
 
         # create initial conditions with CLASS, store derived parameters, run COLA simulation # TODO: be lazy
+        self.validate_input(params)
         if run and not self.completed():
-            self.validate_input(params)
-
             # parametrize with ωm0 and ωb0 (letting ωc0 be derived)
             # if given ωm0 and (ωb0 xor ωc0), find corresponding ωb0 xor ωc0
             if "ωb0" not in self.params:
@@ -63,8 +62,8 @@ class Simulation:
                 Ase9 = 1.0 # initial guess
                 while True:
                     self.params["Ase9"] = Ase9
-                    k, P = self.run_class()
-                    σ8 = self.params_extended()["σ8"]
+                    k_h, Ph3 = self.run_class()
+                    σ8 = self.read_variable("class.log", "sigma8=")
                     if np.abs(σ8 - σ8_target) < 1e-10:
                         break
                     Ase9 = (σ8_target/σ8)**2 * Ase9 # exploit σ8^2 ∝ As to iterate efficiently (usually requires only one retry)
@@ -81,23 +80,26 @@ class Simulation:
     def name(self):
         return utils.hashdict(self.params)
 
+    def file_exists(self, filename):
+        return os.path.isfile(self.directory + filename)
+
     # whether CLASS has been run
     def completed_class(self):
-        return os.path.isfile(self.directory + f"class_pk.dat")
+        return self.file_exists(f"class_z{self.params['Nstep']+1}_pk.dat")
 
     # whether COLA has been run
     def completed_cola(self):
-        return os.path.isfile(self.directory + f"pofk_{self.name}_cb_z0.000.txt")
+        return self.file_exists(f"pofk_{self.name}_cb_z0.000.txt")
 
     # whether CLASS and COLA has been run
     def completed(self):
-        return os.path.isfile(self.directory + "parameters_extended.json")
+        return self.file_exists("parameters_extended.json")
 
     # check that the combination of parameters passed to the simulation is allowed
     def validate_input(self, params):
-        assert dictkeycount(params, {"ωb0", "ωc0", "ωm0"}, 2), "specify two of ωb0, ωc0, ωm0"
-        assert dictkeycount(params, {"Ase9", "σ8"}, 1), "specify one of Ase9, σ8"
-        assert dictkeycount(params, {"ωΛ0"}, 0), "don't specify derived parameter ωΛ0"
+        assert utils.dictkeycount(params, {"ωb0", "ωc0", "ωm0"}, 2), "specify two of ωb0, ωc0, ωm0"
+        assert utils.dictkeycount(params, {"Ase9", "σ8"}, 1), "specify one of Ase9, σ8"
+        assert utils.dictkeycount(params, {"ωΛ0"}, 0), "don't specify derived parameter ωΛ0"
 
     # check that the output from CLASS and COLA is consistent
     def validate_output(self):
@@ -110,17 +112,17 @@ class Simulation:
 
         # Compare E = H/H0
         E_class = H_class / H_class[-1] # E = H/H0 (assuming final value is at a=1)
-        check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)", rtol=1e-4)
+        utils.check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)", rtol=1e-4)
 
         # Compare ΩΛ0
         ΩΛ0_class = self.read_variable("class.log", "Lambda = ")
         ΩΛ0_cola  = self.read_variable("cola.log", "OmegaLambda       : ")
-        check_values_are_close(ΩΛ0_class, ΩΛ0_cola, name="ΩΛ0", rtol=1e-4)
+        utils.check_values_are_close(ΩΛ0_class, ΩΛ0_cola, name="ΩΛ0", rtol=1e-4)
 
         # Compare σ8 today
         σ8_class = self.read_variable("class.log", "sigma8=")
         σ8_cola  = self.read_variable("cola.log",  "Sigma\(R = 8 Mpc/h, z = 0.0 \) :\s+")
-        check_values_are_close(σ8_class, σ8_cola, name="σ8", rtol=1e-3)
+        utils.check_values_are_close(σ8_class, σ8_cola, name="σ8", rtol=1e-3)
 
     # save a data file associated with the simulation
     def write_data(self, filename, cols, colnames=None):
@@ -272,7 +274,7 @@ class Simulation:
     # run COLA simulation from back-scaling today's matter power spectrum (from CLASS)
     def run_cola(self, k_h, Ph3, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
         self.write_data(ic, {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
-        self.write_file(input, "\n".join(f"{param} = {luastr(val)}" for param, val in self.params_cola().items()))
+        self.write_file(input, "\n".join(f"{param} = {utils.luastr(val)}" for param, val in self.params_cola().items()))
         cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh out to list of machines
         self.run_command(cmd, log=log, verbose=True)
         assert self.completed_cola(), f"ERROR: see {log} for details"
@@ -343,11 +345,11 @@ class BDSimulation(Simulation):
         a_class  = 1 / (1 + z_class)
 
         # Compare ϕ
-        check_values_are_close(ϕ_class, ϕ_cola, a_class, a_cola, name="ϕ", rtol=1e-5)
+        utils.check_values_are_close(ϕ_class, ϕ_cola, a_class, a_cola, name="ϕ", rtol=1e-5)
 
         # Compare dlogϕ/dloga
         dlogϕ_dloga_class = dϕ_dη_class / ϕ_class / (H_class * a_class) # convert by chain rule
-        check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4)
+        utils.check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4)
 
     def params_extended(self):
         params = Simulation.params_extended(self)

@@ -122,7 +122,7 @@ if "evolution" in ACTIONS:
 
 if "test" in ACTIONS:
     #plot.plot_convergence(f"plots/boost_fiducial.pdf", params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_different_h)
-    params0 = utils.dictupdate(params0_BD, {"σ8": 0.6, "Nstep": 1, "Npart": 16, "Ncell": 16}, ["Ase9"])
+    params0 = utils.dictupdate(params0_BD, {"σ8": 0.6, "Nstep": 10, "Npart": 16, "Ncell": 16}, ["Ase9"])
     plot.plot_convergence(f"plots/boost_test.pdf", params0, "lgω", [2.0], nsims=1, θGR=θGR_different_h)
     exit()
 
