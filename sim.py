@@ -44,42 +44,32 @@ class Simulation:
         # initialize simulation, validate input, create working directory, write parameters
         os.makedirs(self.directory, exist_ok=True)
         self.write_file("parameters.json", utils.dict2json(self.params, unicode=True))
-
-        # create initial conditions with CLASS, store derived parameters, run COLA simulation # TODO: be lazy
         self.validate_input(params)
-        if run and not self.completed():
-            # parametrize with ωm0 and ωb0 (letting ωc0 be derived)
-            # if given ωm0 and (ωb0 xor ωc0), find corresponding ωb0 xor ωc0
-            if "ωb0" not in self.params:
-                self.params["ωb0"] = self.params["ωm0"] - self.params["ωc0"]
-            elif "ωc0" not in self.params:
-                self.params["ωc0"] = self.params["ωm0"] - self.params["ωb0"]
-            # otherwise ωm0 is not given, so both ωb0 and ωc0 are given
 
-            # if σ8(z=0) is given, find corresponding As
-            if "σ8" in self.params:
-                if self.file_exists("Ase9_from_s8.txt"):
-                    print("Reading Ase9 from file")
-                    self.params["Ase9"] = float(self.read_file("Ase9_from_s8.txt"))
-                else:
-                    σ8_target = self.params["σ8"]
-                    Ase9 = 1.0 # initial guess
-                    while True:
-                        self.params["Ase9"] = Ase9
-                        k_h, Ph3 = self.run_class(force=True)
-                        σ8 = self.read_variable("class.log", "sigma8=")
-                        if np.abs(σ8 - σ8_target) < 1e-10:
-                            break
-                        Ase9 = (σ8_target/σ8)**2 * Ase9 # exploit σ8^2 ∝ As to iterate efficiently (usually requires only one retry)
-                    self.write_file("Ase9_from_s8.txt", str(self.params["Ase9"]))
+        # parametrize with ωm0 and ωb0 (letting ωc0 be derived)
+        # if given ωm0 and (ωb0 xor ωc0), find corresponding ωb0 xor ωc0
+        if "ωb0" not in self.params:
+            self.params["ωb0"] = self.params["ωm0"] - self.params["ωc0"]
+        elif "ωc0" not in self.params:
+            self.params["ωc0"] = self.params["ωm0"] - self.params["ωb0"]
+        # otherwise ωm0 is not given, so both ωb0 and ωc0 are given
+
+        # if σ8(z=0) is given, find corresponding As
+        if "σ8" in self.params:
+            if self.file_exists("Ase9_from_s8.txt"):
+                print("Reading Ase9 from file")
+                self.params["Ase9"] = float(self.read_file("Ase9_from_s8.txt"))
             else:
-                k_h, Ph3 = self.run_class()
-
-            self.run_cola(k_h, Ph3, np=16)
-            self.write_file("parameters_extended.json", utils.dict2json(self.params_extended(), unicode=True))
-
-            self.validate_output()
-            assert self.completed() # verify successful completion
+                σ8_target = self.params["σ8"]
+                Ase9 = 1.0 # initial guess
+                while True:
+                    self.params["Ase9"] = Ase9
+                    self.run_class(force=True) # force re-run until we have the correct σ8
+                    σ8 = self.read_variable("class.log", "sigma8=")
+                    if np.abs(σ8 - σ8_target) < 1e-10:
+                        break
+                    Ase9 = (σ8_target/σ8)**2 * Ase9 # exploit σ8^2 ∝ As to iterate efficiently (usually requires only one retry)
+                self.write_file("Ase9_from_s8.txt", str(self.params["Ase9"]))
 
     # unique string identifier for the simulation
     def name(self):
@@ -228,12 +218,12 @@ class Simulation:
         }
 
     # run CLASS and return today's matter power spectrum
-    def run_class(self, input="class_input.ini", log="class.log"):
-        # write input and run class
-        self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
-        self.run_command([CLASSEXEC, input], log=log, verbose=True)
-        assert self.completed_class(), f"ERROR: see {log} for details"
-        return self.power_spectrum(linear=True, hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
+    def run_class(self, input="class_input.ini", log="class.log", force=False):
+        if not self.completed_class() or force:
+            # write input and run class
+            self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
+            self.run_command([CLASSEXEC, input], log=log, verbose=True)
+            assert self.completed_class(), f"ERROR: see {log} for details"
 
     # dictionary of parameters that should be passed to COLA
     def params_cola(self):
@@ -277,15 +267,25 @@ class Simulation:
         }
 
     # run COLA simulation from back-scaling today's matter power spectrum (from CLASS)
-    def run_cola(self, k_h, Ph3, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log"):
-        self.write_data(ic, {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
-        self.write_file(input, "\n".join(f"{param} = {utils.luastr(val)}" for param, val in self.params_cola().items()))
-        cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh out to list of machines
-        self.run_command(cmd, log=log, verbose=True)
-        assert self.completed_cola(), f"ERROR: see {log} for details"
+    def run_cola(self, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log", force=False):
+        if not self.completed_cola() or force:
+            k_h, Ph3 = self.power_spectrum(z=0, linear=True, hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
+            self.write_data(ic, {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
+            self.write_file(input, "\n".join(f"{param} = {utils.luastr(val)}" for param, val in self.params_cola().items()))
+            cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh out to list of machines
+            self.run_command(cmd, log=log, verbose=True)
+            self.validate_output()
+            assert self.completed_cola(), f"ERROR: see {log} for details"
 
     def power_spectrum(self, linear=False, hunits=False):
-        k_h, Ph3 = self.read_data("class_pk.dat" if linear else f"pofk_{self.name}_cb_z0.000.txt", cols=(0, 1))
+        if linear:
+            self.run_class()
+            filename = f"class_pk.dat"
+        else:
+            self.run_cola(np=16)
+            filename = f"pofk_{self.name}_cb_z0.000.txt"
+
+        k_h, Ph3 = self.read_data(filename, cols=(0, 1)) # k/(h/Mpc), P/(Mpc/h)^3
 
         if hunits:
             return k_h, Ph3
@@ -296,6 +296,7 @@ class Simulation:
 
     # extend independent parameters used to run the sim with its derived parameters
     def params_extended(self):
+        self.run_class() # these derived parameters are based on class' results
         params_ext = utils.dictupdate(self.params, remove=["seed"]) # seed is only used internally, don't expose it outside
         if "Ase9" not in params_ext:
             params_ext["Ase9"] = float(self.read_file("Ase9_from_s8.txt"))
