@@ -80,14 +80,6 @@ class Simulation:
     def file_exists(self, filename):
         return os.path.isfile(self.directory + filename)
 
-    # whether CLASS has been run
-    def completed_class(self):
-        return self.file_exists(f"class_z{self.params['Nstep']+1}_pk.dat")
-
-    # whether COLA has been run
-    def completed_cola(self):
-        return self.file_exists(f"pofk_{self.name}_cb_z0.000.txt")
-
     # check that the output from COLA is consistent with that from CLASS
     def validate_cola(self):
         print("Checking consistency between quantities computed separately by CLASS and COLA/FML:")
@@ -219,12 +211,16 @@ class Simulation:
         }
 
     # run CLASS and return today's matter power spectrum
-    def run_class(self, input="class_input.ini", log="class.log", force=False):
-        if not self.completed_class() or force: # TODO: intelligently check if configuration file changes to decide whether to rerun
+    def run_class(self, input_filename="class_input.ini", log="class.log"):
+        input = "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items())
+        input_is_unchanged = self.file_exists(input_filename) and self.read_file(input_filename) == input
+        output_exists = self.file_exists(f"class_z{self.params['Nstep']+1}_pk.dat")
+        complete = input_is_unchanged and output_exists
+
+        if not complete:
             # write input and run class
-            self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
-            self.run_command([CLASSEXEC, input], log=log, verbose=True)
-            assert self.completed_class(), f"ERROR: see {log} for details"
+            self.write_file(input_filename, input)
+            self.run_command([CLASSEXEC, input_filename], log=log, verbose=True)
 
     # dictionary of parameters that should be passed to COLA
     def params_cola(self):
@@ -268,15 +264,19 @@ class Simulation:
         }
 
     # run COLA simulation from back-scaling today's matter power spectrum (from CLASS)
-    def run_cola(self, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log", force=False):
-        if not self.completed_cola() or force: # TODO: intelligently check if configuration file changes to decide whether to rerun
+    def run_cola(self, np=1, verbose=True, ic_filename="power_spectrum_today.dat", input_filename="cola_input.lua", log="cola.log"):
+        input = "\n".join(f"{param} = {utils.luastr(val)}" for param, val in self.params_cola().items())
+        input_is_unchanged = self.file_exists(input_filename) and self.read_file(input_filename) == input
+        output_exists = self.file_exists(f"pofk_{self.name}_cb_z0.000.txt")
+        complete = input_is_unchanged and output_exists
+
+        if not complete:
             k_h, Ph3 = self.power_spectrum(z=0, linear=True, hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
-            self.write_data(ic, {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
-            self.write_file(input, "\n".join(f"{param} = {utils.luastr(val)}" for param, val in self.params_cola().items()))
-            cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh out to list of machines
+            self.write_data(ic_filename, {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
+            self.write_file(input_filename, input)
+            cmd = ["mpirun", "-np", str(np), COLAEXEC, input_filename] if np > 1 else [COLAEXEC, input_filename] # TODO: ssh out to list of machines
             self.run_command(cmd, log=log, verbose=True)
             self.validate_cola()
-            assert self.completed_cola(), f"ERROR: see {log} for details"
 
     def power_spectrum(self, z=0.0, linear=False, hunits=False):
         zs = self.output_redshifts()
