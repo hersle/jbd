@@ -287,10 +287,19 @@ class Simulation:
         if linear:
             self.run_class()
             filenames = [f"class_z{n+1}_pk.dat" for n in range(0, len(zs))]
+
+            # verify that assumed redshifts are those reported by the files
+            zs_from_files = [self.read_variable(filename, "redshift z=") for filename in filenames]
+            assert np.all(np.round(zs_from_files, 5) == np.round(zs, 5))
         else:
             self.run_cola(np=16)
             filenames = [f"pofk_{self.name}_cb_z{z:.3f}.txt" for z in zs]
-        zs, filenames = zs[::-1], filenames[::-1] # CubicSpline() wants increasing z, so sort everything now
+
+        # CubicSpline() wants increasing z, so sort everything now
+        z_filename_pairs = zip(zs, filenames)
+        z_filename_pairs = sorted(z_filename_pairs, key=lambda z_filename: z_filename[0])
+        zs = [z_filename[0] for z_filename in z_filename_pairs]
+        filenames = [z_filename[1] for z_filename in z_filename_pairs]
 
         k_h = self.read_data(filenames[0], cols=(0,))[0]
         assert np.all(self.read_data(filename, cols=(0,))[0] == k_h for filename in filenames), "P(k,z) files have different k"
