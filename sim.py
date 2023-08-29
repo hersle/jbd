@@ -17,64 +17,66 @@ def params2seeds(params, n=None):
     return int(seeds) if n is None else [int(seed) for seed in seeds]
 
 class Simulation:
-    def __init__(self, params=None, seed=None, simdir="./sims/", path=None, verbose=True, run=True):
+    def __init__(self, iparams=None, simdir="./sims/", path=None, verbose=True, run=True):
         if path is not None:
             self.directory = simdir + path + "/"
-            params = utils.json2dict(self.read_file("parameters.json"))
-            seed = params.pop("seed") # remove seed key
-            constructor = BDSimulation if "lgω" in params else GRSimulation
-            constructor(params=params, seed=seed, verbose=verbose, run=run)
+            iparams = utils.json2dict(self.read_file("parameters.json"))
+            constructor = BDSimulation if "lgω" in iparams else GRSimulation
+            constructor(iparams=iparams, seed=seed, verbose=verbose, run=run)
             return None
 
-        if seed is None:
-            seed = params2seeds(params)
+        if "seed" not in iparams:
+            iparams["seed"] = params2seeds(iparams) # assign a (random) random seed
 
-        self.params = utils.dictupdate(params, {"seed": seed}) # make seed part of parameters only internally
-        self.name = self.name()
-        self.directory = simdir + self.name + "/"
-
-        if verbose:
-            print(f"{self.directory}: {self.params}", end="") # print independend parameters
-            if self.completed():
-                params_derived = self.params_extended()
-                params_derived = dict(set(params_derived.items()) - set(self.params.items()))
-                print(f" -> {params_derived}", end="") # print dependend/derived parameters
-            print() # end line
-
-        # initialize simulation, validate input, create working directory, write parameters
+        self.iparams = iparams
+        self.name = utils.hashdict(self.iparams) # parameters -> hash: identify sim with unique hash of its (independent, including seed) parameter dict
+        self.directory = simdir + self.name + "/" # working directory for the simulation to live in
         os.makedirs(self.directory, exist_ok=True)
-        self.write_file("parameters.json", utils.dict2json(self.params, unicode=True))
-        self.validate_input(params)
+        self.write_file("parameters.json", utils.dict2json(self.iparams, unicode=True), skip_if_exists=True) # hash -> parameters: store (independent, including seed) parameters to enable reverse lookup
 
-        # parametrize with ωm0 and ωb0 (letting ωc0 be derived)
-        # if given ωm0 and (ωb0 xor ωc0), find corresponding ωb0 xor ωc0
-        if "ωb0" not in self.params:
-            self.params["ωb0"] = self.params["ωm0"] - self.params["ωc0"]
-        elif "ωc0" not in self.params:
-            self.params["ωc0"] = self.params["ωm0"] - self.params["ωb0"]
-        # otherwise ωm0 is not given, so both ωb0 and ωc0 are given
+        self.dparams = self.derived_parameters()
+        self.params = utils.dictupdate(self.iparams, self.dparams) # all (independent + dependent) parameters
+        if verbose:
+            print(f"{self.directory}: {self.iparams} -> {self.dparams}") # print independent -> dependent parameters
 
-        # if σ8(z=0) is given, find corresponding As
-        if "σ8" in self.params:
-            if self.file_exists("Ase9_from_s8.txt"):
-                print("Reading Ase9 from file")
-                self.params["Ase9"] = float(self.read_file("Ase9_from_s8.txt"))
-            else:
-                σ8_target = self.params["σ8"]
+    # compute and return derived parameters
+    def derived_parameters(self):
+        dparams = {}
+
+        # derive ωm0, ωb0 or ωc0 from the two others
+        if "ωm0" not in self.iparams:
+            dparams["ωm0"] = self.iparams["ωb0"] + self.iparams["ωc0"]
+        elif "ωb0" not in self.iparams:
+            dparams["ωb0"] = self.iparams["ωm0"] - self.iparams["ωc0"]
+        elif "ωc0" not in self.iparams:
+            dparams["ωc0"] = self.iparams["ωm0"] - self.iparams["ωb0"]
+        else:
+            raise(Exception("Exactly 2 of (ωb0, ωc0, ωm0) were not specified"))
+
+        # derive σ8 or As from the other
+        if "σ8" in self.iparams:
+            if not self.file_exists("Ase9_from_s8.txt"):
+                σ8_target = self.iparams["σ8"]
                 Ase9 = 1.0 # initial guess
                 while True:
-                    self.params["Ase9"] = Ase9
-                    self.run_class(force=True) # force re-run until we have the correct σ8
+                    self.params = utils.dictupdate(self.iparams, {"Ase9": Ase9}, remove=["σ8"])
+                    self.run_class() # re-run until we have the correct σ8
                     σ8 = self.read_variable("class.log", "sigma8=")
                     if np.abs(σ8 - σ8_target) < 1e-10:
                         break
                     Ase9 = (σ8_target/σ8)**2 * Ase9 # exploit σ8^2 ∝ As to iterate efficiently (usually requires only one retry)
-                self.write_file("Ase9_from_s8.txt", str(self.params["Ase9"]))
+                self.write_file("Ase9_from_s8.txt", str(self.params["Ase9"])) # cache the result (expensive to compute)
+            dparams["Ase9"] = float(self.read_file("Ase9_from_s8.txt"))
+        elif "Ase9" in self.iparams:
+            self.params = utils.dictupdate(self.iparams)
+            self.run_class()
+            dparams["σ8"] = self.read_variable("class.log", "sigma8=")
+        else:
+            raise(Exception("Exactly one of (Ase9, σ8) were not specified"))
 
-    # unique string identifier for the simulation
-    def name(self):
-        return utils.hashdict(self.params)
+        return dparams
 
+    # whether a file in the simulation directory exists
     def file_exists(self, filename):
         return os.path.isfile(self.directory + filename)
 
@@ -86,18 +88,8 @@ class Simulation:
     def completed_cola(self):
         return self.file_exists(f"pofk_{self.name}_cb_z0.000.txt")
 
-    # whether CLASS and COLA has been run
-    def completed(self):
-        return self.file_exists("parameters_extended.json")
-
-    # check that the combination of parameters passed to the simulation is allowed
-    def validate_input(self, params):
-        assert utils.dictkeycount(params, {"ωb0", "ωc0", "ωm0"}, 2), "specify two of ωb0, ωc0, ωm0"
-        assert utils.dictkeycount(params, {"Ase9", "σ8"}, 1), "specify one of Ase9, σ8"
-        assert utils.dictkeycount(params, {"ωΛ0"}, 0), "don't specify derived parameter ωΛ0"
-
-    # check that the output from CLASS and COLA is consistent
-    def validate_output(self):
+    # check that the output from COLA is consistent with that from CLASS
+    def validate_cola(self):
         print("Checking consistency between quantities computed separately by CLASS and COLA/FML:")
 
         # Read background quantities
@@ -160,7 +152,9 @@ class Simulation:
         return data
 
     # save a file associated with the simulation
-    def write_file(self, filename, string):
+    def write_file(self, filename, string, skip_if_exists=False):
+        if skip_if_exists and self.file_exists(filename):
+            return
         with open(self.directory + filename, "w", encoding="utf-8") as file:
             file.write(string)
 
@@ -185,6 +179,8 @@ class Simulation:
         # TODO: check/return exit status?
         runcmd.wait() # wait for command to finish
         teecmd.stdin.close() # close stream
+
+        assert runcmd.returncode == 0, f"command {runcmd.args} crashed"
 
     # list of output redshifts constructed equal to those that FML outputs
     def output_redshifts(self):
@@ -224,7 +220,7 @@ class Simulation:
 
     # run CLASS and return today's matter power spectrum
     def run_class(self, input="class_input.ini", log="class.log", force=False):
-        if not self.completed_class() or force:
+        if not self.completed_class() or force: # TODO: intelligently check if configuration file changes to decide whether to rerun
             # write input and run class
             self.write_file(input, "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items()))
             self.run_command([CLASSEXEC, input], log=log, verbose=True)
@@ -273,16 +269,16 @@ class Simulation:
 
     # run COLA simulation from back-scaling today's matter power spectrum (from CLASS)
     def run_cola(self, np=1, verbose=True, ic="power_spectrum_today.dat", input="cola_input.lua", log="cola.log", force=False):
-        if not self.completed_cola() or force:
+        if not self.completed_cola() or force: # TODO: intelligently check if configuration file changes to decide whether to rerun
             k_h, Ph3 = self.power_spectrum(z=0, linear=True, hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
             self.write_data(ic, {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
             self.write_file(input, "\n".join(f"{param} = {utils.luastr(val)}" for param, val in self.params_cola().items()))
             cmd = ["mpirun", "-np", str(np), COLAEXEC, input] if np > 1 else [COLAEXEC, input] # TODO: ssh out to list of machines
             self.run_command(cmd, log=log, verbose=True)
-            self.validate_output()
+            self.validate_cola()
             assert self.completed_cola(), f"ERROR: see {log} for details"
 
-    def power_spectrum(self, z=0, linear=False, hunits=False):
+    def power_spectrum(self, z=0.0, linear=False, hunits=False):
         zs = self.output_redshifts()
         if linear:
             self.run_class()
@@ -304,7 +300,7 @@ class Simulation:
         k_h = self.read_data(filenames[0], cols=(0,))[0]
         assert np.all(self.read_data(filename, cols=(0,))[0] == k_h for filename in filenames), "P(k,z) files have different k"
         Ph3s = [self.read_data(filename, cols=(1,))[0] for filename in filenames] # indexed like Ph3s[iz][ik]
-        Ph3_spline = CubicSpline(zs, Ph3s, axis=0) # spline Ph3 along z for each k # TODO: interpolate a, z, loga, ...?
+        Ph3_spline = CubicSpline(zs, Ph3s, axis=0) # spline Ph3 along z (axis 0) for each k (axis 1) # TODO: interpolate in a or z or loga or ...?
         Ph3 = Ph3_spline(z)
 
         if hunits:
@@ -314,22 +310,6 @@ class Simulation:
             P = Ph3 / self.params["h"]**3 # P / Mpc^3
             return k, P
 
-    # extend independent parameters used to run the sim with its derived parameters
-    def params_extended(self):
-        self.run_class() # these derived parameters are based on class' results
-        params_ext = utils.dictupdate(self.params, remove=["seed"]) # seed is only used internally, don't expose it outside
-        if "Ase9" not in params_ext:
-            params_ext["Ase9"] = float(self.read_file("Ase9_from_s8.txt"))
-        elif "σ8" not in params_ext:
-            params_ext["σ8"] = self.read_variable("class.log", "sigma8=")
-        if "ωb0" not in params_ext:
-            params_ext["ωb0"] = params_ext["ωm0"] - params_ext["ωc0"]
-        elif "ωc0" not in params_ext:
-            params_ext["ωc0"] = params_ext["ωm0"] - params_ext["ωb0"]
-        elif "ωm0" not in params_ext:
-            params_ext["ωm0"] = params_ext["ωb0"] + params_ext["ωc0"]
-        return params_ext
-
 class GRSimulation(Simulation):
     def params_cola(self):
         return utils.dictupdate(Simulation.params_cola(self), {
@@ -338,8 +318,13 @@ class GRSimulation(Simulation):
         })
 
 class BDSimulation(Simulation):
-    def validate_input(self, params):
-        Simulation.validate_input(self, params)
+    def derived_parameters(self):
+        dparams = Simulation.derived_parameters(self) # call parent class
+        dparams["ϕini"] = self.read_variable("class.log", "phi_ini = ")
+        dparams["ϕ0"]   = self.read_variable("class.log", "phi_0 = ")
+        dparams["ΩΛ0"]  = self.read_variable("class.log", "Lambda = ") / dparams["ϕ0"] # ρΛ0 / (3*H0^2*ϕ0/8*π)
+        dparams["ωΛ0"]  = dparams["ΩΛ0"] * self.iparams["h"]**2 * dparams["ϕ0"]            # ∝ ρΛ0
+        return dparams
 
     def params_class(self):
         ω = 10 ** self.params["lgω"]
@@ -362,8 +347,8 @@ class BDSimulation(Simulation):
             "cosmology_JBD_GeffG_today": self.params["G0/G"],
         })
 
-    def validate_output(self):
-        Simulation.validate_output(self) # do any validation in parent class
+    def validate_cola(self):
+        Simulation.validate_cola(self) # do any validation in parent class
 
         # Read background tables and their scale factors (which we use as the free time variable)
         z_class, H_class, ϕ_class, dϕ_dη_class = self.read_data("class_background.dat", dict=True, cols=("z", "H [1/Mpc]", "phi_smg", "phi'"))
@@ -377,24 +362,19 @@ class BDSimulation(Simulation):
         dlogϕ_dloga_class = dϕ_dη_class / ϕ_class / (H_class * a_class) # convert by chain rule
         utils.check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4)
 
-    def params_extended(self):
-        params = Simulation.params_extended(self)
-        params["ϕini"] = self.read_variable("class.log", "phi_ini = ")
-        params["ϕ0"]   = self.read_variable("class.log", "phi_0 = ")
-        params["ΩΛ0"]  = self.read_variable("class.log", "Lambda = ") / params["ϕ0"] # ρΛ0 / (3*H0^2*ϕ0/8*π)
-        params["ωΛ0"]  = params["ΩΛ0"] * params["h"]**2 * params["ϕ0"]            # ∝ ρΛ0
-        return params
-
 class SimulationGroup:
-    def __init__(self, simtype, params, nsims, seeds=None):
+    def __init__(self, simtype, iparams, nsims, seeds=None):
         if seeds is None:
-            seeds = params2seeds(params, nsims)
-        self.sims = [simtype(params, seed) for seed in seeds] # run simulations with all seeds
+            seeds = params2seeds(iparams, nsims)
 
-        # extend independent parameters with derived parameters
-        self.params = self.sims[0].params_extended() # loop checks they are equal across sims
+        self.iparams = iparams
+        self.sims = [simtype(iparams | {"seed": seed}) for seed in seeds] # run simulations with all seeds
+
+        self.dparams = self.sims[0].dparams
         for sim in self.sims:
-            assert set(sim.params_extended().items()) == set(self.params.items()), f"simulations with same independent parameters have different dependent parameters"
+            assert sim.dparams == self.dparams, "simualtions have different derived parameters"
+
+        self.params = utils.dictupdate(self.iparams, self.dparams) # merge
 
     def __iter__(self): yield from self.sims
     def __len__(self): return len(self.sims)
@@ -420,18 +400,18 @@ class SimulationGroup:
         return k, P, ΔP
 
 class SimulationGroupPair:
-    def __init__(self, params_BD, params_BD_to_GR, nsims=1):
-        seeds = params2seeds(params_BD, nsims) # BD parameters is a superset, so use them to make common seeds for BD and GR
+    def __init__(self, iparams_BD, iparams_BD_to_GR, nsims=1):
+        seeds = params2seeds(iparams_BD, nsims) # BD parameters is a superset, so use them to make common seeds for BD and GR
 
-        self.params_BD = params_BD
-        self.sims_BD = SimulationGroup(BDSimulation, params_BD, nsims, seeds=seeds)
+        self.iparams_BD = iparams_BD
+        self.sims_BD = SimulationGroup(BDSimulation, iparams_BD, nsims, seeds=seeds)
 
-        self.params_GR = params_BD_to_GR(params_BD, self.sims_BD.params) # θGR = θGR(θBD)
-        self.sims_GR = SimulationGroup(GRSimulation, self.params_GR, nsims, seeds=seeds)
+        self.iparams_GR = iparams_BD_to_GR(iparams_BD, self.sims_BD.params) # θGR = θGR(θBD)
+        self.sims_GR = SimulationGroup(GRSimulation, self.iparams_GR, nsims, seeds=seeds)
 
         self.nsims = nsims
 
-    def power_spectrum_ratio(self, z=0, linear=False): # TODO: plot B(k/h) instead?
+    def power_spectrum_ratio(self, z=0.0, linear=False): # TODO: plot B(k/h) instead?
         kBD, PBDs = self.sims_BD.power_spectra(z=z, linear=linear, hunits=False) # kBD / (1/Mpc), PBD / Mpc^3
         kGR, PGRs = self.sims_GR.power_spectra(z=z, linear=linear, hunits=False) # kGR / (1/Mpc), PGR / Mpc^3
         hBD = self.sims_BD.params["h"]

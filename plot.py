@@ -135,7 +135,7 @@ def plot_sequence(filename, boosts_linear, boosts_nonlinear, labels=None, colors
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_convergence(filename, params0, param, vals, θGR, nsims=5, lfunc=None, **kwargs):
+def plot_convergence(filename, params0, param, vals, θGR, nsims=5, **kwargs):
     boosts_linear, boosts_nonlinear, colors, labels = [], [], [], []
     val0 = 0.0 if param == "z" else params0[param] # varying z requires same sim params, but calling power spectrum with z=z, so handle it in a special way
     for val in vals:
