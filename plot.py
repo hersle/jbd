@@ -42,7 +42,18 @@ PARAM_PLOT_INFO = {
     "Ase9":   {"label": r"$A_s / 10^{-9}$",                     "format": lambda Ase9:  f"${Ase9}$",      "colorvalue": lambda Ase9:  Ase9},
     "ns":     {"label": r"$n_s$",                               "format": lambda ns:    f"${ns}$",        "colorvalue": lambda ns:    ns},
     "σ8":     {"label": r"$\sigma(R=8\,\mathrm{Mpc}/h,\,z=0)$", "format": lambda σ8:    f"${σ8}$",        "colorvalue": lambda σ8:    σ8},
+    "z":      {"label": r"$z$",                                 "format": lambda z:     f"${z}$",         "colorvalue": lambda z:     z},
 }
+
+# linearly look up a color between a list of colors,
+# optionally normalizing with values of v that should give the lower, middle and upper colors
+def colorbetween(colors, v, vmin=None, vmid=None, vmax=None):
+    cmap = matplotlib.colors.LinearSegmentedColormap.from_list(None, colors)
+    if vmin is not None and vmid is not None and vmax is not None:
+        A = 0.5 / (vmax - vmid) if vmax - vmid > vmid - vmin else 0.5 / (vmid - vmin) # if/else saturates one end of color spectrum
+        B = 0.5 - A * vmid
+        v = A * v + B
+    return cmap(v)
 
 def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfunc = lambda params: "black"):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
@@ -73,14 +84,11 @@ def plot_power_spectra(filename, sims, labelfunc = lambda params: None, colorfun
 
 # TODO: plot_single and plot_pair generic functions?
 
-def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = lambda params: None, colorfunc = lambda params: "black", ax=None, divide_linear = False, logy = False, ylims = None):
+def plot_sequence(filename, boosts_linear, boosts_nonlinear, labels=None, colors=None, title=None, logy=False, ylims=None):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
 
     ax.set_xlabel(r"$\lg\left[k_\mathrm{BD} / (1/\mathrm{Mpc})\right]$")
-    ylabel = r"B(k_\mathrm{BD})"
-    if divide_linear: ylabel = f"{ylabel} / B_\mathrm{{linear}}(k_\mathrm{{BD}})"
-    if logy:          ylabel = f"\lg [ |{ylabel}| - 1 ]"
-    ax.set_ylabel(f"${ylabel}$")
+    ax.set_ylabel(r"$\lg [ |B(k_\mathrm{BD})| - 1 ]$" if logy else r"$B(k_\mathrm{BD})$")
 
     # Dummy legend plot
     ax2 = ax.twinx() # use invisible twin axis to create second legend
@@ -90,24 +98,14 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
     ax2.plot(        [-4, -4], [0, 1], alpha=0.5, color="black", linestyle="dashed", linewidth=1, label=r"$B = B_\mathrm{lin}$")
     ax2.legend(loc="upper left", bbox_to_anchor=(-0.02, 0.97))
 
-    for params_BD in paramss:
-        sims = sim.SimulationGroupPair(params_BD, θGR, nsims)
+    if colors is None: colors = ["black"] * len(boosts_linear)
 
-        klin, Blin, _  = sims.power_spectrum_ratio(linear=True,  z=0.0)
-        k,    B   , ΔB = sims.power_spectrum_ratio(linear=False, z=0.0)
-
-        klin, Blin = klin[klin > 1e-3], Blin[klin > 1e-3]
-        k, B, ΔB = k[k > 1e-3], B[k > 1e-3], ΔB[k > 1e-3]
-
-        y    = B    / np.interp(k, klin, Blin) if divide_linear else B
-        Δy   = ΔB   / np.interp(k, klin, Blin) if divide_linear else ΔB
-        ylin = Blin /                    Blin  if divide_linear else Blin
-
-        def T(y): return np.log10(np.abs(y-1)) if logy else y
-
-        ax.plot(np.log10(klin),      T(ylin),          color=colorfunc(params_BD), alpha=1.0, linewidth=1, linestyle="dashed", label=None)
-        ax.plot(np.log10(k),         T(y),             color=colorfunc(params_BD), alpha=1.0, linewidth=1, linestyle="solid",  label=None)
-        ax.fill_between(np.log10(k), T(y-Δy), T(y+Δy), color=colorfunc(params_BD), alpha=0.2, edgecolor=None) # error band
+    def T(B): return np.log10(np.abs(B-1)) if logy else B
+    for boost_linear, boost_nonlinear, color in zip(boosts_linear, boosts_nonlinear, colors):
+        for (k, B, ΔB), linestyle in zip((boost_linear, boost_nonlinear), ("dashed", "solid")):
+            k, B, ΔB = k[k > 1e-3], B[k > 1e-3], ΔB[k > 1e-3]
+            ax.plot(        np.log10(k), T(B),             color=color, alpha=1.0, linewidth=1, linestyle=linestyle, label=None)
+            ax.fill_between(np.log10(k), T(B-ΔB), T(B+ΔB), color=color, alpha=0.2, edgecolor=None) # error band
 
     Δy = 1.0 if logy else 0.05
     ymin, ymax = ax.get_ylim() if ylims is None else ylims
@@ -123,15 +121,14 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
     ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
     ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # 10 minor ticks
 
-    labels = [f"${labelfunc(params_BD)}$" for params_BD in paramss]
-    colors = [colorfunc(params_BD) for params_BD in paramss]
-    cax  = make_axes_locatable(ax).append_axes("top", size="7%", pad="0%") # align colorbar axis with plot
-    cmap = matplotlib.colors.ListedColormap(colors)
-    cbar = plt.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap), cax=cax, orientation="horizontal")
-    cbar.ax.set_title(labeltitle)
-    cax.xaxis.set_ticks_position("top")
-    cax.xaxis.set_tick_params(direction="out")
-    cax.xaxis.set_ticks(np.linspace(0.5/len(labels), 1-0.5/len(labels), len(labels)), labels=labels)
+    if labels is not None:
+        cax  = make_axes_locatable(ax).append_axes("top", size="7%", pad="0%") # align colorbar axis with plot
+        cmap = matplotlib.colors.ListedColormap(colors)
+        cbar = plt.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap), cax=cax, orientation="horizontal")
+        cbar.ax.set_title(title)
+        cax.xaxis.set_ticks_position("top")
+        cax.xaxis.set_tick_params(direction="out")
+        cax.xaxis.set_ticks(np.linspace(0.5/len(labels), 1-0.5/len(labels), len(labels)), labels=labels)
 
     ax.grid(which="both")
     fig.tight_layout(pad=0)
@@ -139,23 +136,27 @@ def plot_sequence(filename, paramss, nsims, θGR, labeltitle=None, labelfunc = l
     print("Plotted", filename)
 
 def plot_convergence(filename, params0, param, vals, θGR, nsims=5, lfunc=None, **kwargs):
-    paramss = [utils.dictupdate(params0, {param: val}) for val in vals] # generate all parameter combinations
+    boosts_linear, boosts_nonlinear, colors, labels = [], [], [], []
+    val0 = 0.0 if param == "z" else params0[param] # varying z requires same sim params, but calling power spectrum with z=z, so handle it in a special way
+    for val in vals:
+        # boost to plot
+        params = params0 if param == "z" else utils.dictupdate(params0, {param: val})
+        z = val if param == "z" else 0.0
+        sims = sim.SimulationGroupPair(params, θGR, nsims)
+        boosts_linear.append(sims.power_spectrum_ratio(linear=True, z=z))
+        boosts_nonlinear.append(sims.power_spectrum_ratio(linear=False, z=z))
 
-    # linear color C = A*v + B so C(v0) = 0.5 (black) and C(vmin) = 0.0 (blue) *or* C(vmax) = 1.0 (red)
-    # (black = neutral = fiducial; red = warm = greater; blue = cold = smaller)
-    cmap = matplotlib.colors.LinearSegmentedColormap.from_list("blueblackred", ["#0000ff", "#000000", "#ff0000"], N=256)
-    def colorfunc(params):
-        v    = PARAM_PLOT_INFO[param]["colorvalue"](params[param])  # current  (transformed) value
-        v0   = PARAM_PLOT_INFO[param]["colorvalue"](params0[param]) # fiducial (transformed) value
+        # label
+        labels.append(PARAM_PLOT_INFO[param]["format"](val))
+
+        # color
+        v    = PARAM_PLOT_INFO[param]["colorvalue"](val)  # current  (transformed) value
+        v0   = PARAM_PLOT_INFO[param]["colorvalue"](val0) # fiducial (transformed) value
         vmin = np.min(PARAM_PLOT_INFO[param]["colorvalue"](vals))   # minimum  (transformed) value
         vmax = np.max(PARAM_PLOT_INFO[param]["colorvalue"](vals))   # maximum  (transformed) value
-        A = 0.5 / (vmax - v0) if vmax - v0 > v0 - vmin else 0.5 / (v0 - vmin) # if/else saturates one end of color spectrum
-        B = 0.5 - A * v0
-        return cmap(A * v + B)
+        colors.append(colorbetween(["#0000ff", "#000000", "#ff0000"], v, vmin, v0, vmax))
 
-    def labelfunc(params): return PARAM_PLOT_INFO[param]["format"](params[param])
-
-    plot_sequence(filename, paramss, nsims, θGR, PARAM_PLOT_INFO[param]["label"], labelfunc, colorfunc, **kwargs)
+    plot_sequence(filename, boosts_linear, boosts_nonlinear, labels, colors, PARAM_PLOT_INFO[param]["label"], **kwargs)
 
 def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", ylabel="", logabs=False, Δyrel=None, Δyabs=None):
     sims = sim.SimulationGroupPair(params0_BD, θGR)

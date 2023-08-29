@@ -145,6 +145,7 @@ if "variation" in ACTIONS:
     for param, value, prefix, ylims in (("Ase9", 2.1, "parametrize_As", (0.95, 1.10)), ("σ8", 0.8, "parametrize_s8", (0.85, 1.00))):
         params0 = utils.dictupdate(params0_BD, {param: value}, remove=["Ase9"])
         if True:
+            plot.plot_convergence(f"plots/variation_{prefix}_vary_z.pdf",       params0, "z",    [0.0, 1.0, 2.0, 3.0],  θGR_different_h)
             plot.plot_convergence(f"plots/variation_{prefix}_vary_omega.pdf",   params0, "lgω",  [2.0, 3.0, 4.0, 5.0],  θGR_different_h, lfunc=lambda lgω: f"${lgω}$", ylims=ylims)
             plot.plot_convergence(f"plots/variation_{prefix}_vary_G0.pdf",      params0, "G0/G", [0.99, 1.0, 1.01],     θGR_different_h, lfunc=lambda G0_G: f"${G0_G:.02f}$", ylims=ylims)
             plot.plot_convergence(f"plots/variation_{prefix}_vary_h.pdf",       params0, "h",    [0.63, 0.68, 0.73],    θGR_different_h, lfunc=lambda h: f"${h}$", ylims=ylims)
