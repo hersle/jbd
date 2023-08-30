@@ -148,7 +148,7 @@ if "variation" in ACTIONS:
     for param, value, prefix in (("Ase9", 2.1, "parametrize_As"), ("σ8", 0.8, "parametrize_s8", )):
         params0 = utils.dictupdate(params0_BD, {param: value}, remove=["Ase9"])
         if True:
-            plot.plot_power(f"plots/variation_{prefix}_vary_z",       params0, "z",    [0.0, 1.0, 2.0, 3.0],  θGR_different_h)
+            plot.plot_power(f"plots/variation_{prefix}_vary_z",       params0, "z",    [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0],  θGR_different_h)
             plot.plot_power(f"plots/variation_{prefix}_vary_omega",   params0, "lgω",  [2.0, 3.0, 4.0, 5.0],  θGR_different_h)
             plot.plot_power(f"plots/variation_{prefix}_vary_G0",      params0, "G0/G", [0.99, 1.0, 1.01],     θGR_different_h)
             plot.plot_power(f"plots/variation_{prefix}_vary_h",       params0, "h",    [0.63, 0.68, 0.73],    θGR_different_h)

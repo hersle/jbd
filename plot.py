@@ -147,10 +147,10 @@ def plot_power(filename_stem, params0, param, vals, θGR, nsims=5):
 
     # plot B = PBD / PGR
     xlabel = r"$\lg\left[k_\mathrm{BD} / (1/\mathrm{Mpc})\right]$"
-    ylabel = r"$B(k_\mathrm{BD})$"r"$\lg\left[k_\mathrm{BD} / (1/\mathrm{Mpc})\right]$"
+    ylabel = r"$B(k_\mathrm{BD}, " + ("z" if param == "z" else "0") + r")$"
     ystem  = r"B"
     xticks = (-3, +1, 1, 0.1)
-    yticks = (0.80, 1.10, 0.10, 0.01)
+    yticks = (0.80, 1.20, 0.10, 0.01)
     plot_generic(filename_stem + "_B.pdf", B_linear, B_nonlinear, xlabel, ylabel, labels, colors, PARAM_PLOT_INFO[param]["label"], xticks, yticks, ystem)
 
     # plot individual PGR and PBD

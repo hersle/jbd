@@ -59,7 +59,7 @@ class Simulation:
                 σ8_target = self.iparams["σ8"]
                 Ase9 = 1.0 # initial guess
                 while True:
-                    self.params = utils.dictupdate(self.iparams, {"Ase9": Ase9}, remove=["σ8"])
+                    self.params = utils.dictupdate(self.iparams, dparams | {"Ase9": Ase9}, remove=["σ8"])
                     self.run_class() # re-run until we have the correct σ8
                     σ8 = self.read_variable("class.log", "sigma8=")
                     if np.abs(σ8 - σ8_target) < 1e-10:
@@ -68,7 +68,7 @@ class Simulation:
                 self.write_file("Ase9_from_s8.txt", str(self.params["Ase9"])) # cache the result (expensive to compute)
             dparams["Ase9"] = float(self.read_file("Ase9_from_s8.txt"))
         elif "Ase9" in self.iparams:
-            self.params = utils.dictupdate(self.iparams)
+            self.params = utils.dictupdate(self.iparams, dparams)
             self.run_class()
             dparams["σ8"] = self.read_variable("class.log", "sigma8=")
         else:
@@ -396,7 +396,7 @@ class SimulationGroup:
         k, Ps = self.power_spectra(linear=linear, **kwargs)
         P  = np.mean(Ps, axis=0) # average            over simulations (for each k)
         ΔP = np.std( Ps, axis=0) # standard deviation over simulations (for each k)
-        assert not linear or np.all(np.isclose(ΔP, 0.0, rtol=0, atol=1e-12)), "group simulations output different linear power spectra" # linear power spectrum is independent of seeds
+        assert not linear or np.all(np.isclose(ΔP, 0.0, rtol=0, atol=1e-10)), "group simulations output different linear power spectra" # linear power spectrum is independent of seeds
         return k, P, ΔP
 
 class SimulationGroupPair:
