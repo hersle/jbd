@@ -392,8 +392,8 @@ class SimulationGroup:
         Ps = np.array(Ps) # 2D numpy array P[isim, ik]
         return k, Ps
 
-    def power_spectrum(self, **kwargs):
-        k, Ps = self.power_spectra(**kwargs)
+    def power_spectrum(self, linear=False, **kwargs):
+        k, Ps = self.power_spectra(linear=linear, **kwargs)
         P  = np.mean(Ps, axis=0) # average            over simulations (for each k)
         ΔP = np.std( Ps, axis=0) # standard deviation over simulations (for each k)
         assert not linear or np.all(np.isclose(ΔP, 0.0, rtol=0, atol=1e-12)), "group simulations output different linear power spectra" # linear power spectrum is independent of seeds
