@@ -82,12 +82,11 @@ class Simulation:
 
     # check that the output from COLA is consistent with that from CLASS
     def validate_cola(self):
-        print("Checking consistency between quantities computed separately by CLASS and COLA/FML:")
-
         # Read background quantities
         z_class, H_class = self.read_data("class_background.dat", dict=True, cols=("z", "H [1/Mpc]"))
         a_cola, E_cola = self.read_data(f"cosmology_{self.name}.txt", dict=True, cols=("a", "H/H0"))
         a_class  = 1 / (1 + z_class)
+
 
         # Compare E = H/H0
         E_class = H_class / H_class[-1] # E = H/H0 (assuming final value is at a=1)
@@ -95,7 +94,7 @@ class Simulation:
 
         # Compare ΩΛ0
         ΩΛ0_class = self.read_variable("class.log", "Lambda = ")
-        ΩΛ0_cola  = self.read_variable("cola.log", "OmegaLambda       : ")
+        ΩΛ0_cola  = self.read_variable("cola.log", "OmegaLambda             : ")
         utils.check_values_are_close(ΩΛ0_class, ΩΛ0_cola, name="ΩΛ0", rtol=1e-4)
 
         # Compare σ8 today
@@ -277,8 +276,7 @@ class Simulation:
             self.write_file(input_filename, input)
             cmd = ["mpirun", "-np", str(np), COLAEXEC, input_filename] if np > 1 else [COLAEXEC, input_filename] # TODO: ssh out to list of machines
             self.run_command(cmd, log=log, verbose=True)
-
-        self.validate_cola()
+            self.validate_cola()
 
     def power_spectrum(self, z=0.0, source="linear-class", hunits=False):
         zs = self.output_redshifts()
@@ -353,6 +351,7 @@ class BDSimulation(Simulation):
             "cosmology_model": "JBD",
             "cosmology_JBD_wBD": 10 ** self.params["lgω"],
             "cosmology_JBD_GeffG_today": self.params["G0/G"],
+            "cosmology_JBD_density_parameter_definition": "hi-class",
         })
 
     def validate_cola(self):
@@ -361,6 +360,7 @@ class BDSimulation(Simulation):
         # Read background tables and their scale factors (which we use as the free time variable)
         z_class, H_class, ϕ_class, dϕ_dη_class = self.read_data("class_background.dat", dict=True, cols=("z", "H [1/Mpc]", "phi_smg", "phi'"))
         a_cola, ϕ_cola, dlogϕ_dloga_cola = self.read_data(f"cosmology_{self.name}.txt", dict=True, cols=("a", "phi", "dlogphi/dloga"))
+        a_cola, ϕ_cola, dlogϕ_dloga_cola = a_cola[a_cola<=1], ϕ_cola[a_cola<=1], dlogϕ_dloga_cola[a_cola<=1]
         a_class  = 1 / (1 + z_class)
 
         # Compare ϕ

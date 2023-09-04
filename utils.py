@@ -78,12 +78,11 @@ def check_values_are_close(q1, q2, a1=None, a2=None, name="", atol=0, rtol=0, pl
     tol = atol + np.abs(q2) * rtol
     are_close = np.abs(q1 - q2) < tol
 
-    if verbose:
-        print(f"q1 = {name}_class = {q1:e}" + (f" (picked values with greatest difference at a = {a})" if are_arrays else ""))
-        print(f"q2 = {name}_cola  = {q2:e}" + (f" (picked values with greatest difference at a = {a})" if are_arrays else ""))
-        print("^^ PASSED" if are_close else "FAILED", f"test |q1-q2| = {np.abs(q1-q2):.2e} < {tol:.2e} = tol = atol + rtol*|q2| with atol={atol:.1e}, rtol={rtol:.1e}")
+    message  = f"q1 = {name}_class = {q1:e}" + (f" (picked values with greatest difference at a = {a})" if are_arrays else "") + "\n"
+    message += f"q2 = {name}_cola  = {q2:e}" + (f" (picked values with greatest difference at a = {a})" if are_arrays else "") + "\n"
+    message += ("^^ PASSED" if are_close else "FAILED") + f" test |q1-q2| = {np.abs(q1-q2):.2e} < {tol:.2e} = tol = atol + rtol*|q2| with atol={atol:.1e}, rtol={rtol:.1e}" + "\n"
 
-    assert are_close, f"{name} is not consistent in CLASS and COLA"
+    assert are_close, (f"{name} is not consistent in CLASS and COLA:\n" + message)
 
 # propagate error in f(x1, x2, ...) given
 # * df_dx = [df_dx1, df_dx2, ...] (list of numbers): derivatives df/dxi evaluated at mean x
