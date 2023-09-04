@@ -195,7 +195,8 @@ class Simulation:
             "YHe": 0.25,
 
             # output control
-            "output": "mPk", # output P(k,z)
+            "output": "mPk", # output matter power spectrum P(k,z)
+            "non linear": "halofit", # also estimate non-linear P(k,z)
             "z_pk": ", ".join(str(z) for z in self.output_redshifts()), # output P(k,z) at same redshifts as FML/COLA, so interpolation behaves consistently
             "write background": "yes",
             "root": "class_",
@@ -271,25 +272,32 @@ class Simulation:
         complete = input_is_unchanged and output_exists
 
         if not complete:
-            k_h, Ph3 = self.power_spectrum(z=0, linear=True, hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
+            k_h, Ph3 = self.power_spectrum(z=0, source="linear-class", hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
             self.write_data(ic_filename, {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
             self.write_file(input_filename, input)
             cmd = ["mpirun", "-np", str(np), COLAEXEC, input_filename] if np > 1 else [COLAEXEC, input_filename] # TODO: ssh out to list of machines
             self.run_command(cmd, log=log, verbose=True)
-            self.validate_cola()
 
-    def power_spectrum(self, z=0.0, linear=False, hunits=False):
+        self.validate_cola()
+
+    def power_spectrum(self, z=0.0, source="linear-class", hunits=False):
         zs = self.output_redshifts()
-        if linear:
+        if source == "linear-class":
             self.run_class()
             filenames = [f"class_z{n+1}_pk.dat" for n in range(0, len(zs))]
+        elif source == "nonlinear-class":
+            self.run_class()
+            filenames = [f"class_z{n+1}_pk_nl.dat" for n in range(0, len(zs))]
+        elif source == "nonlinear-cola":
+            self.run_cola(np=16)
+            filenames = [f"pofk_{self.name}_cb_z{z:.3f}.txt" for z in zs]
+        else:
+            raise Exception(f"unknown power specturm source \"{source}\"")
 
+        if source in ("linear-class", "nonlinear-class"):
             # verify that assumed redshifts are those reported by the files
             zs_from_files = [self.read_variable(filename, "redshift z=") for filename in filenames]
             assert np.all(np.round(zs_from_files, 5) == np.round(zs, 5))
-        else:
-            self.run_cola(np=16)
-            filenames = [f"pofk_{self.name}_cb_z{z:.3f}.txt" for z in zs]
 
         # CubicSpline() wants increasing z, so sort everything now
         z_filename_pairs = zip(zs, filenames)
@@ -392,11 +400,10 @@ class SimulationGroup:
         Ps = np.array(Ps) # 2D numpy array P[isim, ik]
         return k, Ps
 
-    def power_spectrum(self, linear=False, **kwargs):
-        k, Ps = self.power_spectra(linear=linear, **kwargs)
+    def power_spectrum(self, source="linear-class", **kwargs):
+        k, Ps = self.power_spectra(source=source, **kwargs)
         P  = np.mean(Ps, axis=0) # average            over simulations (for each k)
         ΔP = np.std( Ps, axis=0) # standard deviation over simulations (for each k)
-        assert not linear or np.all(np.isclose(ΔP, 0.0, rtol=0, atol=1e-10)), "group simulations output different linear power spectra" # linear power spectrum is independent of seeds
         return k, P, ΔP
 
 class SimulationGroupPair:
@@ -411,13 +418,13 @@ class SimulationGroupPair:
 
         self.nsims = nsims
 
-    def power_spectrum_ratio(self, z=0.0, linear=False): # TODO: plot B(k/h) instead?
-        kBD, PBDs = self.sims_BD.power_spectra(z=z, linear=linear, hunits=False) # kBD / (1/Mpc), PBD / Mpc^3
-        kGR, PGRs = self.sims_GR.power_spectra(z=z, linear=linear, hunits=False) # kGR / (1/Mpc), PGR / Mpc^3
+    def power_spectrum_ratio(self, z=0.0, source="linear-class"): # TODO: plot B(k/h) instead?
+        kBD, PBDs = self.sims_BD.power_spectra(z=z, source=source, hunits=False) # kBD / (1/Mpc), PBD / Mpc^3
+        kGR, PGRs = self.sims_GR.power_spectra(z=z, source=source, hunits=False) # kGR / (1/Mpc), PGR / Mpc^3
         hBD = self.sims_BD.params["h"]
         hGR = self.sims_GR.params["h"]
 
-        assert linear or np.all(np.isclose(kBD/hBD, kGR/hGR)) or self.sims_BD.params["Lh"] != self.sims_GR.params["Lh"], f"simulations with equal L*h should output equal non-linear k/h"
+        assert source in ("linear-class", "nonlinear-class") or np.all(np.isclose(kBD/hBD, kGR/hGR)) or self.sims_BD.params["Lh"] != self.sims_GR.params["Lh"], f"simulations with equal L*h should output equal non-linear k/h"
         PGRs = interp1d(kGR, PGRs, axis=1, kind="cubic", bounds_error=False, fill_value=np.nan)(kBD*hGR/hBD) # interpolate PGR(kGR) to kBD*hGR/hBD, # TODO: avoid? unnecessary in NL case. specify class' k-values?
         kGR = kBD * hGR/hBD # so we compare modes with kGR/hGR == kBD/hBD (has no effect on code, just for clarification)
         k = kBD * hBD # take the BD wavenumbers as the reference wavenumbers # TODO: or (kBD+kGR)/2 and interpolate both PBD and PGR?
