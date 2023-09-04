@@ -1,6 +1,7 @@
 import json
 import hashlib
 import numpy as np
+import matplotlib.pyplot as plt
 
 def to_nearest(number, nearest, mode="round"):
     func = {"round": np.round, "ceil": np.ceil, "floor": np.floor}[mode]
@@ -49,7 +50,7 @@ def luastr(var):
         return str(var) # go with python's string representation
 
 # Utility function for verifying that two quantities q1 and q2 are (almost) the same
-def check_values_are_close(q1, q2, a1=None, a2=None, name="", atol=0, rtol=0, verbose=True, plot=False):
+def check_values_are_close(q1, q2, a1=None, a2=None, name="", atol=0, rtol=0, plot=True):
     are_arrays = isinstance(q1, np.ndarray) and isinstance(q2, np.ndarray)
     if are_arrays:
         # If q1 and q2 are function values at a1 and a2,

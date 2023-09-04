@@ -22,7 +22,7 @@ class Simulation:
             self.directory = simdir + path + "/"
             iparams = utils.json2dict(self.read_file("parameters.json"))
             constructor = BDSimulation if "lgω" in iparams else GRSimulation
-            constructor(iparams=iparams, seed=seed, verbose=verbose, run=run)
+            constructor(iparams=iparams, verbose=verbose, run=run)
             return None
 
         if "seed" not in iparams:

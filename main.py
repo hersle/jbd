@@ -4,11 +4,12 @@
 # TODO: GR emulators (?): Bacco, CosmicEmu, EuclidEmulator2, references within
 # TODO: compare boost with nonlinear prediction from hiclass' hmcode?
 # TODO: compare P(k) with fig. 2 on https://journals.aps.org/prd/pdf/10.1103/PhysRevD.97.023520#page=13
-# TODO: fix GeffG in FML (currently in large-ω limit)
 # TODO: emulate B / Bfid ≈ 1?
 # TODO: run one big box with COLA (fiducial cosmology?) to see if pattern continues to higher k?
 # TODO: run one big box with "proper N-body program" to see if COLA is ok
+# TODO: allow for "main.py vary z fix σ8 syntax, or similar
 
+import sim
 import plot
 import utils
 
@@ -23,9 +24,9 @@ args = parser.parse_args()
 ACTIONS = vars(args)["action"]
 
 def list_simulations():
-    for path in os.scandir(SIMDIR):
+    for path in os.scandir(sim.SIMDIR):
         if os.path.isdir(path):
-            Simulation(path=path.name, verbose=True, run=False)
+            sim.Simulation(path=path.name, verbose=True, run=False)
 
 class ParameterSpace:
     def __init__(self, params, seed=1234):
