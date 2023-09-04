@@ -76,9 +76,12 @@ class Simulation:
 
         return dparams
 
+    def file_path(self, filename):
+        return self.directory + filename
+
     # whether a file in the simulation directory exists
     def file_exists(self, filename):
-        return os.path.isfile(self.directory + filename)
+        return os.path.isfile(self.file_path(filename))
 
     # check that the output from COLA is consistent with that from CLASS
     def validate_cola(self):
@@ -110,16 +113,16 @@ class Simulation:
             return self.write_data(filename, cols, colnames)
 
         header = None if colnames is None else " ".join(colnames)
-        np.savetxt(self.directory + filename, np.transpose(cols), header=header)
+        np.savetxt(self.file_path(filename), np.transpose(cols), header=header)
 
     # load a data file associated with the simulation
     def read_data(self, filename, dict=False, cols=None):
-        data = np.loadtxt(self.directory + filename)
+        data = np.loadtxt(self.file_path(filename))
         data = np.transpose(data) # index by [icol, irow] (or just [icol] to get a whole column)
 
         # if requested, read header and generate {header[icol]: data[icol]} dictionary
         if dict:
-            with open(self.directory + filename) as file:
+            with open(self.file_path(filename)) as file:
                 # the header line (with column titles) is always the last commented line
                 while True:
                     line = file.readline()
@@ -146,12 +149,12 @@ class Simulation:
     def write_file(self, filename, string, skip_if_exists=False):
         if skip_if_exists and self.file_exists(filename):
             return
-        with open(self.directory + filename, "w", encoding="utf-8") as file:
+        with open(self.file_path(filename), "w", encoding="utf-8") as file:
             file.write(string)
 
     # load a file associated with the simulation
     def read_file(self, filename):
-        with open(self.directory + filename, "r", encoding="utf-8") as file:
+        with open(self.file_path(filename), "r", encoding="utf-8") as file:
             return file.read()
 
     # read a string like "[prefix][number]" from a file and return number
@@ -159,7 +162,7 @@ class Simulation:
     def read_variable(self, filename, prefix):
         regex = prefix + r"([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)"
         matches = re.findall(regex, self.read_file(filename))
-        assert len(matches) == 1, f"found {len(matches)} ≠ 1 matches {matches} for regex \"{regex}\" in file {filename}"
+        assert len(matches) == 1, f"found {len(matches)} ≠ 1 matches {matches} for regex \"{regex}\" in file {self.file_path(filename)}"
         return float(matches[0][0])
 
     # run a command in the simulation's directory
@@ -167,7 +170,6 @@ class Simulation:
         teecmd = subprocess.Popen(["tee", log], stdin=subprocess.PIPE, stdout=None if verbose else subprocess.DEVNULL, cwd=self.directory)
         runcmd = subprocess.Popen(cmd, stdout=teecmd.stdin, stderr=subprocess.STDOUT, cwd=self.directory)
 
-        # TODO: check/return exit status?
         runcmd.wait() # wait for command to finish
         teecmd.stdin.close() # close stream
 

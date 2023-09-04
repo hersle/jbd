@@ -64,7 +64,6 @@ def plot_generic(filename, s1s, s2s, s3s, xlabel=None, ylabel=None, labels=None,
     ax.set_ylabel(ylabel)
 
     # Dummy legend plot
-    # TODO: generalize
     ax2 = ax.twinx() # use invisible twin axis to create second legend
     ax2.get_yaxis().set_visible(False) # make invisible
     lclass,    = ax2.plot(        [-4, -4], [0, 1], alpha=1.0, color="black", linestyle="dotted", linewidth=1)

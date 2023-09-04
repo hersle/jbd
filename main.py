@@ -2,7 +2,6 @@
 
 # TODO: does hiclass crash with G0/G very different from 1 with small ω?
 # TODO: GR emulators (?): Bacco, CosmicEmu, EuclidEmulator2, references within
-# TODO: compare boost with nonlinear prediction from hiclass' hmcode?
 # TODO: compare P(k) with fig. 2 on https://journals.aps.org/prd/pdf/10.1103/PhysRevD.97.023520#page=13
 # TODO: emulate B / Bfid ≈ 1?
 # TODO: run one big box with COLA (fiducial cosmology?) to see if pattern continues to higher k?

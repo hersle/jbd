@@ -28,7 +28,7 @@ def dictkeycount(dict, keys, number=None):
     return len(set(dict).intersection(set(keys))) == number
 
 def dict2json(dict, sort=False, unicode=False):
-    return json.dumps(dict, sort_keys=sort, ensure_ascii=not unicode)
+    return json.dumps(dict, sort_keys=sort, ensure_ascii=not unicode, indent="\t")
 
 def json2dict(jsonstr):
     return json.loads(jsonstr)
