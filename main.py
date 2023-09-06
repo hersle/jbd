@@ -138,7 +138,9 @@ if "compare" in ACTIONS:
 
 # Convergence plots (computational parameters)
 if "convergence" in ACTIONS:
-    plot.plot_power("plots/convergence_L",     params0_BD, "Lh",     [256.0, 384.0, 512.0, 768.0, 1024.0], θGR_different_h)
+    plot.plot_power("plots/convergence_L",     params0_BD, "Lh",      [200.0, 300.0, 400.0, 500.0, 600.0], θGR_different_h)
+    #plot.plot_power("plots/convergence_L",     utils.dictupdate(params0_BD, {"L": 256.0}, remove=["Lh"]), "L",     [256.0, 384.0, 512.0, 768.0, 1024.0], θGR_different_h)
+    exit()
     plot.plot_power("plots/convergence_Npart", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           θGR_different_h)
     plot.plot_power("plots/convergence_Ncell", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           θGR_different_h)
     plot.plot_power("plots/convergence_Nstep", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 θGR_different_h)

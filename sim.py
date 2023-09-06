@@ -74,6 +74,14 @@ class Simulation:
         else:
             raise(Exception("Exactly one of (Ase9, σ8) were not specified"))
 
+        # derive L or L*h from the other
+        if "Lh" in self.iparams:
+            dparams["L"] = self.iparams["Lh"] / self.iparams["h"]
+        elif "L" in self.iparams:
+            dparams["Lh"] = self.iparams["L"] * self.iparams["h"]
+        else:
+            raise(Exception("Exactly one of (L, Lh) were not specified"))
+
         return dparams
 
     def file_path(self, filename):
@@ -228,7 +236,7 @@ class Simulation:
     def params_cola(self):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
-            "simulation_boxsize": self.params["Lh"], # TODO: flexibly give L with or without hunits (using parameter reduction function?) # h factors out of sim equations, so instead of L = Lphys / Mpc, it wants Lsim = Lphys / (Mpc/h) = L * h
+            "simulation_boxsize": self.params["Lh"],
             "simulation_use_cola": True,
             "simulation_use_scaledependent_cola": False, # TODO: only relevant with massive neutrinos?
 

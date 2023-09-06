@@ -33,6 +33,7 @@ PARAM_PLOT_INFO = {
     "ωc0":    {"label": r"$\omega_{c0}$",                       "format": lambda ωc0:   f"${ωc0}$",       "colorvalue": lambda ωc0:   ωc0},
     "ωm0":    {"label": r"$\omega_{m0}$",                       "format": lambda ωm0:   f"${ωm0}$",       "colorvalue": lambda ωm0:   ωm0},
     "Lh":     {"label": r"$L / (\mathrm{Mpc}/h)$",              "format": lambda Lh:    f"${Lh:.0f}$",    "colorvalue": lambda Lh:    np.log2(Lh)},
+    "L":      {"label": r"$L /  \mathrm{Mpc}   $",              "format": lambda L:     f"${L:.0f}$",     "colorvalue": lambda L:     np.log2(L)},
     "Npart":  {"label": r"$N_\mathrm{part}$",                   "format": lambda Npart: f"${Npart}^3$",   "colorvalue": lambda Npart: np.log2(Npart)},
     "Ncell":  {"label": r"$N_\mathrm{cell}$",                   "format": lambda Ncell: f"${Ncell}^3$",   "colorvalue": lambda Ncell: np.log2(Ncell)},
     "Nstep":  {"label": r"$N_\mathrm{step}$",                   "format": lambda Nstep: f"${Nstep}$",     "colorvalue": lambda Nstep: Nstep},
