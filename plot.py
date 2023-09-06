@@ -57,6 +57,14 @@ def colorbetween(colors, v, vmin=None, vmid=None, vmax=None):
     RGB = RGBA[0:3]
     return RGB
 
+def ax_set_ylim_nearest(ax, Δy):
+    ymin, ymax = ax.get_ylim()
+    ymin = utils.to_nearest(ymin, Δy, "floor")
+    ymax = utils.to_nearest(ymax, Δy, "ceil")
+    ax.set_ylim(ymin, ymax)
+    ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/Δy))+1)) # TODO: set minor ticks every 1, 0.1, 0.01 etc. here?
+    return ymin, ymax
+
 def plot_generic(filename, s1s, s2s, s3s, xlabel=None, ylabel=None, labels=None, colors=None, title=None, xticks=None, yticks=None, ystem="y", lgx=False, lgy=False):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
 
@@ -176,11 +184,11 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
     ax2.set_ylabel(f"$\lg[{ylabel}]$" if logabs else f"${ylabel}$")
 
     ax1.axhline(1.0, color="gray", linestyle="dashed", linewidth=0.5)
-    ax1.plot(np.log10(a_BD), qty_BD(bg_BD, sims.params_BD) / qty_GR(bg_GR, sims.params_GR), color="black")
+    ax1.plot(np.log10(a_BD), qty_BD(bg_BD, sims.sims_BD.params) / qty_GR(bg_GR, sims.sims_GR.params), color="black")
     ax1.set_ylabel(f"${qty}_\mathrm{{BD}}(a) / {qty}_\mathrm{{GR}}(a)$")
 
-    ax2.plot(np.log10(a_BD), np.log10(qty_BD(bg_BD, sims.params_BD)) if logabs else qty_BD(bg_BD, sims.params_BD), label=f"${qty}(a) = {qty}_\mathrm{{BD}}(a)$", color="blue")
-    ax2.plot(np.log10(a_GR), np.log10(qty_GR(bg_GR, sims.params_GR)) if logabs else qty_GR(bg_GR, sims.params_GR), label=f"${qty}(a) = {qty}_\mathrm{{GR}}(a)$", color="red")
+    ax2.plot(np.log10(a_BD), np.log10(qty_BD(bg_BD, sims.sims_BD.params)) if logabs else qty_BD(bg_BD, sims.sims_BD.params), label=f"${qty}(a) = {qty}_\mathrm{{BD}}(a)$", color="blue")
+    ax2.plot(np.log10(a_GR), np.log10(qty_GR(bg_GR, sims.sims_GR.params)) if logabs else qty_GR(bg_GR, sims.sims_GR.params), label=f"${qty}(a) = {qty}_\mathrm{{GR}}(a)$", color="red")
 
     ax2.set_xlim(-10, 0)
     ax2.set_xticks(np.linspace(-10, 0, 11))

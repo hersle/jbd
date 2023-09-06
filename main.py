@@ -16,6 +16,7 @@ import os
 import argparse
 import numpy as np
 from scipy.stats import qmc
+from scipy.interpolate import CubicSpline
 
 parser = argparse.ArgumentParser(prog="jbd.py")
 parser.add_argument("action", help="action(s) to execute", nargs="+")
@@ -115,7 +116,7 @@ if "evolution" in ACTIONS:
     series = [
         ("G", G_G0_BD,    G_G0_GR,    False, "G(a)/G",           0.05, 0.05),
         ("H", H_H0_BD_GR, H_H0_BD_GR, True,  "H(a)/H_0",         5.0,  0.01),
-        ("D", D_Di_BD_GR, D_Di_BD_GR, True,  "D(a)/D(10^{-10})", 1.0,  0.1),
+        ("D", D_Di_BD_GR, D_Di_BD_GR, True,  "D(a)",             1.0,  0.1),
         ("f", f_BD_GR,    f_BD_GR,    False, "f(a)",             0.1,  0.01),
     ]
     for q, qBD, qGR, logabs, ylabel, Δyabs, Δyrel in series:

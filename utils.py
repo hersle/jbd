@@ -7,14 +7,6 @@ def to_nearest(number, nearest, mode="round"):
     func = {"round": np.round, "ceil": np.ceil, "floor": np.floor}[mode]
     return func(np.round(number / nearest, 7)) * nearest # round to many digits first to eliminate floating point errors (this is only used for plotting purposes, anyway)
 
-def ax_set_ylim_nearest(ax, Δy):
-    ymin, ymax = ax.get_ylim()
-    ymin = to_nearest(ymin, Δy, "floor")
-    ymax = to_nearest(ymax, Δy, "ceil")
-    ax.set_ylim(ymin, ymax)
-    ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/Δy))+1)) # TODO: set minor ticks every 1, 0.1, 0.01 etc. here?
-    return ymin, ymax
-
 def dictupdate(dict, add={}, remove=[]):
     dict = dict.copy() # don't modify input!
     for key in remove:
