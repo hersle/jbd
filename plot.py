@@ -147,17 +147,17 @@ def plot_power(filename_stem, params0, param, vals, θGR, nsims=1):
         colors.append(colorbetween(["#0000ff", "#000000", "#ff0000"], v, vmin, v0, vmax))
 
     # plot B = PBD / PGR
-    xlabel = r"$\lg\left[k_\mathrm{BD} / (1/\mathrm{Mpc})\right]$"
-    ylabel = r"$B(k_\mathrm{BD}, " + ("z" if param == "z" else "0") + r")$"
+    xlabel = r"$\lg\left[k / (h/\mathrm{Mpc})\right]$"
+    ylabel = r"$B = P_\mathrm{BD} h_\mathrm{BD}^3 / P_\mathrm{GR} h_\mathrm{GR}^3$"
     ystem  = r"B"
     xticks = (-3, +1, 1, 0.1)
     yticks = (0.80, 1.20, 0.10, 0.01)
     plot_generic(filename_stem + "_B.pdf", B_linear_class, B_nonlinear_class, B_nonlinear_cola, xlabel, ylabel, labels, colors, PARAM_PLOT_INFO[param]["label"], xticks, yticks, ystem)
 
     # plot individual PGR and PBD
-    xlabel   = r"$\lg\left[k / (1/\mathrm{Mpc})\right]$"
-    ylabelGR = r"$\lg\left[P_\mathrm{GR}(k, " + ("z" if param == "z" else "0") + r")/\mathrm{Mpc}^3\right]$"
-    ylabelBD = r"$\lg\left[P_\mathrm{BD}(k, " + ("z" if param == "z" else "0") + r")/\mathrm{Mpc}^3\right]$"
+    xlabel   = r"$\lg\left[k / (h/\mathrm{Mpc})\right]$"
+    ylabelGR = r"$\lg\left[P_\mathrm{GR} / (\mathrm{Mpc}/h)^3\right]$"
+    ylabelBD = r"$\lg\left[P_\mathrm{BD} / (\mathrm{Mpc}/h)^3\right]$"
     ystem    = r"P"
     xticks = (-3, +1, 1, 0.1)
     yticks = (0, 5, 1.0, 0.1)
