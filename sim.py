@@ -7,8 +7,8 @@ import subprocess
 import numpy as np
 from scipy.interpolate import CubicSpline
 
-COLAEXEC = os.path.abspath(os.path.expanduser("./FML/FML/COLASolver/nbody"))
-CLASSEXEC = os.path.abspath(os.path.expanduser("./hi_class_public/class"))
+COLAEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/COLASolver/nbody"))
+CLASSEXEC = os.path.abspath(os.path.expandvars("$HOME/local/hi_class_public/class"))
 SIMDIR = os.path.expandvars(os.path.expandvars("$DATA/jbdsims/"))
 
 def params2seeds(params, n=None):
