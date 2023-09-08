@@ -9,7 +9,7 @@ from scipy.interpolate import CubicSpline
 
 COLAEXEC = os.path.abspath(os.path.expanduser("./FML/FML/COLASolver/nbody"))
 CLASSEXEC = os.path.abspath(os.path.expanduser("./hi_class_public/class"))
-SIMDIR = "./sims/"
+SIMDIR = os.path.expandvars(os.path.expandvars("$DATA/jbdsims"))
 
 def params2seeds(params, n=None):
     rng = np.random.default_rng(int(utils.hashdict(params), 16)) # deterministic random number generator from simulation parameters
