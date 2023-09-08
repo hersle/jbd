@@ -9,7 +9,7 @@ from scipy.interpolate import CubicSpline
 
 COLAEXEC = os.path.abspath(os.path.expanduser("./FML/FML/COLASolver/nbody"))
 CLASSEXEC = os.path.abspath(os.path.expanduser("./hi_class_public/class"))
-SIMDIR = os.path.expandvars(os.path.expandvars("$DATA/jbdsims"))
+SIMDIR = os.path.expandvars(os.path.expandvars("$DATA/jbdsims/"))
 
 def params2seeds(params, n=None):
     rng = np.random.default_rng(int(utils.hashdict(params), 16)) # deterministic random number generator from simulation parameters
@@ -17,7 +17,7 @@ def params2seeds(params, n=None):
     return int(seeds) if n is None else [int(seed) for seed in seeds]
 
 class Simulation:
-    def __init__(self, iparams=None, simdir="./sims/", path=None, verbose=True, run=True):
+    def __init__(self, iparams=None, simdir=SIMDIR, path=None, verbose=True, run=True):
         if path is not None:
             self.directory = simdir + path + "/"
             iparams = utils.json2dict(self.read_file("parameters.json"))
