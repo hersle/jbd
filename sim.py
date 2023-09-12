@@ -175,13 +175,8 @@ class Simulation:
 
     # run a command in the simulation's directory
     def run_command(self, cmd, log="/dev/null", verbose=True):
-        teecmd = subprocess.Popen(["tee", log], stdin=subprocess.PIPE, stdout=None if verbose else subprocess.DEVNULL, cwd=self.directory)
-        runcmd = subprocess.Popen(cmd, stdout=teecmd.stdin, stderr=subprocess.STDOUT, cwd=self.directory)
-
-        runcmd.wait() # wait for command to finish
-        teecmd.stdin.close() # close stream
-
-        assert runcmd.returncode == 0, f"command {runcmd.args} crashed"
+        cmd = " ".join(cmd) + f" | tee {log}"
+        subprocess.run(cmd, shell=True, stdin=subprocess.DEVNULL, stdout=None if verbose else subprocess.DEVNULL, stderr=subprocess.STDOUT, cwd=self.directory, check=True) # https://stackoverflow.com/a/45988305
 
     # list of output redshifts constructed equal to those that FML outputs
     def output_redshifts(self):
