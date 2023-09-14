@@ -9,6 +9,9 @@ from scipy.interpolate import CubicSpline
 
 COLAEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/COLASolver/nbody"))
 CLASSEXEC = os.path.abspath(os.path.expandvars("$HOME/local/hi_class_public/class"))
+RAMSESGREXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3dGR"))
+RAMSESBDEXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3dBD"))
+RAMSES2PKEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/RamsesUtils/ramses2pk/ramses2pk"))
 SIMDIR = os.path.expandvars(os.path.expandvars("$DATA/jbdsims/"))
 
 def params2seeds(params, n=None):
@@ -263,8 +266,8 @@ class Simulation:
             "force_nmesh": self.params["Ncell"],
 
             "output_folder": ".",
-            "output_redshifts": [0.0],
-            "output_particles": False,
+            "output_redshifts": [self.params["zinit"], 0.0], # dump initial and final particles
+            "output_particles": True,
             "pofk_nmesh": self.params["Ncell"], # TODO: ???
         }
 
@@ -283,6 +286,56 @@ class Simulation:
             self.run_command(cmd, log=log, verbose=True)
             self.validate_cola()
 
+    def params_ramses(self, nproc=1):
+        Npart1D = self.params["Npart"]
+        Nparts = Npart1D**3
+        levelmin = int(np.round(np.log2(Npart1D))) # e.g. 10 if Npart1D = 1024
+        levelmax = levelmin + 10                   # e.g. 20 if Npart1D = 1024
+        assert 2**levelmin == Npart1D, "particle count is not a power of 2"
+
+        return '\n'.join([
+            f"&RUN_PARAMS",
+            f"cosmo=.true.", # enable cosmological run
+            f"pic=.true.", # enable particle-in-cell solver
+            f"poisson=.true.", # enable Poisson solver
+            f"nrestart=0", # start simulation from scratch # TODO: could read most recent existing output_xxxxx directory
+            f"nremap=8", # coarse time steps between each load balancing of AMR grid (important for parallelization)
+            f"verbose=.false.", # verbosity
+            #f"nsubcycle=" # TODO: control fine time stepping?
+            f"/",
+            f"&OUTPUT_PARAMS",
+            f"foutput=1", # one output per coarse time step
+            f"/",
+            f"&INIT_PARAMS",
+            f"filetype='gadget'",
+            f"initfile(1)='snapshot_{self.name}_z{self.params['zinit']:.3f}/gadget_z{self.params['zinit']:.3f}'", # start from COLA's initial particles
+            f"/",
+            f"&AMR_PARAMS",
+            f"levelmin={levelmin}", # min number of refinement levels (if Npart1D = 2^n, it should be n)
+            f"levelmax={levelmax}", # max number of refinement levels (if very high, it will automatically stop refining) # TODO: revise?
+            f"npartmax={Nparts+1}", # need +1 to avoid crash with 1 process (maybe ramses allocates one dummy particle or something?) # TODO: optimal value? maybe double what would be needed if particles were shared equally across CPUs?
+            f"ngridmax={Nparts+1}", # TODO: optimal value?
+            f"nexpand=1", # number of mesh expansions # TODO: ???
+            #f"boxlen={self.params['Lh']}", # WARNING: don't set this; something is fucked with RAMSES' units when boxlen != 1.0
+            f"/",
+            f"&REFINE_PARAMS",
+            f"m_refine={','.join([str(8)] * (levelmax-levelmin))}", # refine cells with >= 8 particles (on average into 8 cells with 1 paticle each)
+            f"/",
+        ]) + '\n' # to string
+
+    def run_ramses(self, ramsesexec, np=1, input_filename="ramses_input.nml", log="ramses.log"):
+        # TODO: automatically restart from run by reading ncpu and last snapshot number
+        input = self.params_ramses()
+        input_is_unchanged = self.file_exists(input_filename) and self.read_file(input_filename) == input
+        output_exists = self.file_exists(log) and self.read_file(log).find("Run completed") != -1
+        complete = input_is_unchanged and output_exists
+
+        if not complete:
+            self.run_cola(np=np) # use COLA's particles as initial conditions
+            self.write_file(input_filename, input)
+            cmd = ["mpirun", "-np", str(np), ramsesexec, input_filename] if np > 1 else [ramsesexec, input_filename]
+            self.run_command(cmd, log=log, verbose=True)
+
     def power_spectrum(self, z=0.0, source="linear-class", hunits=True):
         zs = self.output_redshifts()
         if source == "linear-class":
@@ -294,8 +347,27 @@ class Simulation:
         elif source == "nonlinear-cola":
             self.run_cola(np=16)
             filenames = [f"pofk_{self.name}_cb_z{z:.3f}.txt" for z in zs]
+        elif source == "nonlinear-ramses":
+            self.run_ramses(np=16)
+            zs, filenames = [], [] # ramses outputs its own redshifts
+            snapnum = 1
+            while True:
+                snapdir = f"output_{snapnum:05d}"
+                info_filename = f"{snapdir}/info_{snapnum:05d}.txt"
+                pofk_filename = f"{snapdir}/pofk_fml.dat"
+                if self.file_exists(info_filename):
+                    # compute P(k) if not already done
+                    if not self.file_exists(pofk_filename):
+                        self.run_command(["mpirun", "-np", "16", RAMSES2PKEXEC, "--verbose", snapdir])
+                        assert self.file_exists(pofk_filename)
+                    a = self.read_variable(info_filename, "aexp        =  ") # == 1 / (z+1)
+                    zs.append(1/a - 1) # be careful to not override z!
+                    filenames.append(pofk_filename)
+                else:
+                    break # no more snapshots
+                snapnum += 1
         else:
-            raise Exception(f"unknown power specturm source \"{source}\"")
+            raise Exception(f"unknown power spectrum source \"{source}\"")
 
         if source in ("linear-class", "nonlinear-class"):
             # verify that assumed redshifts are those reported by the files
@@ -327,6 +399,9 @@ class GRSimulation(Simulation):
             "cosmology_model": "LCDM",
             "gravity_model": "GR",
         })
+
+    def run_ramses(self, **kwargs):
+        Simulation.run_ramses(self, RAMSESGREXEC, **kwargs)
 
 class BDSimulation(Simulation):
     def derived_parameters(self):
@@ -374,6 +449,29 @@ class BDSimulation(Simulation):
         # Compare dlogϕ/dloga
         dlogϕ_dloga_class = dϕ_dη_class / ϕ_class / (H_class * a_class) # convert by chain rule
         utils.check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4)
+
+    def params_ramses(self, qtyfilename="ramses_loga_G_H.txt"):
+        lines = Simulation.params_ramses(self).split('\n')
+
+        # generate file with columns log(a), Geff(a)/G0, E(a) = H(a)/H0
+        bg = self.read_data("class_background.dat", dict=True)
+        assert bg["z"][-1] == 0.0, "last row of class_background.dat is not today (z=0)"
+        ω = 10**self.params["lgω"]
+        loga = np.log(1 / (bg["z"] + 1)) # log = ln
+        G_G0 = (4+2*ω) / (3+2*ω) / bg["phi_smg"] # TODO: divide by G or G0 (relevant if G0 != G)
+        H_H0 = bg["H [1/Mpc]"] / bg["H [1/Mpc]"][-1]
+        self.write_data(qtyfilename, [loga, G_G0, H_H0], colnames=["ln(a)", "G(a)/G0", "H(a)/H0"])
+        qtylines = self.read_file(qtyfilename).split('\n')
+        qtylines.insert(1, str(len(loga))) # first line should have number of rows
+        self.write_file(qtyfilename, '\n'.join(qtylines))
+
+        # add extra line in &AMR_PARAMS section with path to BD quantities
+        line = f"filename_geff_hubble_data='{qtyfilename}'"
+        lines.insert(lines.index("&AMR_PARAMS")+1, line)
+        return '\n'.join(lines)
+
+    def run_ramses(self, **kwargs):
+        Simulation.run_ramses(self, RAMSESBDEXEC, **kwargs)
 
 class SimulationGroup:
     def __init__(self, simtype, iparams, nsims, seeds=None):
