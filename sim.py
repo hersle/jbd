@@ -532,8 +532,8 @@ class SimulationGroupPair:
 
         # get reference wavenumbers and interpolate P to those values
         k_h = (k_h_BD + k_h_GR) / 2 # simulations have k_h_BD == k_h_GR == k_h
-        PGRs = CubicSpline(k_h_GR, Ph3GRs, axis=1, extrapolate=False)(k_h) # interpolate Ph3GR(k/hGR) to Ph3GR(k/h)
-        PBDs = CubicSpline(k_h_BD, Ph3BDs, axis=1, extrapolate=False)(k_h) # interpolate Ph3BD(k/hBD) to Ph3BD(k/h)
+        Ph3GRs = CubicSpline(k_h_GR, Ph3GRs, axis=1, extrapolate=False)(k_h) # interpolate Ph3GR(k/hGR) to Ph3GR(k/h)
+        Ph3BDs = CubicSpline(k_h_BD, Ph3BDs, axis=1, extrapolate=False)(k_h) # interpolate Ph3BD(k/hBD) to Ph3BD(k/h)
 
         # from a statistical viewpoint,
         # we view P(k) as a random variable with samples from each simulation,
