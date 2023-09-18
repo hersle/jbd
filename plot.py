@@ -75,18 +75,16 @@ def plot_generic(filename, s1s, s2s, s3s, xlabel=None, ylabel=None, labels=None,
     # Dummy legend plot
     ax2 = ax.twinx() # use invisible twin axis to create second legend
     ax2.get_yaxis().set_visible(False) # make invisible
-    lclass,    = ax2.plot(        [-4, -4], [0, 1], alpha=1.0, color="black", linestyle="dotted", linewidth=1)
-    lhalo,     = ax2.plot(        [-4, -4], [0, 1], alpha=1.0, color="black", linestyle="dashed", linewidth=1)
-    lcolaline, = ax2.plot(        [-4, -4], [0, 1], alpha=1.0, color="black", linestyle="solid",  linewidth=1)
-    lcolaband  = ax2.fill_between([-4, -4], [0, 1], alpha=0.2, color="black", edgecolor=None)
-    lcola = (lcolaline, lcolaband)
-    ax2.legend([lclass, lhalo, lcola], [r"$\textrm{linear}$", r"$\textrm{non-linear (halo model)}$", r"$\textrm{non-linear (COLA)}$"], loc="lower left", bbox_to_anchor=(-0.02, -0.02))
+    lclass,  = ax2.plot([-4, -4], [0, 1], alpha=0.5, color="black", linestyle="solid", linewidth=1)
+    lcola,   = ax2.plot([-4, -4], [0, 1], alpha=0.5, color="black", linestyle=(0, (3, 1)), linewidth=1)
+    lramses, = ax2.plot([-4, -4], [0, 1], alpha=0.5, color="black", linestyle=(0, (1, 1)),  linewidth=1)
+    ax2.legend([lclass, lcola, lramses], [r"$\textrm{linear (\textsc{hi_class})}$", r"$\textrm{non-linear (\textsc{fml/cola})}$", r"$\textrm{non-linear (\textsc{ramses})}$"], loc="lower left", bbox_to_anchor=(-0.02, -0.02))
 
     if colors is None: colors = ["black"] * len(boosts_linear)
 
     for s1, s2, s3, color in zip(s1s, s2s, s3s, colors):
-        for (x, y, Δylo, Δyhi), linestyle in zip((s1, s2, s3), ("dotted", "dashed", "solid")):
-            ax.plot(        x, y,              color=(*color, 1.0), linewidth=1, linestyle=linestyle, label=None)
+        for (x, y, Δylo, Δyhi), linestyle, linewidth in zip((s1, s2, s3), ("solid", (0, (3, 1)), (0, (1, 1))), (1.0, 0.5, 0.25)):
+            ax.plot(        x, y,              color=(*color, 1.0), linewidth=1, linestyle=linestyle, alpha=0.5, label=None)
             ax.fill_between(x, y-Δylo, y+Δyhi, color=(*color, 0.2), linewidth=0) # error band
 
     # set ticks from input ticks = (min, max, step)
@@ -112,9 +110,9 @@ def plot_generic(filename, s1s, s2s, s3s, xlabel=None, ylabel=None, labels=None,
     print("Plotted", filename)
 
 def plot_power(filename_stem, params0, param, vals, θGR, nsims=1):
-    PBD_linear_class,    PGR_linear_class,    B_linear_class    = [], [], []
-    PBD_nonlinear_class, PGR_nonlinear_class, B_nonlinear_class = [], [], []
-    PBD_nonlinear_cola,  PGR_nonlinear_cola,  B_nonlinear_cola  = [], [], []
+    PBD_linear_class,     PGR_linear_class,     B_linear_class     = [], [], []
+    PBD_nonlinear_cola,   PGR_nonlinear_cola,   B_nonlinear_cola   = [], [], []
+    PBD_nonlinear_ramses, PGR_nonlinear_ramses, B_nonlinear_ramses = [], [], []
 
     colors, labels = [], []
     val0 = 0.0 if param == "z" else params0[param] # varying z requires same sim params, but calling power spectrum with z=z, so handle it in a special way
@@ -124,9 +122,9 @@ def plot_power(filename_stem, params0, param, vals, θGR, nsims=1):
         z = val if param == "z" else 0.0
         sims = sim.SimulationGroupPair(params, θGR, nsims)
 
-        for source, Blist, PBDlist, PGRlist in [("linear-class",    B_linear_class,    PBD_linear_class,    PGR_linear_class),
-                                                ("nonlinear-cola",  B_nonlinear_cola,  PBD_nonlinear_cola,  PGR_nonlinear_cola),
-                                                ("nonlinear-class", B_nonlinear_class, PBD_nonlinear_class, PGR_nonlinear_class)]:
+        for source, Blist, PBDlist, PGRlist in [("linear-class",     B_linear_class,     PBD_linear_class,     PGR_linear_class),
+                                                ("nonlinear-cola",   B_nonlinear_cola,   PBD_nonlinear_cola,   PGR_nonlinear_cola),
+                                                ("nonlinear-ramses", B_nonlinear_ramses, PBD_nonlinear_ramses, PGR_nonlinear_ramses)]:
             k, P, ΔP = sims.sims_GR.power_spectrum(source=source, z=z)
             PGRlist.append((np.log10(k), np.log10(P), np.log10(P+ΔP)-np.log10(P), np.log10(P)-np.log10(P-ΔP)))
 
@@ -148,11 +146,11 @@ def plot_power(filename_stem, params0, param, vals, θGR, nsims=1):
 
     # plot B = PBD / PGR
     xlabel = r"$\lg\left[k / (h/\mathrm{Mpc})\right]$"
-    ylabel = r"$B = P_\mathrm{BD} h_\mathrm{BD}^3 / P_\mathrm{GR} h_\mathrm{GR}^3$"
+    ylabel = r"$P_\mathrm{BD} h_\mathrm{BD}^3 / P_\mathrm{GR} h_\mathrm{GR}^3$"
     ystem  = r"B"
     xticks = (-3, +1, 1, 0.1)
     yticks = (0.80, 1.20, 0.10, 0.01)
-    plot_generic(filename_stem + "_B.pdf", B_linear_class, B_nonlinear_class, B_nonlinear_cola, xlabel, ylabel, labels, colors, PARAM_PLOT_INFO[param]["label"], xticks, yticks, ystem)
+    plot_generic(filename_stem + "_B.pdf", B_linear_class, B_nonlinear_cola, B_nonlinear_ramses, xlabel, ylabel, labels, colors, PARAM_PLOT_INFO[param]["label"], xticks, yticks, ystem)
 
     # plot individual PGR and PBD
     xlabel   = r"$\lg\left[k / (h/\mathrm{Mpc})\right]$"
@@ -161,8 +159,8 @@ def plot_power(filename_stem, params0, param, vals, θGR, nsims=1):
     ystem    = r"P"
     xticks = (-3, +1, 1, 0.1)
     yticks = (0, 5, 1.0, 0.1)
-    plot_generic(filename_stem + "_PGR.pdf", PGR_linear_class, PGR_nonlinear_class, PGR_nonlinear_cola, xlabel, ylabelGR, labels, colors, PARAM_PLOT_INFO[param]["label"], xticks, yticks, ystem)
-    plot_generic(filename_stem + "_PBD.pdf", PBD_linear_class, PGR_nonlinear_class, PBD_nonlinear_cola, xlabel, ylabelBD, labels, colors, PARAM_PLOT_INFO[param]["label"], xticks, yticks, ystem)
+    plot_generic(filename_stem + "_PGR.pdf", PGR_linear_class, PGR_nonlinear_cola, PGR_nonlinear_ramses, xlabel, ylabelGR, labels, colors, PARAM_PLOT_INFO[param]["label"], xticks, yticks, ystem)
+    plot_generic(filename_stem + "_PBD.pdf", PBD_linear_class, PBD_nonlinear_cola, PBD_nonlinear_ramses, xlabel, ylabelBD, labels, colors, PARAM_PLOT_INFO[param]["label"], xticks, yticks, ystem)
 
 def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", ylabel="", logabs=False, Δyrel=None, Δyabs=None):
     sims = sim.SimulationGroupPair(params0_BD, θGR)
