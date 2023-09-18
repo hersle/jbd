@@ -178,10 +178,13 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         assert len(matches) == 1, f"found {len(matches)} ≠ 1 matches {matches} for regex \"{regex}\" in file {self.file_path(filename)}"
         return float(matches[0][0])
 
-    # run a command in the simulation's directory # TODO: mpirun -np 16 here
-    def run_command(self, cmd, subdir="", log="/dev/null", verbose=True):
-        cmd = " ".join(cmd) + f" | tee {log}"
-        subprocess.run(cmd, shell=True, stdin=subprocess.DEVNULL, stdout=None if verbose else subprocess.DEVNULL, stderr=subprocess.STDOUT, cwd=self.directory+subdir, check=True) # https://stackoverflow.com/a/45988305
+    # run a command in the simulation's directory
+    def run_command(self, cmd, np=1, log=None, subdir=""):
+        if np > 1:
+            cmd = f"mpirun -np {np} {cmd}"
+        if log:
+            cmd = f"{cmd} | tee {log}"
+        subprocess.run(cmd, shell=True, cwd=self.directory+subdir, check=True, stdin=subprocess.DEVNULL) # https://stackoverflow.com/a/45988305
 
     # list of output redshifts constructed equal to those that FML outputs
     def output_redshifts(self):
@@ -232,7 +235,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         if not complete:
             # write input and run class
             self.write_file("class/input.ini", input)
-            self.run_command([CLASSEXEC, "input.ini"], log="log.txt", subdir="class/", verbose=True)
+            self.run_command(f"{CLASSEXEC} input.ini", subdir="class/", log="log.txt")
 
     # dictionary of parameters that should be passed to COLA
     # TODO: return string here, too
@@ -288,7 +291,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             k_h, Ph3 = self.power_spectrum(z=0, source="linear-class", hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
             self.write_data("cola/pofk_ic.dat", {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
             self.write_file("cola/input.lua", input)
-            self.run_command(["mpirun", "-np", str(np), COLAEXEC, "input.lua"], log="log.txt", subdir="cola/", verbose=True) # TODO: ssh out to list of machines?
+            self.run_command(f"{COLAEXEC} input.lua", subdir="cola/", np=np, log="log.txt") # TODO: ssh out to list of machines?
             self.validate_cola()
 
     def params_ramses(self, nproc=1):
@@ -339,7 +342,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         if not complete:
             self.run_cola(np=np) # use COLA's particles as initial conditions
             self.write_file("ramses/input.nml", input)
-            self.run_command(["mpirun", "-np", str(np), ramsesexec, "input.nml"], subdir="ramses/", log="log.txt", verbose=True)
+            self.run_command(f"{ramsesexec} input.nml", subdir="ramses/", np=np, log="log.txt")
 
     def power_spectrum(self, z=0.0, source="linear-class", hunits=True):
         zs = self.output_redshifts()
@@ -363,7 +366,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
                 if self.file_exists(info_filename):
                     # compute P(k) if not already done
                     if not self.file_exists(pofk_filename):
-                        self.run_command(["mpirun", "-np", "16", RAMSES2PKEXEC, "--verbose", "--density-assignment=CIC", snapdir])
+                        self.run_command(f"{RAMSES2PKEXEC} --verbose --density-assignment=CIC {snapdir}", np=16)
                         assert self.file_exists(pofk_filename)
                     a = self.read_variable(info_filename, "aexp        =  ") # == 1 / (z+1)
                     zs.append(1/a - 1) # be careful to not override z!
