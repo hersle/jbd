@@ -10,7 +10,6 @@
 # TODO: "predict" boost from hBD, hGR, AsBD, AsGR, etc.
 # TODO: emulation https://github.com/renmau/Sesame_pipeline/
 # TODO: subtract shotnoise
-# TODO: separate BD, GR, CLASS, COLA, RAMSES directories
 # TODO: compute AMR of 256 grid on a 4*256 = 1024 grid
 # TODO: compute P(k) from COLA *snapshots*
 

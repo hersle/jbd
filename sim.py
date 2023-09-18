@@ -34,7 +34,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         self.iparams = iparams
         self.name = utils.hashdict(self.iparams) # parameters -> hash: identify sim with unique hash of its (independent, including seed) parameter dict
         self.directory = simdir + self.name + "/" # working directory for the simulation to live in
-        os.makedirs(self.directory, exist_ok=True)
+        self.create_directory("") # create directory for the simulation to live in
         self.write_file("parameters.json", utils.dict2json(self.iparams, unicode=True), skip_if_exists=True) # hash -> parameters: store (independent, including seed) parameters to enable reverse lookup
 
         self.dparams = self.derived_parameters()
@@ -58,22 +58,22 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
         # derive σ8 or As from the other
         if "σ8" in self.iparams:
-            if not self.file_exists("Ase9_from_s8.txt"):
+            if not self.file_exists("class/Ase9_from_s8.txt"):
                 σ8_target = self.iparams["σ8"]
                 Ase9 = 1.0 # initial guess
                 while True:
                     self.params = utils.dictupdate(self.iparams, dparams | {"Ase9": Ase9}, remove=["σ8"])
                     self.run_class() # re-run until we have the correct σ8
-                    σ8 = self.read_variable("class.log", "sigma8=")
+                    σ8 = self.read_variable("class/log.txt", "sigma8=")
                     if np.abs(σ8 - σ8_target) < 1e-10:
                         break
                     Ase9 = (σ8_target/σ8)**2 * Ase9 # exploit σ8^2 ∝ As to iterate efficiently (usually requires only one retry)
-                self.write_file("Ase9_from_s8.txt", str(self.params["Ase9"])) # cache the result (expensive to compute)
-            dparams["Ase9"] = float(self.read_file("Ase9_from_s8.txt"))
+                self.write_file("class/Ase9_from_s8.txt", str(self.params["Ase9"])) # cache the result (expensive to compute)
+            dparams["Ase9"] = float(self.read_file("class/Ase9_from_s8.txt"))
         elif "Ase9" in self.iparams:
             self.params = utils.dictupdate(self.iparams, dparams)
             self.run_class()
-            dparams["σ8"] = self.read_variable("class.log", "sigma8=")
+            dparams["σ8"] = self.read_variable("class/log.txt", "sigma8=")
         else:
             raise(Exception("Exactly one of (Ase9, σ8) were not specified"))
 
@@ -87,6 +87,9 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
         return dparams
 
+    def create_directory(self, dirname):
+        os.makedirs(self.directory + dirname, exist_ok=True)
+
     def file_path(self, filename):
         return self.directory + filename
 
@@ -97,8 +100,8 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
     # check that the output from COLA is consistent with that from CLASS
     def validate_cola(self):
         # Read background quantities
-        z_class, H_class = self.read_data("class_background.dat", dict=True, cols=("z", "H [1/Mpc]"))
-        a_cola, E_cola = self.read_data(f"cosmology_{self.name}.txt", dict=True, cols=("a", "H/H0"))
+        z_class, H_class = self.read_data("class/background.dat", dict=True, cols=("z", "H [1/Mpc]"))
+        a_cola, E_cola = self.read_data(f"cola/cosmology_cola.txt", dict=True, cols=("a", "H/H0"))
         a_class  = 1 / (1 + z_class)
 
         # Compare E = H/H0
@@ -106,13 +109,13 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         utils.check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)", rtol=1e-4)
 
         # Compare ΩΛ0
-        ΩΛ0_class = self.read_variable("class.log", "Lambda = ")
-        ΩΛ0_cola  = self.read_variable("cola.log", "OmegaLambda             : ")
+        ΩΛ0_class = self.read_variable("class/log.txt", "Lambda = ")
+        ΩΛ0_cola  = self.read_variable("cola/log.txt", "OmegaLambda             : ")
         utils.check_values_are_close(ΩΛ0_class, ΩΛ0_cola, name="ΩΛ0", rtol=1e-4)
 
         # Compare σ8 today
-        σ8_class = self.read_variable("class.log", "sigma8=")
-        σ8_cola  = self.read_variable("cola.log",  "Sigma\(R = 8 Mpc/h, z = 0.0 \) :\s+")
+        σ8_class = self.read_variable("class/log.txt", "sigma8=")
+        σ8_cola  = self.read_variable("cola/log.txt",  "Sigma\(R = 8 Mpc/h, z = 0.0 \) :\s+")
         utils.check_values_are_close(σ8_class, σ8_cola, name="σ8", rtol=1e-3)
 
     # save a data file associated with the simulation
@@ -176,9 +179,9 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         return float(matches[0][0])
 
     # run a command in the simulation's directory # TODO: mpirun -np 16 here
-    def run_command(self, cmd, log="/dev/null", verbose=True):
+    def run_command(self, cmd, subdir="", log="/dev/null", verbose=True):
         cmd = " ".join(cmd) + f" | tee {log}"
-        subprocess.run(cmd, shell=True, stdin=subprocess.DEVNULL, stdout=None if verbose else subprocess.DEVNULL, stderr=subprocess.STDOUT, cwd=self.directory, check=True) # https://stackoverflow.com/a/45988305
+        subprocess.run(cmd, shell=True, stdin=subprocess.DEVNULL, stdout=None if verbose else subprocess.DEVNULL, stderr=subprocess.STDOUT, cwd=self.directory+subdir, check=True) # https://stackoverflow.com/a/45988305
 
     # list of output redshifts constructed equal to those that FML outputs
     def output_redshifts(self):
@@ -206,7 +209,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             "non linear": "halofit", # also estimate non-linear P(k,z)
             "z_pk": ", ".join(str(z) for z in self.output_redshifts()), # output P(k,z) at same redshifts as FML/COLA, so interpolation behaves consistently
             "write background": "yes",
-            "root": "class_",
+            "root": "./",
             "P_k_max_h/Mpc": 100.0, # output linear power spectrum to fill my plots
 
             # log verbosity (increase integers to make more talkative)
@@ -219,22 +222,23 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         }
 
     # run CLASS and return today's matter power spectrum
-    def run_class(self, input_filename="class_input.ini", log="class.log"):
+    def run_class(self):
+        self.create_directory("class/")
         input = "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items())
-        input_is_unchanged = self.file_exists(input_filename) and self.read_file(input_filename) == input
-        output_exists = self.file_exists(f"class_z{self.params['Nstep']+1}_pk.dat")
+        input_is_unchanged = self.file_exists("class/input.ini") and self.read_file("class/input.ini") == input
+        output_exists = self.file_exists(f"class/z{self.params['Nstep']+1}_pk.dat")
         complete = input_is_unchanged and output_exists
 
         if not complete:
             # write input and run class
-            self.write_file(input_filename, input)
-            self.run_command([CLASSEXEC, input_filename], log=log, verbose=True)
+            self.write_file("class/input.ini", input)
+            self.run_command([CLASSEXEC, "input.ini"], log="log.txt", subdir="class/", verbose=True)
 
     # dictionary of parameters that should be passed to COLA
     # TODO: return string here, too
     def params_cola(self):
         return { # common parameters (for any derived simulation)
-            "simulation_name": self.name,
+            "simulation_name": "cola",
             "simulation_boxsize": self.params["Lh"],
             "simulation_use_cola": True,
             "simulation_use_scaledependent_cola": False, # TODO: only relevant with massive neutrinos?
@@ -261,7 +265,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             "ic_initial_redshift": self.params["zinit"],
             "ic_nmesh" : self.params["Ncell"],
             "ic_type_of_input": "powerspectrum", # transferinfofile only relevant with massive neutrinos?
-            "ic_input_filename": "power_spectrum_today.dat",
+            "ic_input_filename": "pofk_ic.dat",
             "ic_input_redshift": 0.0, # TODO: feed initial power spectrum directly instead of backscaling? Hans said someone incorporated this into his code?
 
             "force_nmesh": self.params["Ncell"],
@@ -273,18 +277,18 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         }
 
     # run COLA simulation from back-scaling today's matter power spectrum (from CLASS)
-    def run_cola(self, np=1, verbose=True, ic_filename="power_spectrum_today.dat", input_filename="cola_input.lua", log="cola.log"):
+    def run_cola(self, np=1, verbose=True):
+        self.create_directory("cola")
         input = "\n".join(f"{param} = {utils.luastr(val)}" for param, val in self.params_cola().items())
-        input_is_unchanged = self.file_exists(input_filename) and self.read_file(input_filename) == input
-        output_exists = self.file_exists(f"pofk_{self.name}_cb_z0.000.txt")
+        input_is_unchanged = self.file_exists("cola/input.lua") and self.read_file("cola/input.lua") == input
+        output_exists = self.file_exists(f"cola/pofk_cola_cb_z0.000.txt")
         complete = input_is_unchanged and output_exists
 
         if not complete:
             k_h, Ph3 = self.power_spectrum(z=0, source="linear-class", hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
-            self.write_data(ic_filename, {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
-            self.write_file(input_filename, input)
-            cmd = ["mpirun", "-np", str(np), COLAEXEC, input_filename] if np > 1 else [COLAEXEC, input_filename] # TODO: ssh out to list of machines
-            self.run_command(cmd, log=log, verbose=True)
+            self.write_data("cola/pofk_ic.dat", {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
+            self.write_file("cola/input.lua", input)
+            self.run_command(["mpirun", "-np", str(np), COLAEXEC, "input.lua"], log="log.txt", subdir="cola/", verbose=True) # TODO: ssh out to list of machines?
             self.validate_cola()
 
     def params_ramses(self, nproc=1):
@@ -309,7 +313,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f"/",
             f"&INIT_PARAMS",
             f"filetype='gadget'",
-            f"initfile(1)='snapshot_{self.name}_z{self.params['zinit']:.3f}/gadget_z{self.params['zinit']:.3f}'", # start from COLA's initial particles
+            f"initfile(1)='../cola/snapshot_cola_z{self.params['zinit']:.3f}/gadget_z{self.params['zinit']:.3f}'", # start from COLA's initial particles
             f"/",
             f"&AMR_PARAMS",
             f"levelmin={levelmin}", # min number of refinement levels (if Npart1D = 2^n, it should be n)
@@ -324,42 +328,42 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f"/",
         ]) + '\n' # to string
 
-    def run_ramses(self, ramsesexec, np=1, input_filename="ramses_input.nml", log="ramses.log"):
+    def run_ramses(self, ramsesexec, np=1):
         # TODO: automatically restart from run by reading ncpu and last snapshot number
+        self.create_directory("ramses/")
         input = self.params_ramses()
-        input_is_unchanged = self.file_exists(input_filename) and self.read_file(input_filename) == input
-        output_exists = self.file_exists(log) and self.read_file(log).find("Run completed") != -1
+        input_is_unchanged = self.file_exists("ramses/input.nml") and self.read_file("ramses/input.nml") == input
+        output_exists = self.file_exists("ramses/log.txt") and self.read_file("ramses/log.txt").find("Run completed") != -1
         complete = input_is_unchanged and output_exists
 
         if not complete:
             self.run_cola(np=np) # use COLA's particles as initial conditions
-            self.write_file(input_filename, input)
-            cmd = ["mpirun", "-np", str(np), ramsesexec, input_filename] if np > 1 else [ramsesexec, input_filename]
-            self.run_command(cmd, log=log, verbose=True)
+            self.write_file("ramses/input.nml", input)
+            self.run_command(["mpirun", "-np", str(np), ramsesexec, "input.nml"], subdir="ramses/", log="log.txt", verbose=True)
 
     def power_spectrum(self, z=0.0, source="linear-class", hunits=True):
         zs = self.output_redshifts()
         if source == "linear-class":
             self.run_class()
-            filenames = [f"class_z{n+1}_pk.dat" for n in range(0, len(zs))]
+            filenames = [f"class/z{n+1}_pk.dat" for n in range(0, len(zs))]
         elif source == "nonlinear-class":
             self.run_class()
-            filenames = [f"class_z{n+1}_pk_nl.dat" for n in range(0, len(zs))]
+            filenames = [f"class/z{n+1}_pk_nl.dat" for n in range(0, len(zs))]
         elif source == "nonlinear-cola":
             self.run_cola(np=16)
-            filenames = [f"pofk_{self.name}_cb_z{z:.3f}.txt" for z in zs]
+            filenames = [f"cola/pofk_cola_cb_z{z:.3f}.txt" for z in zs]
         elif source == "nonlinear-ramses":
             self.run_ramses(np=16)
             zs, filenames = [], [] # ramses outputs its own redshifts
             snapnum = 1
             while True:
-                snapdir = f"output_{snapnum:05d}"
+                snapdir = f"ramses/output_{snapnum:05d}"
                 info_filename = f"{snapdir}/info_{snapnum:05d}.txt"
                 pofk_filename = f"{snapdir}/pofk_fml.dat"
                 if self.file_exists(info_filename):
                     # compute P(k) if not already done
                     if not self.file_exists(pofk_filename):
-                        self.run_command(["mpirun", "-np", "16", RAMSES2PKEXEC, "--verbose", snapdir])
+                        self.run_command(["mpirun", "-np", "16", RAMSES2PKEXEC, "--verbose", "--density-assignment=CIC", snapdir])
                         assert self.file_exists(pofk_filename)
                     a = self.read_variable(info_filename, "aexp        =  ") # == 1 / (z+1)
                     zs.append(1/a - 1) # be careful to not override z!
@@ -395,6 +399,9 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             return k, P
 
 class GRSimulation(Simulation):
+    def __init__(self, iparams=None, path=None, verbose=True):
+        Simulation.__init__(self, iparams, SIMDIR+"GR/", path, verbose)
+
     def params_cola(self):
         return utils.dictupdate(Simulation.params_cola(self), {
             "cosmology_model": "LCDM",
@@ -405,11 +412,14 @@ class GRSimulation(Simulation):
         Simulation.run_ramses(self, RAMSESGREXEC, **kwargs)
 
 class BDSimulation(Simulation):
+    def __init__(self, iparams=None, path=None, verbose=True):
+        Simulation.__init__(self, iparams, SIMDIR+"BD/", path, verbose)
+
     def derived_parameters(self):
         dparams = Simulation.derived_parameters(self) # call parent class
-        dparams["ϕini"] = self.read_variable("class.log", "phi_ini = ")
-        dparams["ϕ0"]   = self.read_variable("class.log", "phi_0 = ")
-        dparams["ΩΛ0"]  = self.read_variable("class.log", "Lambda = ") / dparams["ϕ0"] # ρΛ0 / (3*H0^2*ϕ0/8*π)
+        dparams["ϕini"] = self.read_variable("class/log.txt", "phi_ini = ")
+        dparams["ϕ0"]   = self.read_variable("class/log.txt", "phi_0 = ")
+        dparams["ΩΛ0"]  = self.read_variable("class/log.txt", "Lambda = ") / dparams["ϕ0"] # ρΛ0 / (3*H0^2*ϕ0/8*π)
         dparams["ωΛ0"]  = dparams["ΩΛ0"] * self.iparams["h"]**2 * dparams["ϕ0"]            # ∝ ρΛ0
         return dparams
 
@@ -439,8 +449,8 @@ class BDSimulation(Simulation):
         Simulation.validate_cola(self) # do any validation in parent class
 
         # Read background tables and their scale factors (which we use as the free time variable)
-        z_class, H_class, ϕ_class, dϕ_dη_class = self.read_data("class_background.dat", dict=True, cols=("z", "H [1/Mpc]", "phi_smg", "phi'"))
-        a_cola, ϕ_cola, dlogϕ_dloga_cola = self.read_data(f"cosmology_{self.name}.txt", dict=True, cols=("a", "phi", "dlogphi/dloga"))
+        z_class, H_class, ϕ_class, dϕ_dη_class = self.read_data("class/background.dat", dict=True, cols=("z", "H [1/Mpc]", "phi_smg", "phi'"))
+        a_cola, ϕ_cola, dlogϕ_dloga_cola = self.read_data(f"cola/cosmology_cola.txt", dict=True, cols=("a", "phi", "dlogphi/dloga"))
         a_cola, ϕ_cola, dlogϕ_dloga_cola = a_cola[a_cola<=1], ϕ_cola[a_cola<=1], dlogϕ_dloga_cola[a_cola<=1]
         a_class  = 1 / (1 + z_class)
 
@@ -451,23 +461,23 @@ class BDSimulation(Simulation):
         dlogϕ_dloga_class = dϕ_dη_class / ϕ_class / (H_class * a_class) # convert by chain rule
         utils.check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4)
 
-    def params_ramses(self, qtyfilename="ramses_loga_G_H.txt"):
+    def params_ramses(self):
         lines = Simulation.params_ramses(self).split('\n')
 
         # generate file with columns log(a), Geff(a)/G0, E(a) = H(a)/H0
-        bg = self.read_data("class_background.dat", dict=True)
-        assert bg["z"][-1] == 0.0, "last row of class_background.dat is not today (z=0)"
+        bg = self.read_data("class/background.dat", dict=True)
+        assert bg["z"][-1] == 0.0, "last row of class/background.dat is not today (z=0)"
         ω = 10**self.params["lgω"]
         loga = np.log(1 / (bg["z"] + 1)) # log = ln
         G_G0 = (4+2*ω) / (3+2*ω) / bg["phi_smg"] # TODO: divide by G or G0 (relevant if G0 != G)
         H_H0 = bg["H [1/Mpc]"] / bg["H [1/Mpc]"][-1]
-        self.write_data(qtyfilename, [loga, G_G0, H_H0], colnames=["ln(a)", "G(a)/G0", "H(a)/H0"])
-        qtylines = self.read_file(qtyfilename).split('\n')
+        self.write_data("ramses/BD.dat", [loga, G_G0, H_H0], colnames=["ln(a)", "G(a)/G0", "H(a)/H0"])
+        qtylines = self.read_file("ramses/BD.dat").split('\n')
         qtylines.insert(1, str(len(loga))) # first line should have number of rows
-        self.write_file(qtyfilename, '\n'.join(qtylines))
+        self.write_file("ramses/BD.dat", '\n'.join(qtylines))
 
         # add extra line in &AMR_PARAMS section with path to BD quantities
-        line = f"filename_geff_hubble_data='{qtyfilename}'"
+        line = f"filename_geff_hubble_data='BD.dat'"
         lines.insert(lines.index("&AMR_PARAMS")+1, line)
         return '\n'.join(lines)
 

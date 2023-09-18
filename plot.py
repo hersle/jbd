@@ -165,8 +165,8 @@ def plot_power(filename_stem, params0, param, vals, θGR, nsims=1):
 def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", ylabel="", logabs=False, Δyrel=None, Δyabs=None):
     sims = sim.SimulationGroupPair(params0_BD, θGR)
 
-    bg_BD = sims.sims_BD[0].read_data("class_background.dat", dict=True)
-    bg_GR = sims.sims_GR[0].read_data("class_background.dat", dict=True)
+    bg_BD = sims.sims_BD[0].read_data("class/background.dat", dict=True)
+    bg_GR = sims.sims_GR[0].read_data("class/background.dat", dict=True)
 
     # want to plot 1e-10 <= a <= 1, so cut away a < 1e-11
     bg_BD = {key: bg_BD[key][1/(bg_BD["z"]+1) > 1e-11] for key in bg_BD}
@@ -175,8 +175,8 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
     a_BD = 1 / (bg_BD["z"] + 1) # = 1 / (z + 1)
     a_GR = 1 / (bg_GR["z"] + 1) # = 1 / (z + 1)
 
-    aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
-    aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
+    aeq_BD = 1 / (sims.sims_BD[0].read_variable("class/log.txt", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
+    aeq_GR = 1 / (sims.sims_GR[0].read_variable("class/log.txt", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': (1, 1.618)}, figsize=(3.0, 3.5), sharex=True)
     ax2.set_xlabel(r"$\lg a$")
@@ -220,11 +220,11 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
 def plot_density_evolution(filename, params0_BD, θGR):
     sims = sim.SimulationGroupPair(params0_BD, θGR)
 
-    z_BD, ργ_BD, ρν_BD, ρb_BD, ρc_BD, ρΛϕ_BD, ρcrit_BD = sims.sims_BD[0].read_data("class_background.dat", dict=True, cols=("z", "(.)rho_g", "(.)rho_ur", "(.)rho_b", "(.)rho_cdm", "(.)rho_smg",    "(.)rho_crit"))
-    z_GR, ργ_GR, ρν_GR, ρb_GR, ρc_GR, ρΛ_GR,  ρcrit_GR = sims.sims_GR[0].read_data("class_background.dat", dict=True, cols=("z", "(.)rho_g", "(.)rho_ur", "(.)rho_b", "(.)rho_cdm", "(.)rho_lambda", "(.)rho_crit"))
+    z_BD, ργ_BD, ρν_BD, ρb_BD, ρc_BD, ρΛϕ_BD, ρcrit_BD = sims.sims_BD[0].read_data("class/background.dat", dict=True, cols=("z", "(.)rho_g", "(.)rho_ur", "(.)rho_b", "(.)rho_cdm", "(.)rho_smg",    "(.)rho_crit"))
+    z_GR, ργ_GR, ρν_GR, ρb_GR, ρc_GR, ρΛ_GR,  ρcrit_GR = sims.sims_GR[0].read_data("class/background.dat", dict=True, cols=("z", "(.)rho_g", "(.)rho_ur", "(.)rho_b", "(.)rho_cdm", "(.)rho_lambda", "(.)rho_crit"))
 
-    aeq_BD = 1 / (sims.sims_BD[0].read_variable("class.log", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
-    aeq_GR = 1 / (sims.sims_GR[0].read_variable("class.log", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
+    aeq_BD = 1 / (sims.sims_BD[0].read_variable("class/log.txt", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
+    aeq_GR = 1 / (sims.sims_GR[0].read_variable("class/log.txt", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
 
     a_BD   = 1 / (z_BD + 1)
     Ωr_BD  = (ργ_BD + ρν_BD) / ρcrit_BD
