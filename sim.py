@@ -19,13 +19,13 @@ def params2seeds(params, n=None):
     seeds = rng.integers(0, 2**31-1, size=n, dtype=int) # output python (not numpy) ints to make compatible with JSON dict hashing
     return int(seeds) if n is None else [int(seed) for seed in seeds]
 
-class Simulation:
-    def __init__(self, iparams=None, simdir=SIMDIR, path=None, verbose=True, run=True):
+class Simulation: # TODO: makes more sense to name Model, Cosmology or something similar
+    def __init__(self, iparams=None, simdir=SIMDIR, path=None, verbose=True):
         if path is not None:
             self.directory = simdir + path + "/"
             iparams = utils.json2dict(self.read_file("parameters.json"))
             constructor = BDSimulation if "lgω" in iparams else GRSimulation
-            constructor(iparams=iparams, verbose=verbose, run=run)
+            constructor(iparams=iparams, verbose=verbose)
             return None
 
         if "seed" not in iparams:
@@ -101,7 +101,6 @@ class Simulation:
         a_cola, E_cola = self.read_data(f"cosmology_{self.name}.txt", dict=True, cols=("a", "H/H0"))
         a_class  = 1 / (1 + z_class)
 
-
         # Compare E = H/H0
         E_class = H_class / H_class[-1] # E = H/H0 (assuming final value is at a=1)
         utils.check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)", rtol=1e-4)
@@ -176,7 +175,7 @@ class Simulation:
         assert len(matches) == 1, f"found {len(matches)} ≠ 1 matches {matches} for regex \"{regex}\" in file {self.file_path(filename)}"
         return float(matches[0][0])
 
-    # run a command in the simulation's directory
+    # run a command in the simulation's directory # TODO: mpirun -np 16 here
     def run_command(self, cmd, log="/dev/null", verbose=True):
         cmd = " ".join(cmd) + f" | tee {log}"
         subprocess.run(cmd, shell=True, stdin=subprocess.DEVNULL, stdout=None if verbose else subprocess.DEVNULL, stderr=subprocess.STDOUT, cwd=self.directory, check=True) # https://stackoverflow.com/a/45988305
@@ -186,6 +185,7 @@ class Simulation:
         return 1 / np.linspace(1/(self.params["zinit"]+1), 1, self.params["Nstep"]+1) - 1
 
     # dictionary of parameters that should be passed to CLASS
+    # TODO: return string here, too
     def params_class(self):
         return {
             # cosmological parameters
@@ -231,6 +231,7 @@ class Simulation:
             self.run_command([CLASSEXEC, input_filename], log=log, verbose=True)
 
     # dictionary of parameters that should be passed to COLA
+    # TODO: return string here, too
     def params_cola(self):
         return { # common parameters (for any derived simulation)
             "simulation_name": self.name,
