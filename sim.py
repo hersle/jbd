@@ -7,40 +7,40 @@ import subprocess
 import numpy as np
 from scipy.interpolate import CubicSpline
 
-COLAEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/COLASolver/nbody"))
-CLASSEXEC = os.path.abspath(os.path.expandvars("$HOME/local/hi_class_public/class"))
-RAMSESGREXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3dGR"))
-RAMSESBDEXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3dBD"))
-RAMSES2PKEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/RamsesUtils/ramses2pk/ramses2pk"))
-SIMDIR = os.path.expandvars(os.path.expandvars("$DATA/jbdsims/"))
-
 def params2seeds(params, n=None):
     rng = np.random.default_rng(int(utils.hashdict(params), 16)) # deterministic random number generator from simulation parameters
     seeds = rng.integers(0, 2**31-1, size=n, dtype=int) # output python (not numpy) ints to make compatible with JSON dict hashing
     return int(seeds) if n is None else [int(seed) for seed in seeds]
 
 class Simulation: # TODO: makes more sense to name Model, Cosmology or something similar
-    def __init__(self, iparams=None, simdir=SIMDIR, path=None, verbose=True):
-        if path is not None:
-            self.directory = simdir + path + "/"
-            iparams = utils.json2dict(self.read_file("parameters.json"))
-            constructor = BDSimulation if "lgω" in iparams else GRSimulation
-            constructor(iparams=iparams, verbose=verbose)
-            return None
+    SIMDIR = os.path.expandvars(os.path.expandvars("$DATA/jbdsims/"))
+    COLAEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/COLASolver/nbody"))
+    CLASSEXEC = os.path.abspath(os.path.expandvars("$HOME/local/hi_class_public/class"))
+    RAMSESEXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3d"))
+    RAMSES2PKEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/RamsesUtils/ramses2pk/ramses2pk"))
 
+    def __init__(self, iparams):
         if "seed" not in iparams:
             iparams["seed"] = params2seeds(iparams) # assign a (random) random seed
 
         self.iparams = iparams
         self.name = utils.hashdict(self.iparams) # parameters -> hash: identify sim with unique hash of its (independent, including seed) parameter dict
-        self.directory = simdir + self.name + "/" # working directory for the simulation to live in
+        self.directory = self.SIMDIR + self.name + "/" # working directory for the simulation to live in
         self.create_directory("") # create directory for the simulation to live in
         self.write_file("parameters.json", utils.dict2json(self.iparams, unicode=True) + '\n', skip_if_exists=True) # hash -> parameters: store (independent, including seed) parameters to enable reverse lookup
 
         self.dparams = self.derived_parameters()
         self.params = utils.dictupdate(self.iparams, self.dparams) # all (independent + dependent) parameters
-        if verbose:
-            print(f"{self.directory}: {self.iparams} -> {self.dparams}") # print independent -> dependent parameters
+
+        iparamsstr = ", ".join(f"{param} = {value}" for param, value in self.iparams.items())
+        dparamsstr = ", ".join(f"{param} = {value}" for param, value in self.dparams.items())
+        print(f"Loaded {self.directory}: {iparamsstr} -> {dparamsstr}") # print independent -> dependent parameters
+
+    @classmethod
+    def list(cls):
+        for path in os.scandir(cls.SIMDIR):
+            iparams = utils.json2dict(utils.read_file(f"{cls.SIMDIR}{path.name}/parameters.json"))
+            cls(iparams)
 
     # compute and return derived parameters
     def derived_parameters(self):
@@ -167,8 +167,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
     # load a file associated with the simulation
     def read_file(self, filename):
-        with open(self.file_path(filename), "r", encoding="utf-8") as file:
-            return file.read()
+        return utils.read_file(self.file_path(filename))
 
     # read a string like "[prefix][number]" from a file and return number
     # example: if file contains "Omega_Lambda = 1.23", read_variable(filename, "Omega_Lambda = ") returns 1.23
@@ -234,7 +233,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         if not complete:
             # write input and run class
             self.write_file("class/input.ini", input)
-            self.run_command(f"{CLASSEXEC} input.ini", subdir="class/", log="log.txt")
+            self.run_command(f"{self.CLASSEXEC} input.ini", subdir="class/", log="log.txt")
 
     # dictionary of parameters that should be passed to COLA
     def input_cola(self):
@@ -295,7 +294,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             k_h, Ph3 = self.power_spectrum(z=0, source="linear-class", hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
             self.write_data("cola/pofk_ic.dat", {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
             self.write_file("cola/input.lua", input)
-            self.run_command(f"{COLAEXEC} input.lua", subdir="cola/", np=np, log="log.txt") # TODO: ssh out to list of machines?
+            self.run_command(f"{self.COLAEXEC} input.lua", subdir="cola/", np=np, log="log.txt") # TODO: ssh out to list of machines?
             self.validate_cola()
 
     def input_ramses(self, nproc=1):
@@ -346,7 +345,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         if not complete:
             self.run_cola(np=np) # use COLA's particles as initial conditions
             self.write_file("ramses/input.nml", input)
-            self.run_command(f"{ramsesexec} input.nml", subdir="ramses/", np=np, log="log.txt")
+            self.run_command(f"{self.RAMSESEXEC} input.nml", subdir="ramses/", np=np, log="log.txt")
 
     def power_spectrum(self, z=0.0, source="linear-class", hunits=True):
         zs = self.output_redshifts()
@@ -370,7 +369,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
                 if self.file_exists(info_filename):
                     # compute P(k) if not already done
                     if not self.file_exists(pofk_filename):
-                        self.run_command(f"{RAMSES2PKEXEC} --verbose --density-assignment=CIC {snapdir}", np=16)
+                        self.run_command(f"{self.RAMSES2PKEXEC} --verbose --density-assignment=CIC {snapdir}", np=16)
                         assert self.file_exists(pofk_filename)
                     a = self.read_variable(info_filename, "aexp        =  ") # == 1 / (z+1)
                     zs.append(1/a - 1) # be careful to not override z!
@@ -406,8 +405,11 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             return k, P
 
 class GRSimulation(Simulation):
-    def __init__(self, iparams=None, path=None, verbose=True):
-        Simulation.__init__(self, iparams, SIMDIR+"GR/", path, verbose)
+    SIMDIR = Simulation.SIMDIR + "GR/"
+    RAMSESEXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3dGR"))
+
+    def __init__(self, iparams):
+        Simulation.__init__(self, iparams)
 
     def input_cola(self):
         return Simulation.input_cola(self) + '\n'.join([
@@ -416,12 +418,12 @@ class GRSimulation(Simulation):
             '' # final newline
         ])
 
-    def run_ramses(self, **kwargs):
-        Simulation.run_ramses(self, RAMSESGREXEC, **kwargs)
-
 class BDSimulation(Simulation):
-    def __init__(self, iparams=None, path=None, verbose=True):
-        Simulation.__init__(self, iparams, SIMDIR+"BD/", path, verbose)
+    SIMDIR = Simulation.SIMDIR + "BD/"
+    RAMSESEXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3dBD"))
+
+    def __init__(self, iparams):
+        Simulation.__init__(self, iparams)
 
     def derived_parameters(self):
         dparams = Simulation.derived_parameters(self) # call parent class
@@ -491,9 +493,6 @@ class BDSimulation(Simulation):
         lines.insert(lines.index("&AMR_PARAMS")+1, line)
         lines.append("") # final newline
         return '\n'.join(lines)
-
-    def run_ramses(self, **kwargs):
-        Simulation.run_ramses(self, RAMSESBDEXEC, **kwargs)
 
 class SimulationGroup:
     def __init__(self, simtype, iparams, nsims, seeds=None):

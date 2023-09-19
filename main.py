@@ -28,11 +28,6 @@ parser.add_argument("action", help="action(s) to execute", nargs="+")
 args = parser.parse_args()
 ACTIONS = vars(args)["action"]
 
-def list_simulations():
-    for path in os.scandir(sim.SIMDIR):
-        if os.path.isdir(path):
-            sim.Simulation(path=path.name, verbose=True, run=False)
-
 class ParameterSpace:
     def __init__(self, params, seed=1234):
         self.param_names = list(params.keys())
@@ -102,7 +97,8 @@ params_varying = {
 
 # List simulations
 if "list" in ACTIONS:
-    list_simulations()
+    sim.BDSimulation.list()
+    sim.GRSimulation.list()
 
 if "rcparams" in ACTIONS:
     print("Matplotlib rcParams:")
