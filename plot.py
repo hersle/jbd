@@ -6,6 +6,7 @@ import utils
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
+from cycler import cycler
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 matplotlib.rcParams |= {
@@ -66,101 +67,96 @@ def ax_set_ylim_nearest(ax, Δy):
     ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/Δy))+1)) # TODO: set minor ticks every 1, 0.1, 0.01 etc. here?
     return ymin, ymax
 
-def plot_generic(filename, s1s, s2s, s3s, xlabel=None, ylabel=None, labels=None, colors=None, title=None, xticks=None, yticks=None, ystem="y", lgx=False, lgy=False):
+def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, llabels=None, title=None, xlabel=None, ylabel=None, xticks=None, yticks=None):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
 
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    if colors is None: colors = ["black"] * len(curvess)
+    if linestyles is None: linestyles = ["solid"] * len(curvess[0])
 
-    # Dummy legend plot
-    ax2 = ax.twinx() # use invisible twin axis to create second legend
-    ax2.get_yaxis().set_visible(False) # make invisible
-    lclass,  = ax2.plot([-4, -4], [0, 1], alpha=0.5, color="black", linestyle="solid", linewidth=1)
-    lcola,   = ax2.plot([-4, -4], [0, 1], alpha=0.5, color="black", linestyle=(0, (3, 1)), linewidth=1)
-    lramses, = ax2.plot([-4, -4], [0, 1], alpha=0.5, color="black", linestyle=(0, (1, 1)),  linewidth=1)
-    ax2.legend([lclass, lcola, lramses], [r"$\textrm{linear (\textsc{hi_class})}$", r"$\textrm{non-linear (\textsc{fml/cola})}$", r"$\textrm{non-linear (\textsc{ramses})}$"], loc="lower left", bbox_to_anchor=(-0.02, -0.02))
+    # Plot the curves; varying color first, and linestyle second
+    ax.set_prop_cycle(cycler(color=colors) * cycler(linestyle=linestyles))
+    for curves in curvess:
+        for x, y, Δyhi, Δylo in curves:
+            ax.plot(        x, y,              linewidth=1, alpha=0.5, label=None)
+            ax.fill_between(x, y-Δylo, y+Δyhi, linewidth=0) # error band
 
-    if colors is None: colors = ["black"] * len(boosts_linear)
-
-    for s1, s2, s3, color in zip(s1s, s2s, s3s, colors):
-        for (x, y, Δylo, Δyhi), linestyle, linewidth in zip((s1, s2, s3), ("solid", (0, (3, 1)), (0, (1, 1))), (1.0, 0.5, 0.25)):
-            ax.plot(        x, y,              color=(*color, 1.0), linewidth=1, linestyle=linestyle, alpha=0.5, label=None)
-            ax.fill_between(x, y-Δylo, y+Δyhi, color=(*color, 0.2), linewidth=0) # error band
-
-    # set ticks from input ticks = (min, max, step)
-    for ticks, set_ticks, set_lim, set_minor_locator in [(xticks, ax.set_xticks, ax.set_xlim, ax.xaxis.set_minor_locator), (yticks, ax.set_yticks, ax.set_ylim, ax.yaxis.set_minor_locator)]:
+    # Set axis labels and ticks from input ticks = (min, max, step)
+    for label, ticks, set_label, set_ticks, set_lim, set_minor_locator in [(xlabel, xticks, ax.set_xlabel, ax.set_xticks, ax.set_xlim, ax.xaxis.set_minor_locator), (ylabel, yticks, ax.set_ylabel, ax.set_yticks, ax.set_ylim, ax.yaxis.set_minor_locator)]:
+        set_label(label)
         if ticks is not None:
             min, max, stepmajor, stepminor = ticks
             set_ticks(np.linspace(min, max, int(np.round((max - min) / stepmajor)) + 1))
             set_lim(min, max)
             set_minor_locator(matplotlib.ticker.AutoMinorLocator(int(np.round(stepmajor/stepminor))))
 
-    if labels is not None:
+    # Label colors (through colorbar)
+    if clabels is not None:
         cax  = make_axes_locatable(ax).append_axes("top", size="7%", pad="0%") # align colorbar axis with plot
         cmap = matplotlib.colors.ListedColormap(colors)
         cbar = plt.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap), cax=cax, orientation="horizontal")
         cbar.ax.set_title(title)
         cax.xaxis.set_ticks_position("top")
         cax.xaxis.set_tick_params(direction="out")
-        cax.xaxis.set_ticks(np.linspace(0.5/len(labels), 1-0.5/len(labels), len(labels)), labels=labels)
+        cax.xaxis.set_ticks(np.linspace(0.5/len(clabels), 1-0.5/len(clabels), len(clabels)), labels=clabels)
+
+    # Label linestyles (through legend)
+    if llabels is not None:
+        ax2 = ax.twinx() # use invisible twin axis to create second legend
+        ax2.get_yaxis().set_visible(False) # make invisible
+        for linestyle, label in zip(linestyles, llabels):
+            ax2.plot([-4, -4], [0, 1], alpha=0.5, color="black", linestyle=linestyle, linewidth=1, label=label)
+        ax2.legend(loc="lower left", bbox_to_anchor=(-0.02, -0.02))
 
     ax.grid(which="both")
     fig.tight_layout(pad=0)
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_power(filename_stem, params0, param, vals, θGR, nsims=1):
-    PBD_linear_class,     PGR_linear_class,     B_linear_class     = [], [], []
-    PBD_nonlinear_cola,   PGR_nonlinear_cola,   B_nonlinear_cola   = [], [], []
-    PBD_nonlinear_ramses, PGR_nonlinear_ramses, B_nonlinear_ramses = [], [], []
-
-    colors, labels = [], []
+def plot_power(filename_stem, params0, param, vals, θGR, sources=[], nsims=1):
     val0 = 0.0 if param == "z" else params0[param] # varying z requires same sim params, but calling power spectrum with z=z, so handle it in a special way
 
-    for val in vals:
-        params = params0 if param == "z" else utils.dictupdate(params0, {param: val})
-        z = val if param == "z" else 0.0
-        sims = sim.SimulationGroupPair(params, θGR, nsims)
+    names = ["PBD", "PGR", "B"]
+    def curve_PBD(sims, source, z):
+        k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z)
+        return np.log10(k), np.log10(P), np.log10(P+ΔP)-np.log10(P), np.log10(P)-np.log10(P-ΔP)
+    def curve_PGR(sims, source, z):
+        k, P, ΔP = sims.sims_GR.power_spectrum(source=source, z=z)
+        return np.log10(k), np.log10(P), np.log10(P+ΔP)-np.log10(P), np.log10(P)-np.log10(P-ΔP)
+    def curve_B(sims, source, z):
+        k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z)
+        return np.log10(k), B, ΔB, ΔB
+    funcs = [curve_PBD, curve_PGR, curve_B]
+    xlabel = r"$\lg \left[ k / (\mathrm{Mpc}/h)\right]$" # common
+    xticks = (-3, +1, 1, 0.1) # common
+    ylabels = [r"$\lg\left[P_\mathrm{BD} / (\mathrm{Mpc}/h)^3\right]$", r"$\lg\left[P_\mathrm{GR} / (\mathrm{Mpc}/h)^3\right]$", r"$P_\mathrm{BD} h_\mathrm{BD}^3 / P_\mathrm{GR} h_\mathrm{GR}^3$"]
+    ytickss = [(0, 5, 1.0, 0.1), (0, 5, 1.0, 0.1), (0.80, 1.20, 0.10, 0.01)]
 
-        for source, Blist, PBDlist, PGRlist in [("linear-class",     B_linear_class,     PBD_linear_class,     PGR_linear_class),
-                                                ("nonlinear-cola",   B_nonlinear_cola,   PBD_nonlinear_cola,   PGR_nonlinear_cola),
-                                                ("nonlinear-ramses", B_nonlinear_ramses, PBD_nonlinear_ramses, PGR_nonlinear_ramses)]:
-            k, P, ΔP = sims.sims_GR.power_spectrum(source=source, z=z)
-            PGRlist.append((np.log10(k), np.log10(P), np.log10(P+ΔP)-np.log10(P), np.log10(P)-np.log10(P-ΔP)))
+    for name, func, ylabel, yticks in zip(names, funcs, ylabels, ytickss): # 1) iterate over PBD(k), PGR(k), B(k)
+        colors, clabels, llabels, linestyles, curvess = [], [], [], [], []
+        for val in vals: # 2) iterate over parameter to vary
+            params = params0 if param == "z" else utils.dictupdate(params0, {param: val})
+            z = val if param == "z" else 0.0
+            sims = sim.SimulationGroupPair(params, θGR, nsims)
 
-            k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z)
-            PBDlist.append((np.log10(k), np.log10(P), np.log10(P+ΔP)-np.log10(P), np.log10(P)-np.log10(P-ΔP)))
+            # color and color labels
+            v    = PARAM_PLOT_INFO[param]["colorvalue"](val)  # current  (transformed) value
+            v0   = PARAM_PLOT_INFO[param]["colorvalue"](val0) # fiducial (transformed) value
+            vmin = np.min(PARAM_PLOT_INFO[param]["colorvalue"](vals))   # minimum  (transformed) value
+            vmax = np.max(PARAM_PLOT_INFO[param]["colorvalue"](vals))   # maximum  (transformed) value
+            colors.append(colorbetween(["#0000ff", "#000000", "#ff0000"], v, vmin, v0, vmax))
+            clabels.append(PARAM_PLOT_INFO[param]["format"](val))
 
-            k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z)
-            Blist.append((np.log10(k), B, ΔB, ΔB))
+            # curves, linestyles and their labels
+            curves, linestyles, llabels = [], [], [] # only want to the last two once
+            for source in sources: # 3) iterate over power spectrum source
+                # linestyle and linestyle labels
+                linestyles.append({"linear-class": "solid", "nonlinear-cola": "dashed", "nonlinear-ramses": "dotted"}[source])
+                llabels.append({"linear-class": r"$\textrm{linear (\textsc{hi_class})}$", "nonlinear-cola": r"$\textrm{non-linear (\textsc{fml/cola})}$", "nonlinear-ramses": r"$\textrm{non-linear (\textsc{ramses})}$"}[source])
+                curves.append(func(sims, source, z))
+            curvess.append(curves)
 
-        # label
-        labels.append(PARAM_PLOT_INFO[param]["format"](val))
-
-        # color
-        v    = PARAM_PLOT_INFO[param]["colorvalue"](val)  # current  (transformed) value
-        v0   = PARAM_PLOT_INFO[param]["colorvalue"](val0) # fiducial (transformed) value
-        vmin = np.min(PARAM_PLOT_INFO[param]["colorvalue"](vals))   # minimum  (transformed) value
-        vmax = np.max(PARAM_PLOT_INFO[param]["colorvalue"](vals))   # maximum  (transformed) value
-        colors.append(colorbetween(["#0000ff", "#000000", "#ff0000"], v, vmin, v0, vmax))
-
-    # plot B = PBD / PGR
-    xlabel = r"$\lg\left[k / (h/\mathrm{Mpc})\right]$"
-    ylabel = r"$P_\mathrm{BD} h_\mathrm{BD}^3 / P_\mathrm{GR} h_\mathrm{GR}^3$"
-    ystem  = r"B"
-    xticks = (-3, +1, 1, 0.1)
-    yticks = (0.80, 1.20, 0.10, 0.01)
-    plot_generic(filename_stem + "_B.pdf", B_linear_class, B_nonlinear_cola, B_nonlinear_ramses, xlabel, ylabel, labels, colors, PARAM_PLOT_INFO[param]["label"], xticks, yticks, ystem)
-
-    # plot individual PGR and PBD
-    xlabel   = r"$\lg\left[k / (h/\mathrm{Mpc})\right]$"
-    ylabelGR = r"$\lg\left[P_\mathrm{GR} / (\mathrm{Mpc}/h)^3\right]$"
-    ylabelBD = r"$\lg\left[P_\mathrm{BD} / (\mathrm{Mpc}/h)^3\right]$"
-    ystem    = r"P"
-    xticks = (-3, +1, 1, 0.1)
-    yticks = (0, 5, 1.0, 0.1)
-    plot_generic(filename_stem + "_PGR.pdf", PGR_linear_class, PGR_nonlinear_cola, PGR_nonlinear_ramses, xlabel, ylabelGR, labels, colors, PARAM_PLOT_INFO[param]["label"], xticks, yticks, ystem)
-    plot_generic(filename_stem + "_PBD.pdf", PBD_linear_class, PBD_nonlinear_cola, PBD_nonlinear_ramses, xlabel, ylabelBD, labels, colors, PARAM_PLOT_INFO[param]["label"], xticks, yticks, ystem)
+        title = PARAM_PLOT_INFO[param]["label"]
+        plot_generic(f"{filename_stem}_{name}.pdf", curvess, colors, clabels, linestyles, llabels, title, xlabel, ylabel, xticks, yticks)
 
 def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", ylabel="", logabs=False, Δyrel=None, Δyabs=None):
     sims = sim.SimulationGroupPair(params0_BD, θGR)
