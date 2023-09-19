@@ -35,7 +35,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         self.name = utils.hashdict(self.iparams) # parameters -> hash: identify sim with unique hash of its (independent, including seed) parameter dict
         self.directory = simdir + self.name + "/" # working directory for the simulation to live in
         self.create_directory("") # create directory for the simulation to live in
-        self.write_file("parameters.json", utils.dict2json(self.iparams, unicode=True), skip_if_exists=True) # hash -> parameters: store (independent, including seed) parameters to enable reverse lookup
+        self.write_file("parameters.json", utils.dict2json(self.iparams, unicode=True) + '\n', skip_if_exists=True) # hash -> parameters: store (independent, including seed) parameters to enable reverse lookup
 
         self.dparams = self.derived_parameters()
         self.params = utils.dictupdate(self.iparams, self.dparams) # all (independent + dependent) parameters
@@ -191,43 +191,42 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         return 1 / np.linspace(1/(self.params["zinit"]+1), 1, self.params["Nstep"]+1) - 1
 
     # dictionary of parameters that should be passed to CLASS
-    # TODO: return string here, too
-    def params_class(self):
-        return {
+    def input_class(self):
+        return '\n'.join([
             # cosmological parameters
-            "h": self.params["h"],
-            "Omega_b": self.params["ωb0"] / self.params["h"]**2,
-            "Omega_cdm": self.params["ωc0"] / self.params["h"]**2,
-            "Omega_k": self.params["ωk0"] / self.params["h"]**2,
-            "T_cmb": self.params["Tγ0"],
-            "N_eff": self.params["Neff"],
-            "A_s": self.params["Ase9"] / 1e9,
-            "n_s": self.params["ns"],
-            "k_pivot": self.params["kpivot"],
-
-            "YHe": 0.25,
+            f"h = {self.params['h']}",
+            f"Omega_b = {self.params['ωb0'] / self.params['h']**2}",
+            f"Omega_cdm = {self.params['ωc0'] / self.params['h']**2}",
+            f"Omega_k = {self.params['ωk0'] / self.params['h']**2}",
+            f"T_cmb = {self.params['Tγ0']}",
+            f"N_eff = {self.params['Neff']}",
+            f"A_s = {self.params['Ase9'] / 1e9}",
+            f"n_s = {self.params['ns']}",
+            f"k_pivot = {self.params['kpivot']}",
+            f"YHe = 0.25",
 
             # output control
-            "output": "mPk", # output matter power spectrum P(k,z)
-            "non linear": "halofit", # also estimate non-linear P(k,z)
-            "z_pk": ", ".join(str(z) for z in self.output_redshifts()), # output P(k,z) at same redshifts as FML/COLA, so interpolation behaves consistently
-            "write background": "yes",
-            "root": "./",
-            "P_k_max_h/Mpc": 100.0, # output linear power spectrum to fill my plots
+            f"output = mPk", # output matter power spectrum P(k,z)
+            f"non linear = halofit", # also estimate non-linear P(k,z) from halo modelling
+            f"z_pk = {', '.join(str(z) for z in self.output_redshifts())}", # output P(k,z) at same redshifts as FML/COLA, so interpolation behaves consistently
+            f"write background = yes",
+            f"root = ./",
+            f"P_k_max_h/Mpc = 100.0", # output linear power spectrum to fill my plots
 
             # log verbosity (increase integers to make more talkative)
-            "input_verbose": 10,
-            "background_verbose": 10,
-            "thermodynamics_verbose": 2,
-            "perturbations_verbose": 2,
-            "spectra_verbose": 2,
-            "output_verbose": 2,
-        }
+            f"input_verbose = 10",
+            f"background_verbose = 10",
+            f"thermodynamics_verbose = 2",
+            f"perturbations_verbose = 2",
+            f"spectra_verbose = 2",
+            f"output_verbose = 2",
+            f"", # final newline
+        ])
 
     # run CLASS and return today's matter power spectrum
     def run_class(self):
         self.create_directory("class/")
-        input = "\n".join(f"{param} = {str(val)}" for param, val in self.params_class().items())
+        input = self.input_class()
         input_is_unchanged = self.file_exists("class/input.ini") and self.read_file("class/input.ini") == input
         output_exists = self.file_exists(f"class/z{self.params['Nstep']+1}_pk.dat")
         complete = input_is_unchanged and output_exists
@@ -238,51 +237,56 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             self.run_command(f"{CLASSEXEC} input.ini", subdir="class/", log="log.txt")
 
     # dictionary of parameters that should be passed to COLA
-    # TODO: return string here, too
-    def params_cola(self):
-        return { # common parameters (for any derived simulation)
-            "simulation_name": "cola",
-            "simulation_boxsize": self.params["Lh"],
-            "simulation_use_cola": True,
-            "simulation_use_scaledependent_cola": False, # TODO: only relevant with massive neutrinos?
+    def input_cola(self):
+        return '\n'.join([ # common parameters (for any derived simulation)
+            f'simulation_name = "cola"',
+            f'simulation_boxsize = {self.params["Lh"]}',
+            f'simulation_use_cola = true',
+            f'simulation_use_scaledependent_cola = false', # TODO: only relevant with massive neutrinos?
 
-            "cosmology_h": self.params["h"],
-            "cosmology_Omegab": self.params["ωb0"] / self.params["h"]**2,
-            "cosmology_OmegaCDM": self.params["ωc0"] / self.params["h"]**2,
-            "cosmology_OmegaK": self.params["ωk0"] / self.params["h"]**2,
-            "cosmology_Neffective": self.params["Neff"],
-            "cosmology_TCMB_kelvin": self.params["Tγ0"],
-            "cosmology_As": self.params["Ase9"] / 1e9,
-            "cosmology_ns": self.params["ns"],
-            "cosmology_kpivot_mpc": self.params["kpivot"],
-            "cosmology_OmegaMNu": 0.0,
+            f'cosmology_h = {self.params["h"]}',
+            f'cosmology_Omegab = {self.params["ωb0"] / self.params["h"]**2}',
+            f'cosmology_OmegaCDM = {self.params["ωc0"] / self.params["h"]**2}',
+            f'cosmology_OmegaK = {self.params["ωk0"] / self.params["h"]**2}',
+            f'cosmology_Neffective = {self.params["Neff"]}',
+            f'cosmology_TCMB_kelvin = {self.params["Tγ0"]}',
+            f'cosmology_As = {self.params["Ase9"] / 1e9}',
+            f'cosmology_ns = {self.params["ns"]}',
+            f'cosmology_kpivot_mpc = {self.params["kpivot"]}',
+            f'cosmology_OmegaMNu = 0.0',
 
-            "particle_Npart_1D": self.params["Npart"],
+            f'particle_Npart_1D = {self.params["Npart"]}',
 
-            "timestep_nsteps": [self.params["Nstep"]],
+            f'timestep_nsteps = {{{self.params["Nstep"]}}}',
 
-            "ic_random_field_type": "gaussian",
-            "ic_random_seed": self.params["seed"],
-            "ic_fix_amplitude": True, # use P(k) when generating Gaussian random field # TODO: (?)
-            "ic_use_gravity_model_GR": False, # don't use GR for backscaling P(k) in MG runs; instead be consistent with gravity model
-            "ic_initial_redshift": self.params["zinit"],
-            "ic_nmesh" : self.params["Ncell"],
-            "ic_type_of_input": "powerspectrum", # transferinfofile only relevant with massive neutrinos?
-            "ic_input_filename": "pofk_ic.dat",
-            "ic_input_redshift": 0.0, # TODO: feed initial power spectrum directly instead of backscaling? Hans said someone incorporated this into his code?
+            f'ic_random_field_type = "gaussian"',
+            f'ic_random_seed = {self.params["seed"]}',
+            f'ic_fix_amplitude = true', # use P(k) when generating Gaussian random field # TODO: (?)
+            f'ic_use_gravity_model_GR = false', # don't use GR for backscaling P(k) in MG runs; instead be consistent with gravity model
+            f'ic_initial_redshift = {self.params["zinit"]}',
+            f'ic_nmesh = {self.params["Ncell"]}',
+            f'ic_type_of_input = "powerspectrum"', # transferinfofile only relevant with massive neutrinos?
+            f'ic_input_filename = "pofk_ic.dat"',
+            f'ic_input_redshift = 0.0', # TODO: feed initial power spectrum directly instead of backscaling? Hans said someone incorporated this into his code?
 
-            "force_nmesh": self.params["Ncell"],
+            f'force_nmesh = {self.params["Ncell"]}',
 
-            "output_folder": ".",
-            "output_redshifts": [self.params["zinit"], 0.0], # dump initial and final particles
-            "output_particles": True,
-            "pofk_nmesh": self.params["Ncell"], # TODO: ???
-        }
+            f'output_folder = "."',
+            f'output_redshifts = {{{self.params["zinit"]}, 0.0}}', # list(self.output_redshifts()), # dump initial and final particles
+            f'output_particles = true',
+
+            f'pofk = false', # rather use underway computation (ignoring all pofk_... parameters)
+            f'pofk_nmesh = {self.params["Ncell"]}',
+            f'pofk_interlacing = true',
+            f'pofk_subtract_shotnoise = true',
+            f'pofk_density_assignment_method = "CIC"',
+            f'', # final newline
+        ])
 
     # run COLA simulation from back-scaling today's matter power spectrum (from CLASS)
     def run_cola(self, np=1, verbose=True):
         self.create_directory("cola")
-        input = "\n".join(f"{param} = {utils.luastr(val)}" for param, val in self.params_cola().items())
+        input = self.input_cola()
         input_is_unchanged = self.file_exists("cola/input.lua") and self.read_file("cola/input.lua") == input
         output_exists = self.file_exists(f"cola/pofk_cola_cb_z0.000.txt")
         complete = input_is_unchanged and output_exists
@@ -294,7 +298,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             self.run_command(f"{COLAEXEC} input.lua", subdir="cola/", np=np, log="log.txt") # TODO: ssh out to list of machines?
             self.validate_cola()
 
-    def params_ramses(self, nproc=1):
+    def input_ramses(self, nproc=1):
         Npart1D = self.params["Npart"]
         Nparts = Npart1D**3
         levelmin = int(np.round(np.log2(Npart1D))) # e.g. 10 if Npart1D = 1024
@@ -306,7 +310,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f"cosmo=.true.", # enable cosmological run
             f"pic=.true.", # enable particle-in-cell solver
             f"poisson=.true.", # enable Poisson solver
-            f"nrestart=0", # start simulation from scratch # TODO: could read most recent existing output_xxxxx directory
+            f"nrestart=0", # start simulation from scratch # TODO: could read most recent existing output_xxxxx directory (and ncpu)
             f"nremap=8", # coarse time steps between each load balancing of AMR grid (important for parallelization)
             f"verbose=.false.", # verbosity
             #f"nsubcycle=" # TODO: control fine time stepping?
@@ -329,12 +333,12 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f"&REFINE_PARAMS",
             f"m_refine={','.join([str(8)] * (levelmax-levelmin))}", # refine cells with >= 8 particles (on average into 8 cells with 1 paticle each)
             f"/",
-        ]) + '\n' # to string
+            f"", # final newline
+        ])
 
-    def run_ramses(self, ramsesexec, np=1):
-        # TODO: automatically restart from run by reading ncpu and last snapshot number
+    def run_ramses(self, np=1):
         self.create_directory("ramses/")
-        input = self.params_ramses()
+        input = self.input_ramses()
         input_is_unchanged = self.file_exists("ramses/input.nml") and self.read_file("ramses/input.nml") == input
         output_exists = self.file_exists("ramses/log.txt") and self.read_file("ramses/log.txt").find("Run completed") != -1
         complete = input_is_unchanged and output_exists
@@ -405,11 +409,12 @@ class GRSimulation(Simulation):
     def __init__(self, iparams=None, path=None, verbose=True):
         Simulation.__init__(self, iparams, SIMDIR+"GR/", path, verbose)
 
-    def params_cola(self):
-        return utils.dictupdate(Simulation.params_cola(self), {
-            "cosmology_model": "LCDM",
-            "gravity_model": "GR",
-        })
+    def input_cola(self):
+        return Simulation.input_cola(self) + '\n'.join([
+            'cosmology_model = "LCDM"',
+            'gravity_model = GR',
+            '' # final newline
+        ])
 
     def run_ramses(self, **kwargs):
         Simulation.run_ramses(self, RAMSESGREXEC, **kwargs)
@@ -426,27 +431,29 @@ class BDSimulation(Simulation):
         dparams["ωΛ0"]  = dparams["ΩΛ0"] * self.iparams["h"]**2 * dparams["ϕ0"]            # ∝ ρΛ0
         return dparams
 
-    def params_class(self):
+    def input_class(self):
         ω = 10 ** self.params["lgω"]
-        return utils.dictupdate(Simulation.params_class(self), {
-            "gravity_model": "brans_dicke", # select BD gravity
-            "Omega_Lambda": 0, # rather include Λ through potential term (first entry in parameters_smg; should be equivalent)
-            "Omega_fld": 0, # no dark energy fluid
-            "Omega_smg": -1, # automatic modified gravity
-            "parameters_smg": f"NaN, {ω}, 1, 0", # ΩΛ0 (fill with cosmological constant), ω, Φini (arbitrary initial guess), Φ′ini≈0 (fixed)
-            "M_pl_today_smg": (4+2*ω)/(3+2*ω) / self.params["G0/G"], # see https://github.com/HAWinther/hi_class_pub_devel/blob/3160be0e0482ac2284c20b8878d9a81efdf09f2a/gravity_smg/gravity_models_smg.c#L462
-            "a_min_stability_test_smg": 1e-6, # BD has early-time instability, so lower tolerance to pass stability checker
-            "output_background_smg": 2, # >= 2 needed to output phi to background table (https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/background.c#L3031)
-        })
+        return Simulation.input_class(self) + '\n'.join([
+            f"gravity_model = brans_dicke", # select BD gravity
+            f"Omega_Lambda = 0", # rather include Λ through potential term (first entry in parameters_smg; should be equivalent)
+            f"Omega_fld = 0", # no dark energy fluid
+            f"Omega_smg = -1", # automatic modified gravity
+            f"parameters_smg = NaN, {ω}, 1.0, 0.0", # ΩΛ0 (fill with cosmological constant), ω, Φini (arbitrary initial guess), Φ′ini≈0 (fixed)
+            f"M_pl_today_smg = {(4+2*ω)/(3+2*ω) / self.params['G0/G']}", # see https://github.com/HAWinther/hi_class_pub_devel/blob/3160be0e0482ac2284c20b8878d9a81efdf09f2a/gravity_smg/gravity_models_smg.c#L462
+            f"a_min_stability_test_smg = 1e-6", # BD has early-time instability, so lower tolerance to pass stability checker
+            f"output_background_smg = 2", # >= 2 needed to output phi to background table (https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/background.c#L3031)
+            f"" # final newline
+        ])
 
-    def params_cola(self):
-        return utils.dictupdate(Simulation.params_cola(self), {
-            "gravity_model": "JBD",
-            "cosmology_model": "JBD",
-            "cosmology_JBD_wBD": 10 ** self.params["lgω"],
-            "cosmology_JBD_GeffG_today": self.params["G0/G"],
-            "cosmology_JBD_density_parameter_definition": "hi-class",
-        })
+    def input_cola(self):
+        return Simulation.input_cola(self) + '\n'.join([
+            f'gravity_model = "JBD"',
+            f'cosmology_model = "JBD"',
+            f'cosmology_JBD_wBD = {10 ** self.params["lgω"]}',
+            f'cosmology_JBD_GeffG_today = {self.params["G0/G"]}',
+            f'cosmology_JBD_density_parameter_definition = "hi-class"',
+            f''# final newline
+        ])
 
     def validate_cola(self):
         Simulation.validate_cola(self) # do any validation in parent class
@@ -464,8 +471,8 @@ class BDSimulation(Simulation):
         dlogϕ_dloga_class = dϕ_dη_class / ϕ_class / (H_class * a_class) # convert by chain rule
         utils.check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4)
 
-    def params_ramses(self):
-        lines = Simulation.params_ramses(self).split('\n')
+    def input_ramses(self):
+        lines = Simulation.input_ramses(self).split('\n')
 
         # generate file with columns log(a), Geff(a)/G0, E(a) = H(a)/H0
         bg = self.read_data("class/background.dat", dict=True)
@@ -482,6 +489,7 @@ class BDSimulation(Simulation):
         # add extra line in &AMR_PARAMS section with path to BD quantities
         line = f"filename_geff_hubble_data='BD.dat'"
         lines.insert(lines.index("&AMR_PARAMS")+1, line)
+        lines.append("") # final newline
         return '\n'.join(lines)
 
     def run_ramses(self, **kwargs):

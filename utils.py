@@ -3,6 +3,10 @@ import hashlib
 import numpy as np
 import matplotlib.pyplot as plt
 
+def read_file(filename):
+    with open(filename, "r", encoding="utf-8") as file:
+        return file.read()
+
 def to_nearest(number, nearest, mode="round"):
     func = {"round": np.round, "ceil": np.ceil, "floor": np.floor}[mode]
     return func(np.round(number / nearest, 7)) * nearest # round to many digits first to eliminate floating point errors (this is only used for plotting purposes, anyway)
@@ -30,16 +34,6 @@ def hashstr(str):
 
 def hashdict(dict):
     return hashstr(dict2json(dict, sort=True)) # https://stackoverflow.com/a/10288255
-
-def luastr(var):
-    if isinstance(var, bool):
-        return str(var).lower() # Lua uses true, not True
-    elif isinstance(var, str):
-        return '"' + str(var) + '"' # enclose in ""
-    elif isinstance(var, list):
-        return "{" + ", ".join(luastr(el) for el in var) + "}" # Lua uses {} for lists
-    else:
-        return str(var) # go with python's string representation
 
 # Utility function for verifying that two quantities q1 and q2 are (almost) the same
 def check_values_are_close(q1, q2, a1=None, a2=None, name="", atol=0, rtol=0, plot=True):
