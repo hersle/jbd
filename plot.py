@@ -112,24 +112,28 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_power(filename_stem, params0, param, vals, θGR, sources=[], nsims=1):
+def plot_power(filename_stem, params0, param, vals, θGR, sources=[], nsims=1, hunits=True):
     val0 = 0.0 if param == "z" else params0[param] # varying z requires same sim params, but calling power spectrum with z=z, so handle it in a special way
 
     names = ["PBD", "PGR", "B"]
     def curve_PBD(sims, source, z):
-        k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z)
+        k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z, hunits=hunits)
         return np.log10(k), np.log10(P), np.log10(P+ΔP)-np.log10(P), np.log10(P)-np.log10(P-ΔP)
     def curve_PGR(sims, source, z):
-        k, P, ΔP = sims.sims_GR.power_spectrum(source=source, z=z)
+        k, P, ΔP = sims.sims_GR.power_spectrum(source=source, z=z, hunits=hunits)
         return np.log10(k), np.log10(P), np.log10(P+ΔP)-np.log10(P), np.log10(P)-np.log10(P-ΔP)
     def curve_B(sims, source, z):
-        k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z)
+        k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z, hunits=hunits)
         return np.log10(k), B, ΔB, ΔB
     funcs = [curve_PBD, curve_PGR, curve_B]
-    xlabel = r"$\lg \left[ k / (\mathrm{Mpc}/h)\right]$" # common
     xticks = (-3, +1, 1, 0.1) # common
-    ylabels = [r"$\lg\left[P_\mathrm{BD} / (\mathrm{Mpc}/h)^3\right]$", r"$\lg\left[P_\mathrm{GR} / (\mathrm{Mpc}/h)^3\right]$", r"$P_\mathrm{BD} h_\mathrm{BD}^3 / P_\mathrm{GR} h_\mathrm{GR}^3$"]
     ytickss = [(0, 5, 1.0, 0.1), (0, 5, 1.0, 0.1), (0.80, 1.20, 0.10, 0.01)]
+    klabel = r"k / (h/\mathrm{Mpc})" if hunits else r"k \,/\, (1/\mathrm{Mpc})"
+    xlabel = f"$\lg \left[ {klabel} \\right]$" # common for PBD, PGR, B
+    PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"
+    PGRlabel = r"P_\mathrm{GR} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{GR} \,/\, \mathrm{Mpc}^3"
+    Blabel = r"$(P_\mathrm{BD} / P_\mathrm{GR}) \,/\, (h_\mathrm{GR}/h_\mathrm{BD})^3$" if hunits else r"P_\mathrm{BD} \,/\, P_\mathrm{GR}"
+    ylabels = [f"$\lg\left[ {PBDlabel} \\right]$", f"$\lg\left[ {PGRlabel} \\right]$", f"${Blabel}$"]
 
     for name, func, ylabel, yticks in zip(names, funcs, ylabels, ytickss): # 1) iterate over PBD(k), PGR(k), B(k)
         colors, clabels, llabels, linestyles, curvess = [], [], [], [], []

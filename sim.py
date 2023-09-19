@@ -542,41 +542,41 @@ class SimulationGroupPair:
 
         self.nsims = nsims
 
-    def power_spectrum_ratio(self, z=0.0, source="linear-class"):
-        k_h_BD, Ph3BDs = self.sims_BD.power_spectra(z=z, source=source, hunits=True) # kBD / (hBD/Mpc), PBD / (Mpc/hBD)^3
-        k_h_GR, Ph3GRs = self.sims_GR.power_spectra(z=z, source=source, hunits=True) # kGR / (hGR/Mpc), PGR / (Mpc/hGR)^3
+    def power_spectrum_ratio(self, z=0.0, source="linear-class", hunits=False):
+        kBD, PBDs = self.sims_BD.power_spectra(z=z, source=source, hunits=hunits) # kBD / (hBD/Mpc), PBD / (Mpc/hBD)^3
+        kGR, PGRs = self.sims_GR.power_spectra(z=z, source=source, hunits=hunits) # kGR / (hGR/Mpc), PGR / (Mpc/hGR)^3
 
-        assert source in ("linear-class", "nonlinear-class") or \
-               np.all(np.isclose(k_h_BD, k_h_GR)) or \
-               self.sims_BD.params["Lh"] != self.sims_GR.params["Lh"], \
-               f"simulations with equal L*h should output equal non-linear k/h"
+        # Verify that COLA/RAMSES simulations output comparable k-values (k*L should be equal)
+        kLBD = kBD * (self.sims_BD.params["Lh" if hunits else "L"])
+        kLGR = kGR * (self.sims_GR.params["Lh" if hunits else "L"])
+        assert source.endswith("class") or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
 
         # get reference wavenumbers and interpolate P to those values
-        k_h = (k_h_BD + k_h_GR) / 2 # simulations have k_h_BD == k_h_GR == k_h
-        Ph3GRs = CubicSpline(k_h_GR, Ph3GRs, axis=1, extrapolate=False)(k_h) # interpolate Ph3GR(k/hGR) to Ph3GR(k/h)
-        Ph3BDs = CubicSpline(k_h_BD, Ph3BDs, axis=1, extrapolate=False)(k_h) # interpolate Ph3BD(k/hBD) to Ph3BD(k/h)
+        k = (kBD + kGR) / 2 # simulations have kBD == kGR == k
+        PGRs = CubicSpline(kGR, PGRs, axis=1, extrapolate=False)(k) # interpolate PGR(k/hGR) to PGR(k/h)
+        PBDs = CubicSpline(kBD, PBDs, axis=1, extrapolate=False)(k) # interpolate PBD(k/hBD) to PBD(k/h)
 
         # from a statistical viewpoint,
         # we view P(k) as a random variable with samples from each simulation,
         # so it is more natural to index Ps[ik] == Ps[ik,:]
-        Ph3BDs = np.transpose(Ph3BDs)
-        Ph3GRs = np.transpose(Ph3GRs)
+        PBDs = np.transpose(PBDs)
+        PGRs = np.transpose(PGRs)
 
         # boost (of means)
-        B = np.mean(Ph3BDs/Ph3GRs, axis=1)
+        B = np.mean(PBDs/PGRs, axis=1)
 
         # boost error (propagate from errors in PBD and PGR)
-        Ph3BD = np.mean(Ph3BDs, axis=1) # average over simulations
-        Ph3GR = np.mean(Ph3GRs, axis=1) # average over simulations
-        dB_dPh3BD =      1 / Ph3GR    # dB/dPh3BD evaluated at means
-        dB_dPh3GR = -Ph3BD / Ph3GR**2 # dB/dPh3GR evaluated at means
-        ΔB = np.array([utils.propagate_error([dB_dPh3BD[ik], dB_dPh3GR[ik]], [Ph3BDs[ik], Ph3GRs[ik]]) for ik in range(0, len(k_h))])
+        PBD = np.mean(PBDs, axis=1) # average over simulations
+        PGR = np.mean(PGRs, axis=1) # average over simulations
+        dB_dPBD =      1 / PGR    # dB/dPBD evaluated at means
+        dB_dPGR = -PBD / PGR**2 # dB/dPGR evaluated at means
+        ΔB = np.array([utils.propagate_error([dB_dPBD[ik], dB_dPGR[ik]], [PBDs[ik], PGRs[ik]]) for ik in range(0, len(k))])
 
         # uncomment to compare matrix error propagation to manual expression (for one k value, to check it is correct)
         # (see formula for f=A/B at https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Example_formulae)
-        #σsq = np.cov([Ph3BDs[0], Ph3GRs[0]])
+        #σsq = np.cov([PBDs[0], PGRs[0]])
         #ΔB_matrix = ΔB[0]
-        #ΔB_manual = B[0] * np.sqrt(σsq[0,0]/Ph3BD[0]**2 + σsq[1,1]/Ph3GR[0]**2 - 2*σsq[0,1]/(Ph3BD[0]*Ph3GR[0]))
+        #ΔB_manual = B[0] * np.sqrt(σsq[0,0]/PBD[0]**2 + σsq[1,1]/PGR[0]**2 - 2*σsq[0,1]/(PBD[0]*PGR[0]))
         #assert np.isclose(ΔB_matrix, ΔB_manual), "error propagation is wrong"
 
-        return k_h, B, ΔB
+        return k, B, ΔB
