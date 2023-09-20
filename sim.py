@@ -434,14 +434,13 @@ class BDSimulation(Simulation):
         return dparams
 
     def input_class(self):
-        ω = 10 ** self.params["lgω"]
         return Simulation.input_class(self) + '\n'.join([
             f"gravity_model = brans_dicke", # select BD gravity
             f"Omega_Lambda = 0", # rather include Λ through potential term (first entry in parameters_smg; should be equivalent)
             f"Omega_fld = 0", # no dark energy fluid
             f"Omega_smg = -1", # automatic modified gravity
-            f"parameters_smg = NaN, {ω}, 1.0, 0.0", # ΩΛ0 (fill with cosmological constant), ω, Φini (arbitrary initial guess), Φ′ini≈0 (fixed)
-            f"M_pl_today_smg = {(4+2*ω)/(3+2*ω) / self.params['G0/G']}", # see https://github.com/HAWinther/hi_class_pub_devel/blob/3160be0e0482ac2284c20b8878d9a81efdf09f2a/gravity_smg/gravity_models_smg.c#L462
+            f"parameters_smg = NaN, {self.params['ω']}, 1.0, 0.0", # ΩΛ0 (fill with cosmological constant), ω, Φini (arbitrary initial guess), Φ′ini≈0 (fixed)
+            f"M_pl_today_smg = {(4+2*self.params['ω'])/(3+2*self.params['ω']) / self.params['G0/G']}", # see https://github.com/HAWinther/hi_class_pub_devel/blob/3160be0e0482ac2284c20b8878d9a81efdf09f2a/gravity_smg/gravity_models_smg.c#L462
             f"a_min_stability_test_smg = 1e-6", # BD has early-time instability, so lower tolerance to pass stability checker
             f"output_background_smg = 2", # >= 2 needed to output phi to background table (https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/background.c#L3031)
             f"" # final newline
@@ -451,7 +450,7 @@ class BDSimulation(Simulation):
         return Simulation.input_cola(self) + '\n'.join([
             f'gravity_model = "JBD"',
             f'cosmology_model = "JBD"',
-            f'cosmology_JBD_wBD = {10 ** self.params["lgω"]}',
+            f'cosmology_JBD_wBD = {self.params["ω"]}',
             f'cosmology_JBD_GeffG_today = {self.params["G0/G"]}',
             f'cosmology_JBD_density_parameter_definition = "hi-class"',
             f''# final newline
@@ -479,9 +478,8 @@ class BDSimulation(Simulation):
         # generate file with columns log(a), Geff(a)/G0, E(a) = H(a)/H0
         bg = self.read_data("class/background.dat", dict=True)
         assert bg["z"][-1] == 0.0, "last row of class/background.dat is not today (z=0)"
-        ω = 10**self.params["lgω"]
         loga = np.log(1 / (bg["z"] + 1)) # log = ln
-        G_G0 = (4+2*ω) / (3+2*ω) / bg["phi_smg"] # TODO: divide by G or G0 (relevant if G0 != G)
+        G_G0 = (4+2*self.params["ω"]) / (3+2*self.params["ω"]) / bg["phi_smg"] # TODO: divide by G or G0 (relevant if G0 != G)
         H_H0 = bg["H [1/Mpc]"] / bg["H [1/Mpc]"][-1]
         self.write_data("ramses/BD.dat", [loga, G_G0, H_H0], colnames=["ln(a)", "G(a)/G0", "H(a)/H0"])
         qtylines = self.read_file("ramses/BD.dat").split('\n')

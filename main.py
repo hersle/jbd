@@ -55,7 +55,7 @@ class ParameterSpace:
         return [self.sample() for i in range(0, n)]
 
 def θGR_identity(θBD, θBD_all):
-    return utils.dictupdate(θBD, remove=["lgω", "G0/G"]) # remove BD-specific parameters
+    return utils.dictupdate(θBD, remove=["ω", "G0/G"]) # remove BD-specific parameters
 
 def θGR_different_h(θBD, θBD_all):
     θGR = θGR_identity(θBD, θBD_all)
@@ -77,7 +77,7 @@ PARAMS = {
     "kpivot":    {"fid": 0.05,         "help": "wavenumber at which primordial power spectrum amplitude is given"},
     "σ8":        {"fid": 0.80,         "help": "smoothed matter density fluctuation amplitude = σ(R=8 Mpc/h, z=0)"},
 
-    "lgω":       {"fid": 2.0,          "help": "logarithm of Brans-Dicke scalar field coupling = log_10(ω)"},
+    "ω":         {"fid": 100.0,        "help": "Brans-Dicke scalar field coupling"},
     "G0/G":      {"fid": 1.00,         "help": "gravitational parameter today / G"},
 
     "zinit":     {"fid": 10.0,         "help": "initial redshift (all N-body simulations)"},
@@ -105,7 +105,7 @@ if args.list_params:
 
 # Build parameters
 paramlist = {}
-fixparams_default = ["h", "ωk0", "Tγ0", "Neff", "ns", "kpivot", "lgω", "G0/G", "zinit", "Nstep", "Npart", "Ncell", "Lh"]
+fixparams_default = ["h", "ωk0", "Tγ0", "Neff", "ns", "kpivot", "ω", "G0/G", "zinit", "Nstep", "Npart", "Ncell", "Lh"]
 for param in fixparams_default: # fix these by default
     paramlist[param] = [PARAMS[param]["fid"]] # fix to fiducial value
 for param in args.params:
@@ -150,7 +150,7 @@ if args.evolution:
     plot.plot_density_evolution("plots/evolution_density.pdf", params, θGR_different_h)
 
     # Plot evolution of (background) quantities
-    def G_G0_BD(bg, params):    return (4+2*10**params["lgω"]) / (3+2*10**params["lgω"]) / bg["phi_smg"]
+    def G_G0_BD(bg, params):    return (4+2*params["ω"]) / (3+2*params["ω"]) / bg["phi_smg"]
     def G_G0_GR(bg, params):    return np.ones_like(bg["z"]) # = 1.0, special case for GR
     def H_H0_BD_GR(bg, params): return bg["H [1/Mpc]"] / CubicSpline(np.log10(1/(bg["z"]+1)), bg["H [1/Mpc]"])(0.0) # common to BD and GR
     def D_Di_BD_GR(bg, params): return bg["gr.fac. D"] / CubicSpline(np.log10(1/(bg["z"]+1)), bg["gr.fac. D"])(-10.0) # common to BD and GR

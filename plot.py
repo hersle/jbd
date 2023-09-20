@@ -39,7 +39,7 @@ PARAM_PLOT_INFO = {
     "Ncell":  {"label": r"$N_\mathrm{cell}$",                   "format": lambda Ncell: f"${Ncell}^3$",   "colorvalue": lambda Ncell: np.log2(Ncell)},
     "Nstep":  {"label": r"$N_\mathrm{step}$",                   "format": lambda Nstep: f"${Nstep}$",     "colorvalue": lambda Nstep: Nstep},
     "zinit":  {"label": r"$z_\mathrm{init}$",                   "format": lambda zinit: f"${zinit:.0f}$", "colorvalue": lambda zinit: zinit},
-    "lgω":    {"label": r"$\lg \omega$",                        "format": lambda lgω:   f"${lgω}$",       "colorvalue": lambda lgω:   lgω},
+    "ω":      {"label": r"$\omega$",                            "format": lambda ω:     f"${ω:.0f}$",     "colorvalue": lambda ω:     np.log10(ω)},
     "G0/G":   {"label": r"$G_0/G$",                             "format": lambda G0_G:  f"${G0_G:.02f}$", "colorvalue": lambda G0_G:  G0_G},
     "Ase9":   {"label": r"$A_s / 10^{-9}$",                     "format": lambda Ase9:  f"${Ase9}$",      "colorvalue": lambda Ase9:  Ase9},
     "ns":     {"label": r"$n_s$",                               "format": lambda ns:    f"${ns}$",        "colorvalue": lambda ns:    ns},
