@@ -547,10 +547,12 @@ class SimulationGroupPair:
         # Verify that COLA/RAMSES simulations output comparable k-values (k*L should be equal)
         kLBD = kBD * (self.sims_BD.params["Lh" if hunits else "L"])
         kLGR = kGR * (self.sims_GR.params["Lh" if hunits else "L"])
-        assert source.endswith("class") or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
+        assert source == "class" or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
 
         # get reference wavenumbers and interpolate P to those values
-        k = (kBD + kGR) / 2 # simulations have kBD == kGR == k
+        kmin = np.maximum(np.min(kBD), np.min(kGR))
+        kmax = np.minimum(np.max(kBD), np.max(kGR))
+        k = np.unique(np.concatenate((kBD[np.logical_and(kBD >= kmin, kBD <= kmax)], kGR[np.logical_and(kGR >= kmin, kGR <= kmax)]))) # all k-values in range spanned by both BD and GR
         PGRs = CubicSpline(kGR, PGRs, axis=1, extrapolate=False)(k) # interpolate PGR(k/hGR) to PGR(k/h)
         PBDs = CubicSpline(kBD, PBDs, axis=1, extrapolate=False)(k) # interpolate PBD(k/hBD) to PBD(k/h)
 
