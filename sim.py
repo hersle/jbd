@@ -516,7 +516,7 @@ class SimulationGroup:
         ks, Ps = [], []
         for sim in self:
             k, P = sim.power_spectrum(**kwargs)
-            assert len(ks) == 0 or np.all(k == ks[0]), "group simulations output different k"
+            assert len(ks) == 0 or np.all(np.isclose(k, ks[0])), "group simulations output different k"
             ks.append(k)
             Ps.append(P)
 
