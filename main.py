@@ -26,6 +26,7 @@ parser.add_argument("--list-sims", action="store_true", help="list simulations a
 parser.add_argument("--list-params", action="store_true", help="list parameters and exit")
 parser.add_argument("--params", metavar="PARAM[=VALUES]", nargs="*", help="parameters to fix or vary", default=[])
 parser.add_argument("--power", nargs="*", metavar="SOURCE", default=[], help="plot P(k) and B(k) from sources (class, halofit, cola, ramses)")
+parser.add_argument("--realizations", metavar="N", type=int, default=1, help="number of universe realizations to simulate per model")
 parser.add_argument("--evolution", action="store_true", help="plot evolution of background and perturbation quantities")
 #parser.add_argument("--sample") # TODO: sampling, emulation, ...
 parser.add_argument("--test", action="store_true", help="run whatever experimental code is in the test section")
@@ -142,7 +143,7 @@ if len(args.power) > 0:
 
     sources = args.power
     params0 = {param: PARAMS[param]["fid"] for param in PARAMS}
-    plot.plot_power(stem, params0, paramss, varparam, θGR_different_h, nsims=1, sources=sources)
+    plot.plot_power(stem, params0, paramss, varparam, θGR_different_h, nsims=args.realizations, sources=sources)
 
 # Plot evolution of (background) densities
 if args.evolution:
