@@ -291,7 +291,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         complete = input_is_unchanged and output_exists
 
         if not complete:
-            k_h, Ph3 = self.power_spectrum(z=0, source="linear-class", hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
+            k_h, Ph3 = self.power_spectrum(z=0, source="class", hunits=True) # COLA wants CLASS' linear power spectrum (in h units)
             self.write_data("cola/pofk_ic.dat", {"k/(h/Mpc)": k_h, "P/(Mpc/h)^3": Ph3}) # COLA wants "h-units"
             self.write_file("cola/input.lua", input)
             self.run_command(f"{self.COLAEXEC} input.lua", subdir="cola/", np=np, log="log.txt") # TODO: ssh out to list of machines?
@@ -347,18 +347,18 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             self.write_file("ramses/input.nml", input)
             self.run_command(f"{self.RAMSESEXEC} input.nml", subdir="ramses/", np=np, log="log.txt")
 
-    def power_spectrum(self, z=0.0, source="linear-class", hunits=True):
+    def power_spectrum(self, z=0.0, source="class", hunits=True):
         zs = self.output_redshifts()
-        if source == "linear-class":
+        if source == "class":
             self.run_class()
             filenames = [f"class/z{n+1}_pk.dat" for n in range(0, len(zs))]
-        elif source == "nonlinear-class":
+        elif source == "halofit":
             self.run_class()
             filenames = [f"class/z{n+1}_pk_nl.dat" for n in range(0, len(zs))]
-        elif source == "nonlinear-cola":
+        elif source == "cola":
             self.run_cola(np=16)
             filenames = [f"cola/pofk_cola_cb_z{z:.3f}.txt" for z in zs]
-        elif source == "nonlinear-ramses":
+        elif source == "ramses":
             self.run_ramses(np=16)
             zs, filenames = [], [] # ramses outputs its own redshifts
             snapnum = 1
@@ -380,7 +380,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         else:
             raise Exception(f"unknown power spectrum source \"{source}\"")
 
-        if source in ("linear-class", "nonlinear-class"):
+        if source in ("class", "halofit"):
             # verify that assumed redshifts are those reported by the files
             zs_from_files = [self.read_variable(filename, "redshift z=") for filename in filenames]
             assert np.all(np.round(zs_from_files, 5) == np.round(zs, 5))
@@ -542,7 +542,7 @@ class SimulationGroupPair:
 
         self.nsims = nsims
 
-    def power_spectrum_ratio(self, z=0.0, source="linear-class", hunits=False):
+    def power_spectrum_ratio(self, z=0.0, source="class", hunits=False):
         kBD, PBDs = self.sims_BD.power_spectra(z=z, source=source, hunits=hunits) # kBD / (hBD/Mpc), PBD / (Mpc/hBD)^3
         kGR, PGRs = self.sims_GR.power_spectra(z=z, source=source, hunits=hunits) # kGR / (hGR/Mpc), PGR / (Mpc/hGR)^3
 

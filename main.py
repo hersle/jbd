@@ -25,7 +25,7 @@ parser = argparse.ArgumentParser(prog="main.py")
 parser.add_argument("--list-sims", action="store_true", help="list simulations and exit")
 parser.add_argument("--list-params", action="store_true", help="list parameters and exit")
 parser.add_argument("--params", metavar="PARAM[=VALUES]", nargs="*", help="parameters to fix or vary", default=[])
-parser.add_argument("--power", nargs="*", metavar="SOURCE", default=[], help="plot P(k) and B(k) from sources (linear-class, nonlinear-class, nonlinear-cola, nonlinear-ramses)")
+parser.add_argument("--power", nargs="*", metavar="SOURCE", default=[], help="plot P(k) and B(k) from sources (class, halofit, cola, ramses)")
 parser.add_argument("--evolution", action="store_true", help="plot evolution of background and perturbation quantities")
 #parser.add_argument("--sample") # TODO: sampling, emulation, ...
 parser.add_argument("--test", action="store_true", help="run whatever experimental code is in the test section")
