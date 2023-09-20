@@ -6,8 +6,6 @@
 # TODO: emulate B / Bfid ≈ 1?
 # TODO: run one big box with COLA (fiducial cosmology?) to see if pattern continues to higher k?
 # TODO: run one big box with "proper N-body program" to see if COLA is ok
-# TODO: allow for "main.py vary z fix σ8 syntax, or similar
-# TODO: "predict" boost from hBD, hGR, AsBD, AsGR, etc.
 # TODO: emulation https://github.com/renmau/Sesame_pipeline/
 # TODO: subtract shotnoise
 # TODO: compute AMR of 256 grid on a 4*256 = 1024 grid
@@ -23,10 +21,17 @@ import numpy as np
 from scipy.stats import qmc
 from scipy.interpolate import CubicSpline
 
-parser = argparse.ArgumentParser(prog="jbd.py")
-parser.add_argument("action", help="action(s) to execute", nargs="+")
+parser = argparse.ArgumentParser(prog="main.py")
+parser.add_argument("--list-sims", action="store_true", help="list simulations and exit")
+parser.add_argument("--list-params", action="store_true", help="list parameters and exit")
+parser.add_argument("--fix", metavar="PARAM[=VALUE]", nargs="*", help="parameters to fix", default=[])
+parser.add_argument("--vary", metavar="PARAM=VALUE1,VALUE2,...,VALUEN", nargs="?", help="parameter to vary")
+parser.add_argument("--sources", metavar="SOURCE", default=["linear-class"], nargs="*", help="P(k) sources (linear-class, nonlinear-class, nonlinear-cola, nonlinear-ramses)")
+parser.add_argument("--power", action="store_true", help="plot power spectra and boost")
+parser.add_argument("--evolution", action="store_true", help="plot evolution of background and perturbation quantities")
+#parser.add_argument("--sample") # TODO: sampling, emulation, ...
+parser.add_argument("--test", action="store_true", help="run whatever experimental code is in the test section")
 args = parser.parse_args()
-ACTIONS = vars(args)["action"]
 
 class ParameterSpace:
     def __init__(self, params, seed=1234):
@@ -50,7 +55,6 @@ class ParameterSpace:
     def samples(self, n):
         return [self.sample() for i in range(0, n)]
 
-# TODO: drop in favor of "equal h^2 ϕini" etc.
 def θGR_identity(θBD, θBD_all):
     return utils.dictupdate(θBD, remove=["lgω", "G0/G"]) # remove BD-specific parameters
 
@@ -59,54 +63,76 @@ def θGR_different_h(θBD, θBD_all):
     θGR["h"] = θBD["h"] * np.sqrt(θBD_all["ϕini"]) # ensure similar Hubble evolution (of E=H/H0) during radiation domination
     return θGR
 
-# Fiducial parameters
-params0_GR = {
-    # physical parameters
-    "h":      0.68,   # class' default
-    "ωb0":    0.022,  # class' default (ωb0 = Ωs0*h0^2*ϕ0 ∝ ρb0 in BD, ωb0 = Ωs0*h0^2 ∝ ρb0 in GR)
-    "ωc0":    0.120,  # class' default (ωc0 = Ωs0*h0^2*ϕ0 ∝ ρc0 in BD, ωc0 = Ωs0*h0^2 ∝ ρc0 in GR)
-    "ωk0":    0.0,    # class' default
-    "Tγ0":    2.7255, # class' default
-    "Neff":   3.044,  # class' default # TODO: handled correctly in COLA?
-    "kpivot": 0.05,   # class' default
-    "Ase9":   2.1,    # class' default
-    "ns":     0.966,  # class' default
+# All available parameters and their fiducial/default values
+# TODO: add explanation/help for each parameter
+PARAMS = {
+    "h":         0.70,
+    "h*√(φini)": 0.70, # TODO: handle! fixing h^2 ϕini
+    "ωb0":       0.02,
+    "ωc0":       0.13,
+    "ωm0":       0.15,
+    "ωk0":       0.00, # TODO: cannot handle this?
+    "Tγ0":       2.7255,
+    "Neff":      3.00,
+    "Ase9":      2.00,
+    "ns":        1.00,
+    "kpivot":    0.05,
+    "σ8":        0.80,
 
-    # computational parameters (max on euclid22-32: Npart=Ncell=1024 with np=16 CPUs)
-    "zinit": 10.0,
-    "Nstep": 30,
-    "Npart": 512,
-    "Ncell": 512,
-    "Lh":    512.0, # L / (Mpc/h) = L*h / Mpc
-}
-params0_BD = utils.dictupdate(params0_GR, {
-    "lgω":    2.0,    # lowest value to consider (larger values should only be "easier" to simulate?)
-    "G0/G":   1.0,    # G0 == G        (ϕ0 = (4+2*ω)/(3+2*ω) * 1/(G0/G))
-})
+    "lgω":       2.0,
+    "G0/G":      1.00,
 
-# Plot LHS samples seen through each parameter space face
-params_varying = {
-    "lgω":    (2.0, 5.0),
-    "G0/G":   (0.99, 1.01),
-    "h":      (0.63, 0.73),
-    "ωb0":    (0.016, 0.028),
-    "ωc0":    (0.090, 0.150),
-    "Ase9":   (1.6, 2.6),
-    "ns":     (0.866, 1.066),
+    "z":         0.0, # handled specially
+
+    "zinit":     10.0,
+    "Nstep":     30,
+    "Npart":     256,
+    "Ncell":     256,
+    "Lh":        400.0,
+    "L":         400.0 / 0.70,
 }
 
-# List simulations
-if "list" in ACTIONS:
-    sim.BDSimulation.list()
-    sim.GRSimulation.list()
+# List simulations, if requested
+if args.list_sims:
+    for simtype in sim.SIMTYPES:
+        print(f"Simulations in {simtype.SIMDIR}:")
+        simtype.list()
+    exit()
 
-if "rcparams" in ACTIONS:
-    print("Matplotlib rcParams:")
-    print(matplotlib.rcParams.keys())
+if args.list_params:
+    print("Available independent parameters and their default values:")
+    for param in PARAMS:
+        print(f"{param} = {PARAMS[param]}")
+    exit()
+
+# Build fixed parameters # TODO: just do --params for both fixing and varying
+params = {}
+for param in ["h", "ωb0", "ωm0", "ωk0", "Tγ0", "Neff", "ns", "kpivot", "lgω", "G0/G", "zinit", "Nstep", "Npart", "Ncell", "Lh"]: # fix these by default
+    params[param] = PARAMS[param] # fix to fiducial value
+for fix in args.fix:
+    # parse fix == "param" or fix == "param=value"
+    param_value = fix.split('=')
+    param = param_value[0]
+    value = float(param_value[1]) if len(param_value) == 2 else PARAMS[param] # specified or fiducial
+    params[param] = value
+print("Fixing parameters:")
+for param, value in params.items():
+    print(f"{param} = {value}")
+
+# Vary parameters, if requested # TODO: make a "generator" for simulations
+if args.vary:
+    # parse args.vary == "param=value1,value2,...valueN"
+    param_values = args.vary.split('=')
+    assert len(param_values) == 2, "varying parameter values were not specified"
+    param = param_values[0]
+    values = [float(value) for value in param_values[1].split(',')]
+    sources = args.sources
+    stem = "plots/fix_" + '_'.join(args.fix) + f"_vary_{param}"
+    plot.plot_power(stem, params, param, values, θGR_different_h, nsims=1, sources=sources)
 
 # Plot evolution of (background) densities
-if "evolution" in ACTIONS:
-    plot.plot_density_evolution("plots/evolution_density.pdf", params0_BD, θGR_different_h)
+if args.evolution:
+    plot.plot_density_evolution("plots/evolution_density.pdf", params, θGR_different_h)
 
     # Plot evolution of (background) quantities
     def G_G0_BD(bg, params):    return (4+2*10**params["lgω"]) / (3+2*10**params["lgω"]) / bg["phi_smg"]
@@ -121,57 +147,16 @@ if "evolution" in ACTIONS:
         ("f", f_BD_GR,    f_BD_GR,    False, "f(a)",             0.1,  0.01),
     ]
     for q, qBD, qGR, logabs, ylabel, Δyabs, Δyrel in series:
-        plot.plot_quantity_evolution(f"plots/evolution_{q}.pdf", params0_BD, qBD, qGR, θGR_different_h, qty=q, ylabel=ylabel, logabs=logabs, Δyabs=Δyabs, Δyrel=Δyrel)
+        plot.plot_quantity_evolution(f"plots/evolution_{q}.pdf", params, qBD, qGR, θGR_different_h, qty=q, ylabel=ylabel, logabs=logabs, Δyabs=Δyabs, Δyrel=Δyrel)
+exit()
 
-if "test" in ACTIONS:
-    #plot.plot_convergence(f"plots/boost_fiducial.pdf", params0_BD, "lgω", [2.0], nsims=5, θGR=θGR_different_h)
-    params0 = utils.dictupdate(params0_BD, {"σ8": 0.6, "Nstep": 10, "Npart": 16, "Ncell": 16}, ["Ase9"])
-    #plot.plot_convergence(f"plots/boost_test.pdf", params0, "lgω", [2.0], nsims=1, θGR=θGR_different_h)
-    plot.plot_convergence(f"plots/boost_test.pdf", params0, "z", [0.0, 1.0, 2.0, 3.0], nsims=1, θGR=θGR_different_h)
-    #plot.plot_convergence(f"plots/boost_test.pdf",   params0_BD, "lgω",  [2.0, 3.0, 4.0],  θGR_different_h)
-    exit()
+# use this for testing shit
+if args.test:
+    pass
+exit()
 
-if "compare" in ACTIONS:
-    for θGR, suffix1 in zip([θGR_identity, θGR_different_h], ["_sameh", "_diffh"]):
-        for divide_linear, suffix2 in zip([False, True], ["", "_divlin"]):
-            for logy, suffix3 in zip([False, True], ["", "_log"]):
-                plot.plot_power(f"plots/fiducial{suffix1}{suffix2}{suffix3}", params0_BD, "lgω", [2.0, 3.0, 4.0, 5.0], nsims=5, θGR=θGR, divide_linear=divide_linear, logy=logy)
-
-# Convergence plots (computational parameters)
-if "convergence" in ACTIONS:
-    plot.plot_power("plots/convergence_L",     params0_BD, "Lh",      [200.0, 300.0, 400.0, 500.0, 600.0], θGR_different_h)
-    #plot.plot_power("plots/convergence_L",     utils.dictupdate(params0_BD, {"L": 256.0}, remove=["Lh"]), "L",     [256.0, 384.0, 512.0, 768.0, 1024.0], θGR_different_h)
-    exit()
-    plot.plot_power("plots/convergence_Npart", params0_BD, "Npart",  [256, 384, 512, 768, 1024],           θGR_different_h)
-    plot.plot_power("plots/convergence_Ncell", params0_BD, "Ncell",  [256, 384, 512, 768, 1024],           θGR_different_h)
-    plot.plot_power("plots/convergence_Nstep", params0_BD, "Nstep",  [10, 20, 30, 40, 50],                 θGR_different_h)
-    plot.plot_power("plots/convergence_zinit", params0_BD, "zinit",  [10.0, 20.0, 30.0],                   θGR_different_h)
-
-# Variation plots (cosmological parameters)
-if "variation" in ACTIONS:
-    for param, value, prefix in (("Ase9", 2.1, "parametrize_As"), ("σ8", 0.8, "parametrize_s8", )):
-        params0 = utils.dictupdate(params0_BD, {param: value}, remove=["Ase9"])
-        if True:
-            plot.plot_power(f"plots/variation_{prefix}_vary_z",       params0, "z",    [0.0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0],  θGR_different_h)
-            plot.plot_power(f"plots/variation_{prefix}_vary_omega",   params0, "lgω",  [2.0, 3.0, 4.0, 5.0],  θGR_different_h)
-            plot.plot_power(f"plots/variation_{prefix}_vary_G0",      params0, "G0/G", [0.99, 1.0, 1.01],     θGR_different_h)
-            plot.plot_power(f"plots/variation_{prefix}_vary_h",       params0, "h",    [0.63, 0.68, 0.73],    θGR_different_h)
-            plot.plot_power(f"plots/variation_{prefix}_vary_omegab0", params0, "ωb0",  [0.016, 0.022, 0.028], θGR_different_h)
-            plot.plot_power(f"plots/variation_{prefix}_vary_omegac0", params0, "ωc0",  [0.100, 0.120, 0.140], θGR_different_h)
-            plot.plot_power(f"plots/variation_{prefix}_vary_ns",      params0, "ns",   [0.866, 0.966, 1.066], θGR_different_h)
-        if "Ase9" in params0:
-            plot.plot_power(f"plots/variation_{prefix}_vary_As",      params0, "Ase9", [1.6, 2.1, 2.6],       θGR_different_h)
-        if "σ8" in params0:
-            plot.plot_power(f"plots/variation_{prefix}_vary_s8",      params0, "σ8",   [0.7, 0.8, 0.9],       θGR_different_h)
-
-        # parametrize with ωm0 and ωb0 (instead of ωc0)
-        params0 = utils.dictupdate(params0, remove=["ωc0", "ωb0"])
-        plot.plot_power(f"plots/variation_{prefix}_omegam0_vary_omegab0", params0 | {"ωm0": 0.142, "ωb0": 0.022}, "ωb0", [0.016, 0.022, 0.028], θGR_different_h)
-        plot.plot_power(f"plots/variation_{prefix}_omegam0_vary_omegac0", params0 | {"ωm0": 0.142, "ωc0": 0.120}, "ωc0", [0.100, 0.120, 0.140], θGR_different_h)
-        plot.plot_power(f"plots/variation_{prefix}_omegab0_vary_omegam0", params0 | {"ωm0": 0.142, "ωb0": 0.022}, "ωm0", [0.082, 0.142, 0.202], θGR_different_h)
-        #plot.plot_power(f"plots/variation_omegam0_fixed_omegac0", params0 | {"ωm0": 0.142, "ωc0": 0.120}, "ωm0", [0.082, 0.142, 0.202], θGR_different_h) # TODO: need to update values to not get negative mass density
-
-if "sample" in ACTIONS:
+# TODO: unfinished shit
+if args.sample:
     paramspace = ParameterSpace(params_varying)
     samples = paramspace.samples(500)
     plot.plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), paramspace.param_names)

@@ -580,3 +580,5 @@ class SimulationGroupPair:
         #assert np.isclose(ΔB_matrix, ΔB_manual), "error propagation is wrong"
 
         return k, B, ΔB
+
+SIMTYPES = [BDSimulation, GRSimulation]
