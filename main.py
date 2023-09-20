@@ -64,32 +64,31 @@ def θGR_different_h(θBD, θBD_all):
     return θGR
 
 # All available parameters and their fiducial/default values
-# TODO: add explanation/help for each parameter
 PARAMS = {
-    "h":         0.70,
-    "h*√(φini)": 0.70, # TODO: handle! fixing h^2 ϕini
-    "ωb0":       0.02,
-    "ωc0":       0.13,
-    "ωm0":       0.15,
-    "ωk0":       0.00, # TODO: cannot handle this?
-    "Tγ0":       2.7255,
-    "Neff":      3.00,
-    "Ase9":      2.00,
-    "ns":        1.00,
-    "kpivot":    0.05,
-    "σ8":        0.80,
+    "h":         {"fid": 0.70,         "help": "reduced Hubble parameter today = H0 / (100 km/(s*Mpc))"},
+    "h*√(φini)": {"fid": 0.70,         "help": "TODO"}, # TODO: handle! fixing h^2 ϕini
+    "ωb0":       {"fid": 0.02,         "help": "physical baryon density = ρb0 / (3 * (100 km/(s*Mpc))^2 / (8*π*G))"},
+    "ωc0":       {"fid": 0.13,         "help": "physical cold dark matter density = ρc0 / (3 * (100 km/(s*Mpc))^2 / (8*π*G))"},
+    "ωm0":       {"fid": 0.15,         "help": "physical matter density = ωb0 + ωc0"},
+    "ωk0":       {"fid": 0.00,         "help": "effective curvature density (not handled)"}, # TODO: cannot handle this?
+    "Tγ0":       {"fid": 2.7255,       "help": "CMB photon temperature today / K"},
+    "Neff":      {"fid": 3.00,         "help": "effective number of neutrino species"},
+    "Ase9":      {"fid": 2.00,         "help": "primordial power spectrum amplitude = As * 10^9"},
+    "ns":        {"fid": 1.00,         "help": "primordial power spectrum spectral index"},
+    "kpivot":    {"fid": 0.05,         "help": "wavenumber at which primordial power spectrum amplitude is given"},
+    "σ8":        {"fid": 0.80,         "help": "smoothed matter density fluctuation amplitude = σ(R=8 Mpc/h, z=0)"},
 
-    "lgω":       2.0,
-    "G0/G":      1.00,
+    "lgω":       {"fid": 2.0,          "help": "logarithm of Brans-Dicke scalar field coupling = log_10(ω)"},
+    "G0/G":      {"fid": 1.00,         "help": "gravitational parameter today / G"},
 
-    "z":         0.0, # handled specially
+    "zinit":     {"fid": 10.0,         "help": "initial redshift (all N-body simulations)"},
+    "Nstep":     {"fid": 30,           "help": "number of timesteps (COLA N-body simulations"},
+    "Npart":     {"fid": 256,          "help": "number of particles per dimension (all N-body simulations)"},
+    "Ncell":     {"fid": 256,          "help": "number of coarse cells per dimension for (all N-body simulations)"},
+    "Lh":        {"fid": 400.0,        "help": "comoving box size / (Mpc/h) (all N-body simulations) = L*h"},
+    "L":         {"fid": 400.0 / 0.70, "help": "comoving box size / Mpc (all N-body simulations)"},
 
-    "zinit":     10.0,
-    "Nstep":     30,
-    "Npart":     256,
-    "Ncell":     256,
-    "Lh":        400.0,
-    "L":         400.0 / 0.70,
+    "z":         {"fid": 0.0,          "help": "power spectrum redshift"}, # handled specially
 }
 
 # List simulations, if requested
@@ -102,18 +101,18 @@ if args.list_sims:
 if args.list_params:
     print("Available independent parameters and their default values:")
     for param in PARAMS:
-        print(f"{param} = {PARAMS[param]}")
+        print(f"{param} = {PARAMS[param]['fid']} ({PARAMS[param]['help']})")
     exit()
 
 # Build fixed parameters # TODO: just do --params for both fixing and varying
 params = {}
 for param in ["h", "ωb0", "ωm0", "ωk0", "Tγ0", "Neff", "ns", "kpivot", "lgω", "G0/G", "zinit", "Nstep", "Npart", "Ncell", "Lh"]: # fix these by default
-    params[param] = PARAMS[param] # fix to fiducial value
+    params[param] = PARAMS[param]["fid"] # fix to fiducial value
 for fix in args.fix:
     # parse fix == "param" or fix == "param=value"
     param_value = fix.split('=')
     param = param_value[0]
-    value = float(param_value[1]) if len(param_value) == 2 else PARAMS[param] # specified or fiducial
+    value = float(param_value[1]) if len(param_value) == 2 else PARAMS[param]["fid"] # specified or fiducial
     params[param] = value
 print("Fixing parameters:")
 for param, value in params.items():
