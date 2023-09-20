@@ -24,10 +24,8 @@ from scipy.interpolate import CubicSpline
 parser = argparse.ArgumentParser(prog="main.py")
 parser.add_argument("--list-sims", action="store_true", help="list simulations and exit")
 parser.add_argument("--list-params", action="store_true", help="list parameters and exit")
-parser.add_argument("--fix", metavar="PARAM[=VALUE]", nargs="*", help="parameters to fix", default=[])
-parser.add_argument("--vary", metavar="PARAM=VALUE1,VALUE2,...,VALUEN", nargs="?", help="parameter to vary")
-parser.add_argument("--sources", metavar="SOURCE", default=["linear-class"], nargs="*", help="P(k) sources (linear-class, nonlinear-class, nonlinear-cola, nonlinear-ramses)")
-parser.add_argument("--power", action="store_true", help="plot power spectra and boost")
+parser.add_argument("--params", metavar="PARAM[=VALUES]", nargs="*", help="parameters to fix or vary", default=[])
+parser.add_argument("--power", nargs="*", metavar="SOURCE", default=[], help="plot P(k) and B(k) from sources (linear-class, nonlinear-class, nonlinear-cola, nonlinear-ramses)")
 parser.add_argument("--evolution", action="store_true", help="plot evolution of background and perturbation quantities")
 #parser.add_argument("--sample") # TODO: sampling, emulation, ...
 parser.add_argument("--test", action="store_true", help="run whatever experimental code is in the test section")
@@ -104,30 +102,47 @@ if args.list_params:
         print(f"{param} = {PARAMS[param]['fid']} ({PARAMS[param]['help']})")
     exit()
 
-# Build fixed parameters # TODO: just do --params for both fixing and varying
-params = {}
-for param in ["h", "ωb0", "ωm0", "ωk0", "Tγ0", "Neff", "ns", "kpivot", "lgω", "G0/G", "zinit", "Nstep", "Npart", "Ncell", "Lh"]: # fix these by default
-    params[param] = PARAMS[param]["fid"] # fix to fiducial value
-for fix in args.fix:
-    # parse fix == "param" or fix == "param=value"
-    param_value = fix.split('=')
+# Build parameters
+paramlist = {}
+fixparams_default = ["h", "ωk0", "Tγ0", "Neff", "ns", "kpivot", "lgω", "G0/G", "zinit", "Nstep", "Npart", "Ncell", "Lh"]
+for param in fixparams_default: # fix these by default
+    paramlist[param] = [PARAMS[param]["fid"]] # fix to fiducial value
+for param in args.params:
+    # parse param on the form "param" or fix == "param=value"
+    param_value = param.split('=')
     param = param_value[0]
-    value = float(param_value[1]) if len(param_value) == 2 else PARAMS[param]["fid"] # specified or fiducial
-    params[param] = value
-print("Fixing parameters:")
-for param, value in params.items():
-    print(f"{param} = {value}")
+    values = [float(value) for value in param_value[1].split(',')] if len(param_value) == 2 else [PARAMS[param]["fid"]] # specified or fiducial
+    paramlist[param] = values
+print("Parameters:")
+for param, values in paramlist.items():
+    print(f"{param} = {values} (x{len(values)})")
 
-# Vary parameters, if requested # TODO: make a "generator" for simulations
-if args.vary:
-    # parse args.vary == "param=value1,value2,...valueN"
-    param_values = args.vary.split('=')
-    assert len(param_values) == 2, "varying parameter values were not specified"
-    param = param_values[0]
-    values = [float(value) for value in param_values[1].split(',')]
-    sources = args.sources
-    stem = "plots/fix_" + '_'.join(args.fix) + f"_vary_{param}"
-    plot.plot_power(stem, params, param, values, θGR_different_h, nsims=1, sources=sources)
+def genparams(paramlist, params={}):
+    if len(paramlist) == 0:
+        yield params.copy()
+    else:
+        param, values = paramlist.popitem() # 1) remove one parameter from list of varying parameters
+        for value in values:
+            params[param] = value # 2) add it to current parameter map
+            yield from genparams(paramlist, params)
+        paramlist[param] = values # 3) undo 1)
+
+print("Iterating over", 'x'.join(str(len(values)) for _, values in paramlist.items() if len(values) > 1), "parameter combinations")
+paramss = list(genparams(paramlist))
+varparams = [param for param, vals in paramlist.items() if len(vals)  > 1] # list of varying parameters
+fixparams = [param for param, vals in paramlist.items() if len(vals) == 1] # list of fixed   paramaters
+
+# Plot power spectra and boost, if requested
+if len(args.power) > 0:
+    assert len(varparams) == 1, "can only vary one parameter at the time"
+    varparam = varparams[0]
+
+    fixparams_nondefault = list(set(fixparams) - set(fixparams_default))
+    stem = "plots/power_fix_" + '_'.join(fixparams_nondefault) + f"_vary_{varparam}"
+
+    sources = args.power
+    params0 = {param: PARAMS[param]["fid"] for param in PARAMS}
+    plot.plot_power(stem, params0, paramss, varparam, θGR_different_h, nsims=1, sources=sources)
 
 # Plot evolution of (background) densities
 if args.evolution:

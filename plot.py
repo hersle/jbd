@@ -112,8 +112,9 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_power(filename_stem, params0, param, vals, θGR, sources=[], nsims=1, hunits=True):
-    val0 = 0.0 if param == "z" else params0[param] # varying z requires same sim params, but calling power spectrum with z=z, so handle it in a special way
+def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True):
+    val0 = params0[param] # varying z requires same sim params, but calling power spectrum with z=z, so handle it in a special way
+    vals = [params[param] for params in paramss]
 
     names = ["PBD", "PGR", "B"]
     def curve_PBD(sims, source, z):
@@ -137,9 +138,9 @@ def plot_power(filename_stem, params0, param, vals, θGR, sources=[], nsims=1, h
 
     for name, func, ylabel, yticks in zip(names, funcs, ylabels, ytickss): # 1) iterate over PBD(k), PGR(k), B(k)
         colors, clabels, llabels, linestyles, curvess = [], [], [], [], []
-        for val in vals: # 2) iterate over parameter to vary
-            params = params0 if param == "z" else utils.dictupdate(params0, {param: val})
-            z = val if param == "z" else 0.0
+        for params, val in zip(paramss, vals): # 2) iterate over parameter to vary
+            params = params.copy()
+            z = params.pop("z", params0["z"])
             sims = sim.SimulationGroupPair(params, θGR, nsims)
 
             # color and color labels
