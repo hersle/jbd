@@ -25,6 +25,7 @@ parser = argparse.ArgumentParser(prog="main.py")
 parser.add_argument("--list-sims", action="store_true", help="list simulations and exit")
 parser.add_argument("--list-params", action="store_true", help="list parameters and exit")
 parser.add_argument("--params", metavar="PARAM[=VALUES]", nargs="*", help="parameters to fix or vary", default=[])
+parser.add_argument("--transform-h", action="store_true", help="use hGR = hBD * √(ϕini) instead of hGR = hBD")
 parser.add_argument("--power", nargs="*", metavar="SOURCE", default=[], help="plot P(k) and B(k) from sources (class, halofit, cola, ramses)")
 parser.add_argument("--realizations", metavar="N", type=int, default=1, help="number of universe realizations to simulate per model")
 parser.add_argument("--evolution", action="store_true", help="plot evolution of background and perturbation quantities")
@@ -103,7 +104,7 @@ if args.list_params:
         print(f"{param} = {PARAMS[param]['fid']} ({PARAMS[param]['help']})")
     exit()
 
-# Build parameters
+# Build BD parameters
 paramlist = {}
 fixparams_default = ["h", "ωk0", "Tγ0", "Neff", "ns", "kpivot", "ω", "G0/G", "zinit", "Nstep", "Npart", "Ncell", "Lh"]
 for param in fixparams_default: # fix these by default
@@ -133,6 +134,9 @@ paramss = list(genparams(paramlist))
 varparams = [param for param, vals in paramlist.items() if len(vals)  > 1] # list of varying parameters
 fixparams = [param for param, vals in paramlist.items() if len(vals) == 1] # list of fixed   paramaters
 
+# Parameter transformation from BD to GR
+θGR = θGR_different_h if args.transform_h else θGR_identity
+
 # Plot power spectra and boost, if requested
 if len(args.power) > 0:
     assert len(varparams) == 1, "can only vary one parameter at the time"
@@ -143,11 +147,11 @@ if len(args.power) > 0:
 
     sources = args.power
     params0 = {param: PARAMS[param]["fid"] for param in PARAMS}
-    plot.plot_power(stem, params0, paramss, varparam, θGR_different_h, nsims=args.realizations, sources=sources)
+    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources)
 
 # Plot evolution of (background) densities
 if args.evolution:
-    plot.plot_density_evolution("plots/evolution_density.pdf", params, θGR_different_h)
+    plot.plot_density_evolution("plots/evolution_density.pdf", params, θGR)
 
     # Plot evolution of (background) quantities
     def G_G0_BD(bg, params):    return (4+2*params["ω"]) / (3+2*params["ω"]) / bg["phi_smg"]
@@ -162,7 +166,7 @@ if args.evolution:
         ("f", f_BD_GR,    f_BD_GR,    False, "f(a)",             0.1,  0.01),
     ]
     for q, qBD, qGR, logabs, ylabel, Δyabs, Δyrel in series:
-        plot.plot_quantity_evolution(f"plots/evolution_{q}.pdf", params, qBD, qGR, θGR_different_h, qty=q, ylabel=ylabel, logabs=logabs, Δyabs=Δyabs, Δyrel=Δyrel)
+        plot.plot_quantity_evolution(f"plots/evolution_{q}.pdf", params, qBD, qGR, θGR, qty=q, ylabel=ylabel, logabs=logabs, Δyabs=Δyabs, Δyrel=Δyrel)
 exit()
 
 # use this for testing shit
