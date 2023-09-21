@@ -7,7 +7,6 @@
 # TODO: run one big box with COLA (fiducial cosmology?) to see if pattern continues to higher k?
 # TODO: run one big box with "proper N-body program" to see if COLA is ok
 # TODO: emulation https://github.com/renmau/Sesame_pipeline/
-# TODO: subtract shotnoise
 # TODO: compute AMR of 256 grid on a 4*256 = 1024 grid
 # TODO: compute P(k) from COLA *snapshots*
 

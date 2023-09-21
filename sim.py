@@ -369,7 +369,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
                 if self.file_exists(info_filename):
                     # compute P(k) if not already done
                     if not self.file_exists(pofk_filename):
-                        self.run_command(f"{self.RAMSES2PKEXEC} --verbose --density-assignment=CIC {snapdir}", np=16)
+                        self.run_command(f"{self.RAMSES2PKEXEC} --verbose --subtract-shotnoise --density-assignment=CIC {snapdir}", np=16)
                         assert self.file_exists(pofk_filename)
                     a = self.read_variable(info_filename, "aexp        =  ") # == 1 / (z+1)
                     zs.append(1/a - 1) # be careful to not override z!
