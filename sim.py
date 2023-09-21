@@ -57,7 +57,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             raise(Exception("Exactly 2 of (ωb0, ωc0, ωm0) were not specified"))
 
         # derive σ8 or As from the other
-        if "σ8" in self.iparams:
+        if not "As" in self.iparams:
             if not self.file_exists("class/As_from_s8.txt"):
                 σ8_target = self.iparams["σ8"]
                 As = 1.0e-9 # initial guess
@@ -70,7 +70,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
                     As = (σ8_target/σ8)**2 * As # exploit σ8^2 ∝ As to iterate efficiently (usually requires only one retry)
                 self.write_file("class/As_from_s8.txt", str(self.params["As"])) # cache the result (expensive to compute)
             dparams["As"] = float(self.read_file("class/As_from_s8.txt"))
-        elif "As" in self.iparams:
+        elif not "σ8" in self.iparams:
             self.params = utils.dictupdate(self.iparams, dparams)
             self.run_class()
             dparams["σ8"] = self.read_variable("class/log.txt", "sigma8=")
@@ -78,9 +78,9 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             raise(Exception("Exactly one of (As, σ8) were not specified"))
 
         # derive L or L*h from the other
-        if "Lh" in self.iparams:
+        if not "L" in self.iparams:
             dparams["L"] = self.iparams["Lh"] / self.iparams["h"]
-        elif "L" in self.iparams:
+        elif not "Lh" in self.iparams:
             dparams["Lh"] = self.iparams["L"] * self.iparams["h"]
         else:
             raise(Exception("Exactly one of (L, Lh) were not specified"))
