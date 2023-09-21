@@ -55,7 +55,7 @@ class ParameterSpace:
         return [self.sample() for i in range(0, n)]
 
 def θGR_identity(θBD, θBD_all):
-    return utils.dictupdate(θBD, remove=["ω", "G0/G"]) # remove BD-specific parameters
+    return utils.dictupdate(θBD, remove=["ω", "G0"]) # remove BD-specific parameters
 
 def θGR_different_h(θBD, θBD_all):
     θGR = θGR_identity(θBD, θBD_all)
@@ -72,13 +72,13 @@ PARAMS = {
     "ωk0":       {"fid": 0.00,         "help": "effective curvature density (not handled)"}, # TODO: cannot handle this?
     "Tγ0":       {"fid": 2.7255,       "help": "CMB photon temperature today / K"},
     "Neff":      {"fid": 3.00,         "help": "effective number of neutrino species"},
-    "Ase9":      {"fid": 2.00,         "help": "primordial power spectrum amplitude = As * 10^9"},
+    "As":        {"fid": 2e-9,         "help": "primordial power spectrum amplitude = As"},
     "ns":        {"fid": 1.00,         "help": "primordial power spectrum spectral index"},
     "kpivot":    {"fid": 0.05,         "help": "wavenumber at which primordial power spectrum amplitude is given"},
     "σ8":        {"fid": 0.80,         "help": "smoothed matter density fluctuation amplitude = σ(R=8 Mpc/h, z=0)"},
 
     "ω":         {"fid": 100.0,        "help": "Brans-Dicke scalar field coupling"},
-    "G0/G":      {"fid": 1.00,         "help": "gravitational parameter today / G"},
+    "G0":        {"fid": 1.00,         "help": "gravitational parameter today / G"},
 
     "zinit":     {"fid": 10.0,         "help": "initial redshift (all N-body simulations)"},
     "Nstep":     {"fid": 30,           "help": "number of timesteps (COLA N-body simulations"},
@@ -105,7 +105,7 @@ if args.list_params:
 
 # Build BD parameters
 paramlist = {}
-fixparams_default = ["h", "ωk0", "Tγ0", "Neff", "ns", "kpivot", "ω", "G0/G", "zinit", "Nstep", "Npart", "Ncell", "Lh"]
+fixparams_default = ["h", "ωk0", "Tγ0", "Neff", "ns", "kpivot", "ω", "G0", "zinit", "Nstep", "Npart", "Ncell", "Lh"]
 for param in fixparams_default: # fix these by default
     paramlist[param] = [PARAMS[param]["fid"]] # fix to fiducial value
 for param in args.params:

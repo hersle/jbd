@@ -58,24 +58,24 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
         # derive σ8 or As from the other
         if "σ8" in self.iparams:
-            if not self.file_exists("class/Ase9_from_s8.txt"):
+            if not self.file_exists("class/As_from_s8.txt"):
                 σ8_target = self.iparams["σ8"]
-                Ase9 = 1.0 # initial guess
+                As = 1.0e-9 # initial guess
                 while True:
-                    self.params = utils.dictupdate(self.iparams, dparams | {"Ase9": Ase9}, remove=["σ8"])
+                    self.params = utils.dictupdate(self.iparams, dparams | {"As": As}, remove=["σ8"])
                     self.run_class() # re-run until we have the correct σ8
                     σ8 = self.read_variable("class/log.txt", "sigma8=")
                     if np.abs(σ8 - σ8_target) < 1e-10:
                         break
-                    Ase9 = (σ8_target/σ8)**2 * Ase9 # exploit σ8^2 ∝ As to iterate efficiently (usually requires only one retry)
-                self.write_file("class/Ase9_from_s8.txt", str(self.params["Ase9"])) # cache the result (expensive to compute)
-            dparams["Ase9"] = float(self.read_file("class/Ase9_from_s8.txt"))
-        elif "Ase9" in self.iparams:
+                    As = (σ8_target/σ8)**2 * As # exploit σ8^2 ∝ As to iterate efficiently (usually requires only one retry)
+                self.write_file("class/As_from_s8.txt", str(self.params["As"])) # cache the result (expensive to compute)
+            dparams["As"] = float(self.read_file("class/As_from_s8.txt"))
+        elif "As" in self.iparams:
             self.params = utils.dictupdate(self.iparams, dparams)
             self.run_class()
             dparams["σ8"] = self.read_variable("class/log.txt", "sigma8=")
         else:
-            raise(Exception("Exactly one of (Ase9, σ8) were not specified"))
+            raise(Exception("Exactly one of (As, σ8) were not specified"))
 
         # derive L or L*h from the other
         if "Lh" in self.iparams:
@@ -199,7 +199,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f"Omega_k = {self.params['ωk0'] / self.params['h']**2}",
             f"T_cmb = {self.params['Tγ0']}",
             f"N_eff = {self.params['Neff']}",
-            f"A_s = {self.params['Ase9'] / 1e9}",
+            f"A_s = {self.params['As']}",
             f"n_s = {self.params['ns']}",
             f"k_pivot = {self.params['kpivot']}",
             f"YHe = 0.25",
@@ -249,7 +249,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f'cosmology_OmegaK = {self.params["ωk0"] / self.params["h"]**2}',
             f'cosmology_Neffective = {self.params["Neff"]}',
             f'cosmology_TCMB_kelvin = {self.params["Tγ0"]}',
-            f'cosmology_As = {self.params["Ase9"] / 1e9}',
+            f'cosmology_As = {self.params["As"]}',
             f'cosmology_ns = {self.params["ns"]}',
             f'cosmology_kpivot_mpc = {self.params["kpivot"]}',
             f'cosmology_OmegaMNu = 0.0',
@@ -440,7 +440,7 @@ class BDSimulation(Simulation):
             f"Omega_fld = 0", # no dark energy fluid
             f"Omega_smg = -1", # automatic modified gravity
             f"parameters_smg = NaN, {self.params['ω']}, 1.0, 0.0", # ΩΛ0 (fill with cosmological constant), ω, Φini (arbitrary initial guess), Φ′ini≈0 (fixed)
-            f"M_pl_today_smg = {(4+2*self.params['ω'])/(3+2*self.params['ω']) / self.params['G0/G']}", # see https://github.com/HAWinther/hi_class_pub_devel/blob/3160be0e0482ac2284c20b8878d9a81efdf09f2a/gravity_smg/gravity_models_smg.c#L462
+            f"M_pl_today_smg = {(4+2*self.params['ω'])/(3+2*self.params['ω']) / self.params['G0']}", # see https://github.com/HAWinther/hi_class_pub_devel/blob/3160be0e0482ac2284c20b8878d9a81efdf09f2a/gravity_smg/gravity_models_smg.c#L462
             f"a_min_stability_test_smg = 1e-6", # BD has early-time instability, so lower tolerance to pass stability checker
             f"output_background_smg = 2", # >= 2 needed to output phi to background table (https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/background.c#L3031)
             f"" # final newline
@@ -451,7 +451,7 @@ class BDSimulation(Simulation):
             f'gravity_model = "JBD"',
             f'cosmology_model = "JBD"',
             f'cosmology_JBD_wBD = {self.params["ω"]}',
-            f'cosmology_JBD_GeffG_today = {self.params["G0/G"]}',
+            f'cosmology_JBD_GeffG_today = {self.params["G0"]}',
             f'cosmology_JBD_density_parameter_definition = "hi-class"',
             f''# final newline
         ])
