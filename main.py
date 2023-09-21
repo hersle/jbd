@@ -112,7 +112,7 @@ for param in args.params:
     # parse param on the form "param" or fix == "param=value"
     param_value = param.split('=')
     param = param_value[0]
-    values = [float(value) for value in param_value[1].split(',')] if len(param_value) == 2 else [PARAMS[param]["fid"]] # specified or fiducial
+    values = [int(value) if type(PARAMS[param]["fid"]) == int else float(value) for value in param_value[1].split(',')] if len(param_value) == 2 else [PARAMS[param]["fid"]] # specified or fiducial
     paramlist[param] = values
 print("Parameters:")
 for param, values in paramlist.items():
