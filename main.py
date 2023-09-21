@@ -138,12 +138,10 @@ fixparams = [param for param, vals in paramlist.items() if len(vals) == 1] # lis
 
 # Plot power spectra and boost, if requested
 if len(args.power) > 0:
-    assert len(varparams) == 1, "can only vary one parameter at the time"
-    varparam = varparams[0]
-
+    assert len(varparams) <= 1, "can vary at most one parameter at the time"
+    varparam = varparams[0] if len(varparams) == 1 else None
     fixparams_nondefault = list(set(fixparams) - set(fixparams_default))
-    stem = "plots/power_fix_" + '_'.join(fixparams_nondefault) + f"_vary_{varparam}"
-
+    stem = "plots/power_fix_" + '_'.join(fixparams_nondefault) + (f"_vary_{varparam}" if varparam else "")
     sources = args.power
     params0 = {param: PARAMS[param]["fid"] for param in PARAMS}
     plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources)

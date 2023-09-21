@@ -70,8 +70,8 @@ def ax_set_ylim_nearest(ax, Δy):
 def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, llabels=None, title=None, xlabel=None, ylabel=None, xticks=None, yticks=None):
     fig, ax = plt.subplots(figsize=(3.0, 2.7))
 
-    if colors is None: colors = ["black"] * len(curvess)
-    if linestyles is None: linestyles = ["solid"] * len(curvess[0])
+    if not colors: colors = ["black"] * len(curvess)
+    if not linestyles: linestyles = ["solid"] * len(curvess[0])
 
     # Plot the curves; varying color first, and linestyle second
     ax.set_prop_cycle(cycler(color=colors) * cycler(linestyle=linestyles))
@@ -90,7 +90,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
             set_minor_locator(matplotlib.ticker.AutoMinorLocator(int(np.round(stepmajor/stepminor))))
 
     # Label colors (through colorbar)
-    if clabels is not None:
+    if clabels:
         cax  = make_axes_locatable(ax).append_axes("top", size="7%", pad="0%") # align colorbar axis with plot
         cmap = matplotlib.colors.ListedColormap(colors)
         cbar = plt.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap), cax=cax, orientation="horizontal")
@@ -100,7 +100,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
         cax.xaxis.set_ticks(np.linspace(0.5/len(clabels), 1-0.5/len(clabels), len(clabels)), labels=clabels)
 
     # Label linestyles (through legend)
-    if llabels is not None:
+    if llabels:
         ax2 = ax.twinx() # use invisible twin axis to create second legend
         ax2.get_yaxis().set_visible(False) # make invisible
         for linestyle, label in zip(linestyles, llabels):
@@ -113,9 +113,6 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
     print("Plotted", filename)
 
 def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True):
-    val0 = params0[param] # varying z requires same sim params, but calling power spectrum with z=z, so handle it in a special way
-    vals = [params[param] for params in paramss]
-
     names = ["PBD", "PGR", "B"]
     def curve_PBD(sims, source, z):
         k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z, hunits=hunits)
@@ -138,18 +135,24 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
 
     for name, func, ylabel, yticks in zip(names, funcs, ylabels, ytickss): # 1) iterate over PBD(k), PGR(k), B(k)
         colors, clabels, llabels, linestyles, curvess = [], [], [], [], []
-        for params, val in zip(paramss, vals): # 2) iterate over parameter to vary
+        for params in paramss: # 2) iterate over parameter to vary
             params = params.copy()
-            z = params.pop("z", params0["z"])
-            sims = sim.SimulationGroupPair(params, θGR, nsims)
 
             # color and color labels
-            v    = PARAM_PLOT_INFO[param]["colorvalue"](val)  # current  (transformed) value
-            v0   = PARAM_PLOT_INFO[param]["colorvalue"](val0) # fiducial (transformed) value
-            vmin = np.min(PARAM_PLOT_INFO[param]["colorvalue"](vals))   # minimum  (transformed) value
-            vmax = np.max(PARAM_PLOT_INFO[param]["colorvalue"](vals))   # maximum  (transformed) value
-            colors.append(colorbetween(["#0000ff", "#000000", "#ff0000"], v, vmin, v0, vmax))
-            clabels.append(PARAM_PLOT_INFO[param]["format"](val))
+            if param:
+                val  = params[param]
+                val0 = params0[param]
+                v    = PARAM_PLOT_INFO[param]["colorvalue"](val)  # current  (transformed) value
+                v0   = PARAM_PLOT_INFO[param]["colorvalue"](val0) # fiducial (transformed) value
+                vmin = PARAM_PLOT_INFO[param]["colorvalue"](np.min([params[param] for params in paramss])) # minimum  (transformed) value
+                vmax = PARAM_PLOT_INFO[param]["colorvalue"](np.max([params[param] for params in paramss])) # maximum  (transformed) value
+                color = colorbetween(["#0000ff", "#000000", "#ff0000"], v, vmin, v0, vmax)
+                clabel = PARAM_PLOT_INFO[param]["format"](val)
+                colors.append(color)
+                clabels.append(clabel)
+
+            z = params.pop("z", params0["z"])
+            sims = sim.SimulationGroupPair(params, θGR, nsims)
 
             # curves, linestyles and their labels
             curves, linestyles, llabels = [], [], [] # only want to the last two once
@@ -160,7 +163,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
                 curves.append(func(sims, source, z))
             curvess.append(curves)
 
-        title = PARAM_PLOT_INFO[param]["label"]
+        title = PARAM_PLOT_INFO[param]["label"] if param else None
         plot_generic(f"{filename_stem}_{name}.pdf", curvess, colors, clabels, linestyles, llabels, title, xlabel, ylabel, xticks, yticks)
 
 def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", ylabel="", logabs=False, Δyrel=None, Δyabs=None):
