@@ -39,13 +39,13 @@ Plot $P(k)$ and $B(k)$ from Class, COLA and Ramses for varying redshifts with fi
 main.py --params σ8 ωb0 ωm0 z=0,1,2,3,4,5 --power class cola ramses
 ```
 
-Do the same, except with $h_\mathrm{GR} = h_\mathrm{BD} \sqrt{\phi_\mathrm{ini}}$:
+Same as above, but use $h_\mathrm{GR} = h_\mathrm{BD} \sqrt{\phi_\mathrm{ini}}$ *and* plot power spectrum and boost with $P(k/h) \cdot h^3$ instead of $P(k)$:
 
 ```sh
-main.py --params σ8 ωb0 ωm0 z=0,1,2,3,4,5 --transform-h --power class cola ramses
+main.py --params σ8 ωb0 ωm0 z=0,1,2,3,4,5 --transform-h --h-units --power class cola ramses
 ```
 
-Plot evolution of selected background and perturbation quantities (from Class) in the universe in the previous example:
+Plot evolution of selected background and perturbation quantities (from Class) in the universe above:
 
 ```sh
 main.py --params σ8 ωb0 ωm0 --transform-h --evolution
