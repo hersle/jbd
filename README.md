@@ -5,7 +5,7 @@
 * `python3` with `numpy`, `scipy` and `matplotlib`
 * [`hi_class`](https://github.com/miguelzuma/hi_class_public/) for $P(k)$ from linear perturbations
 * [`FML/COLASolver`](https://github.com/HAWinther/FML/tree/master/FML/COLASolver) for $P(k)$ from COLA $N$-body simulations
-* [`ramses`] with *and* without [`JordanBransDicke`](https://github.com/HAWinther/JordanBransDicke) patch, and [`FML/RamsesUtils/ramses2pk`](https://github.com/hersle/FML/tree/master/FML/RamsesUtils/ramses2pk), for $P(k)$ from AMR $N$-body simulations
+* [`ramses`](https://arxiv.org/abs/astro-ph/0111367) with *and* without [`JordanBransDicke`](https://github.com/HAWinther/JordanBransDicke) patch, and [`FML/RamsesUtils/ramses2pk`](https://github.com/hersle/FML/tree/master/FML/RamsesUtils/ramses2pk), for $P(k)$ from AMR $N$-body simulations
 
 Compile them and set the executable paths in `sim.py`.
 
@@ -39,13 +39,13 @@ Plot $P(k)$ and $B(k)$ from Class, COLA and Ramses for varying redshifts with fi
 main.py --params σ8 ωb0 ωm0 z=0,1,2,3,4,5 --power class cola ramses
 ```
 
-Same as above, but use $h_\mathrm{GR} = h_\mathrm{BD} \sqrt{\phi_\mathrm{ini}}$ *and* plot power spectrum and boost with $P(k/h) \cdot h^3$ instead of $P(k)$:
+As above, but use $h_\mathrm{GR} = h_\mathrm{BD} \sqrt{\phi_\mathrm{ini}}$ *and* plot power spectrum and boost with $P(k/h) \cdot h^3$ instead of $P(k)$:
 
 ```sh
 main.py --params σ8 ωb0 ωm0 z=0,1,2,3,4,5 --transform-h --h-units --power class cola ramses
 ```
 
-Plot evolution of selected background and perturbation quantities (from Class) in the universe above:
+As above, but plot evolution of selected background and perturbation quantities (from Class) instead:
 
 ```sh
 main.py --params σ8 ωb0 ωm0 --transform-h --evolution
