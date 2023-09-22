@@ -324,8 +324,8 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f"&AMR_PARAMS",
             f"levelmin={levelmin}", # min number of refinement levels (if Npart1D = 2^n, it should be n)
             f"levelmax={levelmax}", # max number of refinement levels (if very high, it will automatically stop refining) # TODO: revise?
-            f"npartmax={Nparts+1}", # need +1 to avoid crash with 1 process (maybe ramses allocates one dummy particle or something?) # TODO: optimal value? maybe double what would be needed if particles were shared equally across CPUs?
-            f"ngridmax={Nparts+1}", # TODO: optimal value?
+            f"npartmax={4*512**3//nproc+1}", # need +1 to avoid crash with 1 process (maybe ramses allocates one dummy particle or something?) # TODO: optimal value? maybe double what would be needed if particles were shared equally across CPUs?
+            f"ngridmax={4*512**3//nproc+1}", # TODO: optimal value?
             f"nexpand=1", # number of mesh expansions # TODO: ???
             #f"boxlen={self.params['Lh']}", # WARNING: don't set this; something is fucked with RAMSES' units when boxlen != 1.0
             f"/",
@@ -337,7 +337,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
     def run_ramses(self, np=1):
         self.create_directory("ramses/")
-        input = self.input_ramses()
+        input = self.input_ramses(nproc=np)
         input_is_unchanged = self.file_exists("ramses/input.nml") and self.read_file("ramses/input.nml") == input
         output_exists = self.file_exists("ramses/log.txt") and self.read_file("ramses/log.txt").find("Run completed") != -1
         complete = input_is_unchanged and output_exists
@@ -359,17 +359,19 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             self.run_cola(np=16)
             filenames = [f"cola/pofk_cola_cb_z{z:.3f}.txt" for z in zs]
         elif source == "ramses":
-            self.run_ramses(np=16)
+            self.run_ramses(np=32)
             zs, filenames = [], [] # ramses outputs its own redshifts
             snapnum = 1
             while True:
                 snapdir = f"ramses/output_{snapnum:05d}"
                 info_filename = f"{snapdir}/info_{snapnum:05d}.txt"
                 pofk_filename = f"{snapdir}/pofk_fml.dat"
+                level = int(np.log2(self.params["Npart"])) # coarsest AMR grid level
+                level += 2 # enhance P(k) computation by 2 levels (e.g. N = 256 -> 256*2^2 = 1024)
                 if self.file_exists(info_filename):
                     # compute P(k) if not already done
                     if not self.file_exists(pofk_filename):
-                        self.run_command(f"{self.RAMSES2PKEXEC} --verbose --subtract-shotnoise --density-assignment=CIC {snapdir}", np=16)
+                        self.run_command(f"{self.RAMSES2PKEXEC} --verbose --level={level} --subtract-shotnoise --density-assignment=CIC {snapdir}", np=16)
                         assert self.file_exists(pofk_filename)
                     a = self.read_variable(info_filename, "aexp        =  ") # == 1 / (z+1)
                     zs.append(1/a - 1) # be careful to not override z!
@@ -472,8 +474,8 @@ class BDSimulation(Simulation):
         dlogϕ_dloga_class = dϕ_dη_class / ϕ_class / (H_class * a_class) # convert by chain rule
         utils.check_values_are_close(dlogϕ_dloga_class, dlogϕ_dloga_cola, a_class, a_cola, name="dlogϕ/dloga", atol=1e-4)
 
-    def input_ramses(self):
-        lines = Simulation.input_ramses(self).split('\n')
+    def input_ramses(self, **kwargs):
+        lines = Simulation.input_ramses(self, **kwargs).split('\n')
 
         # generate file with columns log(a), Geff(a)/G0, E(a) = H(a)/H0
         bg = self.read_data("class/background.dat", dict=True)
