@@ -477,7 +477,12 @@ class BDSimulation(Simulation):
 
         # generate file with columns log(a), Geff(a)/G0, E(a) = H(a)/H0
         bg = self.read_data("class/background.dat", dict=True)
-        assert bg["z"][-1] == 0.0, "last row of class/background.dat is not today (z=0)"
+        z = bg["z"]
+        assert z[-1] == 0.0, "last row of class/background.dat is not today (z=0)"
+        inds = z <= self.params["zinit"] # only need background with z <= zinit
+        inds[np.argmax(inds)-1] = True # include z before zinit, too
+        for col in bg:
+            bg[col] = bg[col][inds]
         loga = np.log(1 / (bg["z"] + 1)) # log = ln
         G_G0 = (4+2*self.params["ω"]) / (3+2*self.params["ω"]) / bg["phi_smg"] # TODO: divide by G or G0 (relevant if G0 != G)
         H_H0 = bg["H [1/Mpc]"] / bg["H [1/Mpc]"][-1]
