@@ -148,6 +148,8 @@ if len(args.power) > 0:
 
 # Plot evolution of (background) densities
 if args.evolution:
+    assert len(paramss) == 1, "will only plot evolution for one set of parameters"
+    params = paramss[0]
     plot.plot_density_evolution("plots/evolution_density.pdf", params, θGR)
 
     # Plot evolution of (background) quantities
