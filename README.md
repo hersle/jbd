@@ -27,7 +27,7 @@ The data is stored like this:
 * `$DATA/jbdsims/{BD,GR}/NAME/parameters.json` contains the parameters and initial conditions seed of a universe.
 * `$DATA/jbdsims/{BD,GR}/NAME/{class,cola,ramses}` contains the data and logs from Class, FML/COLA and Ramses.
 
-To get an overview of the data directory, do `tree -L 3 $DATA/jbdsims`, for example.
+To get an overview of the data directory, do `tree -D -L 3 $DATA/jbdsims`, for example.
 
 To regenerate results for a universe, delete its directory and re-run the program.
 
