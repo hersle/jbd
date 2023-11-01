@@ -304,12 +304,15 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         levelmax = levelmin + 10                   # e.g. 20 if Npart1D = 1024
         assert 2**levelmin == Npart1D, "particle count is not a power of 2"
 
+        snaps = re.findall(r"Main step=\s*(\d+)", self.read_file("ramses/log.txt")) if self.file_exists("ramses/log.txt") else []
+        lastsnap = snaps[-1] if len(snaps) >= 1 else "0"
+
         return '\n'.join([
             f"&RUN_PARAMS",
             f"cosmo=.true.", # enable cosmological run
             f"pic=.true.", # enable particle-in-cell solver
             f"poisson=.true.", # enable Poisson solver
-            f"nrestart=0", # start simulation from scratch # TODO: could read most recent existing output_xxxxx directory (and ncpu)
+            f"nrestart={lastsnap}", # start simulation from last available snapshot (or from scratch) # TODO: make sure number of CPUs is the same?
             f"nremap=8", # coarse time steps between each load balancing of AMR grid (important for parallelization)
             f"verbose=.false.", # verbosity
             #f"nsubcycle=" # TODO: control fine time stepping?
@@ -337,12 +340,11 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
     def run_ramses(self, np=1):
         self.create_directory("ramses/")
-        input = self.input_ramses(nproc=np)
-        input_is_unchanged = self.file_exists("ramses/input.nml") and self.read_file("ramses/input.nml") == input
         output_exists = self.file_exists("ramses/log.txt") and self.read_file("ramses/log.txt").find("Run completed") != -1
-        complete = input_is_unchanged and output_exists
+        complete = output_exists
 
         if not complete:
+            input = self.input_ramses(nproc=np)
             self.run_cola(np=np) # use COLA's particles as initial conditions
             self.write_file("ramses/input.nml", input)
             self.run_command(f"{self.RAMSESEXEC} input.nml", subdir="ramses/", np=np, log="log.txt")
