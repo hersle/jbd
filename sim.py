@@ -549,7 +549,7 @@ class SimulationGroupPair:
 
         self.nsims = nsims
 
-    def power_spectrum_ratio(self, z=0.0, source="class", hunits=False):
+    def power_spectrum_ratio(self, z=0.0, source="class", hunits=False, divlin=False):
         kBD, PBDs = self.sims_BD.power_spectra(z=z, source=source, hunits=hunits) # kBD / (hBD/Mpc), PBD / (Mpc/hBD)^3
         kGR, PGRs = self.sims_GR.power_spectra(z=z, source=source, hunits=hunits) # kGR / (hGR/Mpc), PGR / (Mpc/hGR)^3
 
@@ -588,6 +588,11 @@ class SimulationGroupPair:
         #ΔB_manual = B[0] * np.sqrt(σsq[0,0]/PBD[0]**2 + σsq[1,1]/PGR[0]**2 - 2*σsq[0,1]/(PBD[0]*PGR[0]))
         #assert np.isclose(ΔB_matrix, ΔB_manual), "error propagation is wrong"
 
-        return k, B, ΔB
+        if divlin:
+            klin, Blin, _ = self.power_spectrum_ratio(source="class", z=z, hunits=hunits)
+            Blin = CubicSpline(klin, Blin, axis=1, extrapolate=False)(k) # interpolate to main source's k
+            return k, B/Blin, ΔB/Blin
+        else:
+            return k, B, ΔB
 
 SIMTYPES = [BDSimulation, GRSimulation]
