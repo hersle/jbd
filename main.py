@@ -141,7 +141,7 @@ fixparams = [param for param, vals in paramlist.items() if len(vals) == 1] # lis
 if len(args.power) > 0:
     assert len(varparams) <= 1, "can vary at most one parameter at the time"
     varparam = varparams[0] if len(varparams) == 1 else None
-    fixparams_nondefault = list(set(fixparams) - set(fixparams_default))
+    fixparams_nondefault = sorted(list(set(fixparams) - set(fixparams_default)))
     stem = "plots/power_fix_" + '_'.join(fixparams_nondefault) + (f"_vary_{varparam}" if varparam else "")
     sources = args.power
     params0 = {param: PARAMS[param]["fid"] for param in PARAMS}
