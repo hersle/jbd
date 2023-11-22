@@ -365,15 +365,16 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             zs, filenames = [], [] # ramses outputs its own redshifts
             snapnum = 1
             while True:
-                snapdir = f"ramses/output_{snapnum:05d}"
-                info_filename = f"{snapdir}/info_{snapnum:05d}.txt"
-                pofk_filename = f"{snapdir}/pofk_fml.dat"
                 level = int(np.log2(self.params["Npart"])) # coarsest AMR grid level
                 level += 2 # enhance P(k) computation by 2 levels (e.g. N = 256 -> 256*2^2 = 1024)
+                snapdir = f"ramses/output_{snapnum:05d}"
+                info_filename = f"{snapdir}/info_{snapnum:05d}.txt"
+                pofk_filename = f"{snapdir}/pofk_fml_level{level}.dat"
                 if self.file_exists(info_filename):
                     # compute P(k) if not already done
                     if not self.file_exists(pofk_filename):
                         self.run_command(f"{self.RAMSES2PKEXEC} --verbose --level={level} --subtract-shotnoise --density-assignment=CIC {snapdir}", np=16)
+                        self.run_command(f"mv \"{snapdir}/pofk_fml.dat\" \"{pofk_filename}\"") # e.g. pofk_fml.dat -> pofk_fml_level10.dat
                         assert self.file_exists(pofk_filename)
                     a = self.read_variable(info_filename, "aexp        =  ") # == 1 / (z+1)
                     zs.append(1/a - 1) # be careful to not override z!
