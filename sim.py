@@ -298,11 +298,13 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             self.validate_cola()
 
     def input_ramses(self, nproc=1):
+        Ncell1D = self.params["Ncell"]
         Npart1D = self.params["Npart"]
         Nparts = Npart1D**3
-        levelmin = int(np.round(np.log2(Npart1D))) # e.g. 10 if Npart1D = 1024
-        levelmax = levelmin + 10                   # e.g. 20 if Npart1D = 1024
-        assert 2**levelmin == Npart1D, "particle count is not a power of 2"
+        Ncells = Ncell1D**3
+        levelmin = int(np.round(np.log2(Ncell1D))) # e.g. 10 if Ncell1D = 1024
+        levelmax = levelmin + 10                   # e.g. 20 if Ncell1D = 1024
+        assert 2**levelmin == Ncell1D, "cell count is not a power of 2"
 
         snaps = re.findall(r"Main step=\s*(\d+)", self.read_file("ramses/log.txt")) if self.file_exists("ramses/log.txt") else []
         lastsnap = snaps[-1] if len(snaps) >= 1 else "0"
@@ -325,10 +327,10 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f"initfile(1)='../cola/snapshot_cola_z{self.params['zinit']:.3f}/gadget_z{self.params['zinit']:.3f}'", # start from COLA's initial particles
             f"/",
             f"&AMR_PARAMS",
-            f"levelmin={levelmin}", # min number of refinement levels (if Npart1D = 2^n, it should be n)
+            f"levelmin={levelmin}", # min number of refinement levels (if Ncell1D = 2^n, it should be n)
             f"levelmax={levelmax}", # max number of refinement levels (if very high, it will automatically stop refining) # TODO: revise?
-            f"npartmax={4*512**3//nproc+1}", # need +1 to avoid crash with 1 process (maybe ramses allocates one dummy particle or something?) # TODO: optimal value? maybe double what would be needed if particles were shared equally across CPUs?
-            f"ngridmax={4*512**3//nproc+1}", # TODO: optimal value?
+            f"npartmax={2*Nparts//nproc+1}", # need +1 to avoid crash with 1 process (maybe ramses allocates one dummy particle or something?) # TODO: optimal value? maybe double what would be needed if particles were shared equally across CPUs?
+            f"ngridmax={2*Ncells//nproc+1}", # TODO: optimal value?
             f"nexpand=1", # number of mesh expansions # TODO: ???
             #f"boxlen={self.params['Lh']}", # WARNING: don't set this; something is fucked with RAMSES' units when boxlen != 1.0
             f"/",
