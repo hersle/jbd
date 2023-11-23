@@ -113,16 +113,16 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divlin=False):
+def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divlin=False, subshot=False):
     names = ["PBD", "PGR", "B"]
     def curve_PBD(sims, source, z):
-        k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z, hunits=hunits)
+        k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z, hunits=hunits, subshot=subshot)
         return np.log10(k), np.log10(P), np.log10(P+ΔP)-np.log10(P), np.log10(P)-np.log10(P-ΔP)
     def curve_PGR(sims, source, z):
-        k, P, ΔP = sims.sims_GR.power_spectrum(source=source, z=z, hunits=hunits)
+        k, P, ΔP = sims.sims_GR.power_spectrum(source=source, z=z, hunits=hunits, subshot=subshot)
         return np.log10(k), np.log10(P), np.log10(P+ΔP)-np.log10(P), np.log10(P)-np.log10(P-ΔP)
     def curve_B(sims, source, z):
-        k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z, hunits=hunits, divlin=divlin)
+        k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z, hunits=hunits, divlin=divlin, subshot=subshot)
         return np.log10(k), B, ΔB, ΔB
     funcs = [curve_PBD, curve_PGR, curve_B]
     xticks = (-3, +1, 1, 0.1) # common

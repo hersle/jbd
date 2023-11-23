@@ -27,6 +27,7 @@ parser.add_argument("--transform-h", action="store_true", help="use hGR = hBD * 
 parser.add_argument("--power", nargs="*", metavar="SOURCE", default=[], help="plot P(k) and B(k) from sources (class, halofit, cola, ramses)")
 parser.add_argument("--h-units", action="store_true", help="plot power and boost with P(k/h)*h^3 instead of P(k)")
 parser.add_argument("--divide-linear", action="store_true", help="divide by linear prediction")
+parser.add_argument("--subtract-shotnoise", action="store_true", help="subtract shot noise")
 parser.add_argument("--realizations", metavar="N", type=int, default=1, help="number of universe realizations to simulate per model")
 parser.add_argument("--evolution", action="store_true", help="plot evolution of background and perturbation quantities")
 #parser.add_argument("--sample") # TODO: sampling, emulation, ...
@@ -145,7 +146,7 @@ if len(args.power) > 0:
     stem = "plots/power_fix_" + '_'.join(fixparams_nondefault) + (f"_vary_{varparam}" if varparam else "")
     sources = args.power
     params0 = {param: PARAMS[param]["fid"] for param in PARAMS}
-    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, hunits=args.h_units, divlin=args.divide_linear)
+    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, hunits=args.h_units, divlin=args.divide_linear, subshot=args.subtract_shotnoise)
 
 # Plot evolution of (background) densities
 if args.evolution:

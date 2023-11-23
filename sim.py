@@ -349,7 +349,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             self.write_file("ramses/input.nml", input)
             self.run_command(f"{self.RAMSESEXEC} input.nml", subdir="ramses/", np=np, log="log.txt")
 
-    def power_spectrum(self, z=0.0, source="class", hunits=True):
+    def power_spectrum(self, z=0.0, source="class", hunits=True, subshot=False):
         zs = self.output_redshifts()
         if source == "class":
             self.run_class()
@@ -401,6 +401,9 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         Ph3s = [self.read_data(filename, cols=(1,))[0] for filename in filenames] # indexed like Ph3s[iz][ik]
         Ph3_spline = CubicSpline(zs, Ph3s, axis=0) # spline Ph3 along z (axis 0) for each k (axis 1) # TODO: interpolate in a or z or loga or ...?
         Ph3 = Ph3_spline(z)
+
+        if not subshot and source in ("cola", "ramses"):
+            Ph3 += (self.params["Lh"]/self.params["Npart"])**3 # add shot noise back in
 
         if hunits:
             return k_h, Ph3
@@ -550,9 +553,9 @@ class SimulationGroupPair:
 
         self.nsims = nsims
 
-    def power_spectrum_ratio(self, z=0.0, source="class", hunits=False, divlin=False):
-        kBD, PBDs = self.sims_BD.power_spectra(z=z, source=source, hunits=hunits) # kBD / (hBD/Mpc), PBD / (Mpc/hBD)^3
-        kGR, PGRs = self.sims_GR.power_spectra(z=z, source=source, hunits=hunits) # kGR / (hGR/Mpc), PGR / (Mpc/hGR)^3
+    def power_spectrum_ratio(self, z=0.0, source="class", hunits=False, divlin=False, subshot=False):
+        kBD, PBDs = self.sims_BD.power_spectra(z=z, source=source, hunits=hunits, subshot=subshot) # kBD / (hBD/Mpc), PBD / (Mpc/hBD)^3
+        kGR, PGRs = self.sims_GR.power_spectra(z=z, source=source, hunits=hunits, subshot=subshot) # kGR / (hGR/Mpc), PGR / (Mpc/hGR)^3
 
         # Verify that COLA/RAMSES simulations output comparable k-values (k*L should be equal)
         kLBD = kBD * (self.sims_BD.params["Lh" if hunits else "L"])
