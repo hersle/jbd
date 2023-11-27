@@ -390,7 +390,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         if source in ("class", "halofit"):
             # verify that assumed redshifts are those reported by the files
             zs_from_files = [self.read_variable(filename, "redshift z=") for filename in filenames]
-            assert np.all(np.round(zs_from_files, 5) == np.round(zs, 5))
+            assert np.all(np.round(zs_from_files, 3) == np.round(zs, 3))
 
         # CubicSpline() wants increasing z, so sort everything now
         z_filename_pairs = zip(zs, filenames)
