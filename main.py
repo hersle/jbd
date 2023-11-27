@@ -84,10 +84,10 @@ PARAMS = {
 
     "zinit":     {"fid": 10.0,         "help": "initial redshift (all N-body simulations)"},
     "Nstep":     {"fid": 30,           "help": "number of timesteps (COLA N-body simulations"},
-    "Npart":     {"fid": 256,          "help": "number of particles per dimension (all N-body simulations)"},
-    "Ncell":     {"fid": 256,          "help": "number of coarse cells per dimension for (all N-body simulations)"},
-    "Lh":        {"fid": 400.0,        "help": "comoving box size / (Mpc/h) (all N-body simulations) = L*h"},
-    "L":         {"fid": 400.0 / 0.70, "help": "comoving box size / Mpc (all N-body simulations)"},
+    "Npart":     {"fid": 512,          "help": "number of particles per dimension (all N-body simulations)"},
+    "Ncell":     {"fid": 512,          "help": "number of coarse cells per dimension for (all N-body simulations)"},
+    "Lh":        {"fid": 384.0,        "help": "comoving box size / (Mpc/h) (all N-body simulations) = L*h"},
+    "L":         {"fid": 384.0 / 0.70, "help": "comoving box size / Mpc (all N-body simulations)"},
 
     "z":         {"fid": 0.0,          "help": "power spectrum redshift"}, # handled specially
 }
