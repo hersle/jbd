@@ -8,6 +8,16 @@
 # TODO: run one big box with "proper N-body program" to see if COLA is ok
 # TODO: emulation https://github.com/renmau/Sesame_pipeline/
 # TODO: compute P(k) from COLA *snapshots*
+# TODO: why do sims load multiple times? because simulation is reconstructed for each redshift!
+# TODO: smooth B(k) using Savitzky-Golay filter (https://en.wikipedia.org/wiki/Savitzky%E2%80%93Golay_filter)?
+# TODO: same "framework" for emulator source as for class/cola/ramses source
+# TODO: emulate non-linear correction boost factor
+# TODO: plot redshift evolution of modes?
+# TODO: use euclid parameter bounds
+# TODO: emulate P(k,z) for 0 <= z <= 3 and k <= ???
+# TODO: need 1% accuracy for k = 1 Mpc/h ?
+# TODO: don't need to re-run with new As when correcting σ8; can simply multiply up the power spectrum of the old run
+# TODO: can decrease L instead of increasing N to remove shot noise
 
 import sim
 import plot
@@ -106,6 +116,7 @@ if args.list_params:
     exit()
 
 # Build BD parameters
+# TODO: also generate params0 (e.g. --params σ8=0.8 σ8=0.7,0.8,0.9 will use fiducial 0.8 and vary 0.7,0.8,0.9)
 paramlist = {}
 fixparams_default = ["h", "ωk0", "Tγ0", "Neff", "ns", "kpivot", "ω", "G0", "zinit", "Nstep", "Npart", "Ncell", "Lh"]
 for param in fixparams_default: # fix these by default
