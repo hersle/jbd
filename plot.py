@@ -105,7 +105,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
         ax2 = ax.twinx() # use invisible twin axis to create second legend
         ax2.get_yaxis().set_visible(False) # make invisible
         for linestyle, label in zip(linestyles, llabels):
-            ax2.plot([-4, -4], [0, 1], alpha=0.5, color="black", linestyle=linestyle, linewidth=1, label=label)
+            ax2.plot([-8, -8], [0, 1], alpha=0.5, color="black", linestyle=linestyle, linewidth=1, label=label)
         ax2.legend(loc="lower left", bbox_to_anchor=(-0.02, -0.02))
 
     ax.grid(which="both")
@@ -125,8 +125,8 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
         k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z, hunits=hunits, divlin=divlin, subshot=subshot)
         return np.log10(k), B, ΔB, ΔB
     funcs = [curve_PBD, curve_PGR, curve_B]
-    xticks = (-3, +1, 1, 0.1) # common
-    ytickss = [(0, 5, 1.0, 0.1), (0, 5, 1.0, 0.1), (0.80, 1.20, 0.10, 0.01)]
+    xticks = (-5, +1, 1, 0.1) # common
+    ytickss = [(-6, 5, 1.0, 0.1), (-6, 5, 1.0, 0.1), (0.80, 1.20, 0.10, 0.01)]
     klabel = r"k / (h/\mathrm{Mpc})" if hunits else r"k \,/\, (1/\mathrm{Mpc})"
     xlabel = f"$\lg \left[ {klabel} \\right]$" # common for PBD, PGR, B
     PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"
@@ -135,7 +135,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
     if divlin:
         Blabel = f"({Blabel})\,/\," + r"(P_\mathrm{BD}^\mathrm{lin} \,/\, P_\mathrm{GR}^\mathrm{lin})"
     elif hunits:
-        Blabel = f"({Blabel})\,/\," + r"(h_\mathrm{GR}/h_\mathrm{BD})"
+        Blabel = f"({Blabel})\,/\," + r"(h_\mathrm{GR}/h_\mathrm{BD})^3"
     ylabels = [f"$\lg\left[ {PBDlabel} \\right]$", f"$\lg\left[ {PGRlabel} \\right]$", f"${Blabel}$"]
 
     for name, func, ylabel, yticks in zip(names, funcs, ylabels, ytickss): # 1) iterate over PBD(k), PGR(k), B(k)
@@ -220,6 +220,9 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
 
     ax1.yaxis.set_label_coords(-0.15, 0.5) # manually position to align for different invocations of this function
     ax2.yaxis.set_label_coords(-0.15, 0.5) # manually position to align for different invocations of this function
+
+    ax1.grid(which="both")
+    ax2.grid(which="both")
 
     ax2.legend()
     fig.subplots_adjust(left=0.17, right=0.99, bottom=0.10, top=0.98, hspace=0.1) # trial and error to get consistent plot layout...
