@@ -199,6 +199,9 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
     # dictionary of parameters that should be passed to CLASS
     def input_class(self):
+        zs1 = np.array([9899, 7999, 6999, 5999, 4999, 3999, 3606, 2999, 1999, 999, 899, 799, 699, 599, 499, 399, 299, 199, 99, 9]) # early-time zs (require exact hits when querying these)
+        zs2 = 1 / np.linspace(1/(3.5+1), 1, 50) - 1 # 50 zs in [3.5, 0] with linear a-spacing (for splining)? # TODO: use class' z_max_pk?
+        zs = np.concatenate((zs1, zs2))
         return '\n'.join([
             # cosmological parameters
             f"h = {self.params['h']}",
@@ -215,7 +218,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             # output control
             f"output = mPk", # output matter power spectrum P(k,z)
             f"non linear = halofit", # also estimate non-linear P(k,z) from halo modelling
-            f"z_pk = {', '.join(str(z) for z in self.output_redshifts())}", # output P(k,z) at same redshifts as FML/COLA, so interpolation behaves consistently
+            f"z_pk = {', '.join(str(np.round(z, 5)) for z in zs)}",
             f"write background = yes",
             f"root = ./",
             f"P_k_max_h/Mpc = 100.0", # output linear power spectrum to fill my plots
@@ -367,10 +370,11 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
                 filename = f"class/z{n}_pk.dat"
                 if self.file_exists(filename):
                     zf = self.read_variable(filename, "redshift z=")
-                    zs.append(zf)
-                    filenames.append(filename)
+                    if (z <= 3.5 and zf <= 3.5) or (z > 3.5 and zf == z): # require exact hit for high z
+                        zs.append(zf)
+                        filenames.append(filename)
                     if zf == 0.0:
-                        break # last file
+                        break # last file (later ones must be from old runs)
                 else:
                     break
                 n += 1
@@ -415,8 +419,11 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         k_h = self.read_data(filenames[0], cols=(0,))[0]
         assert np.all(self.read_data(filename, cols=(0,))[0] == k_h for filename in filenames), "P(k,z) files have different k"
         Ph3s = [self.read_data(filename, cols=(1,))[0] for filename in filenames] # indexed like Ph3s[iz][ik]
-        Ph3_spline = CubicSpline(zs, Ph3s, axis=0) # spline Ph3 along z (axis 0) for each k (axis 1) # TODO: interpolate in a or z or loga or ...?
-        Ph3 = Ph3_spline(z)
+
+        if len(z_filename_pairs) == 1: # require exact hit for high z
+            Ph3 = Ph3s[0]
+        else:
+            Ph3 = CubicSpline(zs, Ph3s, axis=0, extrapolate=False)(z) # spline Ph3 along z (axis 0) for each k (axis 1) # TODO: interpolate in a or z or loga or ...?
 
         if not subshot and source in ("cola", "ramses"):
             Ph3 += (self.params["Lh"]/self.params["Npart"])**3 # add shot noise back in
