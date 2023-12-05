@@ -2,6 +2,7 @@ import utils
 
 import os
 import re
+import glob
 import shutil
 import subprocess
 import numpy as np
@@ -89,6 +90,11 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
     def create_directory(self, dirname):
         os.makedirs(self.directory + dirname, exist_ok=True)
+
+    def glob(self, query):
+        results = glob.glob(self.directory + query)
+        results = [os.path.relpath(result, self.directory) for result in results]
+        return results
 
     def file_path(self, filename):
         return self.directory + filename
@@ -229,7 +235,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         self.create_directory("class/")
         input = self.input_class()
         input_is_unchanged = self.file_exists("class/input.ini") and self.read_file("class/input.ini") == input
-        output_exists = self.file_exists(f"class/z{self.params['Nstep']+1}_pk.dat")
+        output_exists = self.file_exists(f"class/z1_pk.dat")
         complete = input_is_unchanged and output_exists
 
         if not complete:
@@ -354,16 +360,27 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             self.run_command(f"{self.RAMSESEXEC} input.nml", subdir="ramses/", np=np, log="log.txt")
 
     def power_spectrum(self, z=0.0, source="class", hunits=True, subshot=False):
-        zs = self.output_redshifts()
         if source == "class":
             self.run_class()
-            filenames = [f"class/z{n+1}_pk.dat" for n in range(0, len(zs))]
+            zs, filenames, n = [], [], 1
+            while True:
+                filename = f"class/z{n}_pk.dat"
+                if self.file_exists(filename):
+                    zf = self.read_variable(filename, "redshift z=")
+                    zs.append(zf)
+                    filenames.append(filename)
+                    if zf == 0.0:
+                        break # last file
+                else:
+                    break
+                n += 1
         elif source == "halofit":
             self.run_class()
             filenames = [f"class/z{n+1}_pk_nl.dat" for n in range(0, len(zs))]
         elif source == "cola":
             self.run_cola(np=32)
-            filenames = [f"cola/pofk_cola_cb_z{z:.3f}.txt" for z in zs]
+            filenames = self.glob("cola/pofk_cola_cb_z*.txt")
+            zs = [float(filename[filename.find("z")+1:filename.rfind(".")]) for filename in filenames]
         elif source == "ramses":
             self.run_ramses(np=32)
             zs, filenames = [], [] # ramses outputs its own redshifts
@@ -388,11 +405,6 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
                 snapnum += 1
         else:
             raise Exception(f"unknown power spectrum source \"{source}\"")
-
-        if source in ("class", "halofit"):
-            # verify that assumed redshifts are those reported by the files
-            zs_from_files = [self.read_variable(filename, "redshift z=") for filename in filenames]
-            assert np.all(np.round(zs_from_files, 3) == np.round(zs, 3))
 
         # CubicSpline() wants increasing z, so sort everything now
         z_filename_pairs = zip(zs, filenames)
