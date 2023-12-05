@@ -45,7 +45,7 @@ PARAM_PLOT_INFO = {
     "As":     {"label": r"$A_s / 10^{-9}$",                     "format": lambda As:    f"${As/1e-9:.1f}$", "colorvalue": lambda As:    As},
     "ns":     {"label": r"$n_s$",                               "format": lambda ns:    f"${ns}$",          "colorvalue": lambda ns:    ns},
     "σ8":     {"label": r"$\sigma(R=8\,\mathrm{Mpc}/h,\,z=0)$", "format": lambda σ8:    f"${σ8}$",          "colorvalue": lambda σ8:    σ8},
-    "z":      {"label": r"$z$",                                 "format": lambda z:     f"${z}$",           "colorvalue": lambda z:     z},
+    "z":      {"label": r"$z$",                                 "format": lambda z:     f"${z}$",           "colorvalue": lambda z:     np.log10(z+1)},
 }
 
 # linearly look up a color between a list of colors,
@@ -163,8 +163,8 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
             curves, linestyles, llabels = [], [], [] # only want to the last two once
             for source in sources: # 3) iterate over power spectrum source
                 # linestyle and linestyle labels
-                linestyles.append({"class": "solid", "cola": "dashed", "ramses": "dotted"}[source])
-                llabels.append({"class": r"$\textrm{linear (\textsc{hi_class})}$", "cola": r"$\textrm{non-linear (\textsc{fml/cola})}$", "ramses": r"$\textrm{non-linear (\textsc{ramses})}$"}[source])
+                linestyles.append({"class": "solid", "cola": "dashed", "ramses": "dotted", "primordial": "dotted"}[source])
+                llabels.append({"class": r"$\textrm{linear (\textsc{hi_class})}$", "cola": r"$\textrm{non-linear (\textsc{fml/cola})}$", "ramses": r"$\textrm{non-linear (\textsc{ramses})}$", "primordial": r"$\textrm{primordial } A_s^\mathrm{BD} / A_s^\mathrm{GR}$"}[source])
                 curves.append(func(sims, source, z))
             curvess.append(curves)
 

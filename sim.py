@@ -220,6 +220,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f"non linear = halofit", # also estimate non-linear P(k,z) from halo modelling
             f"z_pk = {', '.join(str(np.round(z, 5)) for z in zs)}",
             f"write background = yes",
+            f"write primordial = yes",
             f"root = ./",
             f"P_k_max_h/Mpc = 100.0", # output linear power spectrum to fill my plots
 
@@ -407,6 +408,9 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
                 else:
                     break # no more snapshots
                 snapnum += 1
+        elif source == "primordial":
+            zs = [np.inf]
+            filenames = ["class/primordial_Pk.dat"]
         else:
             raise Exception(f"unknown power spectrum source \"{source}\"")
 
@@ -424,6 +428,12 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             Ph3 = Ph3s[0]
         else:
             Ph3 = CubicSpline(zs, Ph3s, axis=0, extrapolate=False)(z) # spline Ph3 along z (axis 0) for each k (axis 1) # TODO: interpolate in a or z or loga or ...?
+
+        # analytically computed primordial power spectrum (can also do calculation myself)
+        if source == "primordial":
+            k_h = 10 ** np.linspace(-5, +2, 100)
+            Δ = (k_h * self.params["h"] / self.params["kpivot"]) ** (self.params["ns"]-1) # dimensionless primordial power spectrum
+            Ph3 = 2 * np.pi**2 / k_h**3 * self.params["As"] * Δ # dimensionful primordial power spectrum
 
         if not subshot and source in ("cola", "ramses"):
             Ph3 += (self.params["Lh"]/self.params["Npart"])**3 # add shot noise back in
@@ -583,7 +593,7 @@ class SimulationGroupPair:
         # Verify that COLA/RAMSES simulations output comparable k-values (k*L should be equal)
         kLBD = kBD * (self.sims_BD.params["Lh" if hunits else "L"])
         kLGR = kGR * (self.sims_GR.params["Lh" if hunits else "L"])
-        assert source == "class" or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
+        assert source in ("class", "primordial") or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
 
         # get reference wavenumbers and interpolate P to those values
         kmin = np.maximum(np.min(kBD), np.min(kGR))
