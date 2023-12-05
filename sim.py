@@ -183,7 +183,9 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             cmd = f"mpirun -np {np} {cmd}"
         if log:
             cmd = f"{cmd} | tee {log}"
-        subprocess.run(cmd, shell=True, cwd=self.directory+subdir, check=True, stdin=subprocess.DEVNULL) # https://stackoverflow.com/a/45988305
+        cwd = self.directory + subdir
+        print(f"Running {cmd} with {np=} in {cwd=}")
+        subprocess.run(cmd, shell=True, cwd=cwd, check=True, stdin=subprocess.DEVNULL) # https://stackoverflow.com/a/45988305
 
     # list of output redshifts constructed equal to those that FML outputs
     def output_redshifts(self):
