@@ -165,16 +165,32 @@ if args.evolution:
     params = paramss[0]
     plot.plot_density_evolution("plots/evolution_density.pdf", params, θGR)
 
-    # Plot evolution of (background) quantities
-    def G_G0_BD(bg, params):    return (4+2*params["ω"]) / (3+2*params["ω"]) / bg["phi_smg"]
-    def G_G0_GR(bg, params):    return np.ones_like(bg["z"]) # = 1.0, special case for GR
-    def H_H0_BD_GR(bg, params): return bg["H [1/Mpc]"] / CubicSpline(np.log10(1/(bg["z"]+1)), bg["H [1/Mpc]"])(0.0) # common to BD and GR
-    def D_Di_BD_GR(bg, params): return bg["gr.fac. D"] / CubicSpline(np.log10(1/(bg["z"]+1)), bg["gr.fac. D"])(-10.0) # common to BD and GR
-    def f_BD_GR(bg, params):    return bg["gr.fac. f"] # common to BD and GR
+    def q_from_file(sim, filename, f):
+        data = sim.read_data(filename, dict=True)
+        return f(data)
+
+    def G_G0_BD(sim):
+        return q_from_file(sim, "class/background.dat", lambda bg: (1 / (bg["z"] + 1), (4+2*sim.params["ω"]) / (3+2*sim.params["ω"]) / bg["phi_smg"]))
+
+    def G_G0_GR(sim):
+        return q_from_file(sim, "class/background.dat", lambda bg: (1 / (bg["z"] + 1), np.ones_like(bg["z"])))
+
+    def H_H0_BD_GR(sim):
+        return q_from_file(sim, "class/background.dat", lambda bg: (1 / (bg["z"] + 1), bg["H [1/Mpc]"] * 2997))
+
+    def D_Di_BD_GR(sim):
+        return q_from_file(sim, "cola/gravitymodel_cola_k1.0.txt", lambda data: (data["a"], data["D1(a,k)"] / data["D1(a,k)"][0]))
+
+    def f_BD_GR(sim):
+        a, D = q_from_file(sim, "cola/gravitymodel_cola_k1.0.txt", lambda data: (data["a"], data["D1(a,k)"] / data["D1(a,k)"][0]))
+        a = a[0:len(a):30] # avoid numerical noise
+        D = D[0:len(D):30]
+        return a, np.gradient(np.log(D), np.log(a))
+
     series = [
-        ("G", G_G0_BD,    G_G0_GR,    False, "G(a)/G",           0.05, 0.05),
-        ("H", H_H0_BD_GR, H_H0_BD_GR, True,  "H(a)/H_0",         5.0,  0.01),
-        ("D", D_Di_BD_GR, D_Di_BD_GR, True,  "D(a)",             1.0,  0.1),
+        ("G", G_G0_BD,    G_G0_GR,    False, "G(a)/G_0",         0.05, 0.05),
+        ("H", H_H0_BD_GR, H_H0_BD_GR, True,  "H(a)/(100\,\mathrm{km}/\mathrm{s}\,\mathrm{Mpc})",         5.0,  0.01),
+        ("D", D_Di_BD_GR, D_Di_BD_GR, True,  "D(a)/D(10^{-10})", 1.0,  0.1),
         ("f", f_BD_GR,    f_BD_GR,    False, "f(a)",             0.1,  0.01),
     ]
     for q, qBD, qGR, logabs, ylabel, Δyabs, Δyrel in series:

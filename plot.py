@@ -174,29 +174,26 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
 def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", ylabel="", logabs=False, Δyrel=None, Δyabs=None):
     sims = sim.SimulationGroupPair(params0_BD, θGR)
 
-    bg_BD = sims.sims_BD[0].read_data("class/background.dat", dict=True)
-    bg_GR = sims.sims_GR[0].read_data("class/background.dat", dict=True)
+    simBD = sims.sims_BD[0]
+    simGR = sims.sims_GR[0]
 
-    # want to plot 1e-10 <= a <= 1, so cut away a < 1e-11
-    bg_BD = {key: bg_BD[key][1/(bg_BD["z"]+1) > 1e-11] for key in bg_BD}
-    bg_GR = {key: bg_GR[key][1/(bg_GR["z"]+1) > 1e-11] for key in bg_GR}
+    a_BD, q_BD = qty_BD(simBD)
+    a_GR, q_GR = qty_GR(simGR)
+    assert np.all(np.isclose(a_BD, a_GR, atol=1e-3, rtol=1e-3)), "want a_BD ≈ a_GR"
 
-    a_BD = 1 / (bg_BD["z"] + 1) # = 1 / (z + 1)
-    a_GR = 1 / (bg_GR["z"] + 1) # = 1 / (z + 1)
-
-    aeq_BD = 1 / (sims.sims_BD[0].read_variable("class/log.txt", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
-    aeq_GR = 1 / (sims.sims_GR[0].read_variable("class/log.txt", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
+    aeq_BD = 1 / (simBD.read_variable("class/log.txt", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
+    aeq_GR = 1 / (simGR.read_variable("class/log.txt", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
 
     fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': (1, 1.618)}, figsize=(3.0, 3.5), sharex=True)
     ax2.set_xlabel(r"$\lg a$")
     ax2.set_ylabel(f"$\lg[{ylabel}]$" if logabs else f"${ylabel}$")
 
     ax1.axhline(1.0, color="gray", linestyle="dashed", linewidth=0.5)
-    ax1.plot(np.log10(a_BD), qty_BD(bg_BD, sims.sims_BD.params) / qty_GR(bg_GR, sims.sims_GR.params), color="black")
+    ax1.plot(np.log10(a_BD), q_BD / q_GR, color="black")
     ax1.set_ylabel(f"${qty}_\mathrm{{BD}}(a) / {qty}_\mathrm{{GR}}(a)$")
 
-    ax2.plot(np.log10(a_BD), np.log10(qty_BD(bg_BD, sims.sims_BD.params)) if logabs else qty_BD(bg_BD, sims.sims_BD.params), label=f"${qty}(a) = {qty}_\mathrm{{BD}}(a)$", color="blue")
-    ax2.plot(np.log10(a_GR), np.log10(qty_GR(bg_GR, sims.sims_GR.params)) if logabs else qty_GR(bg_GR, sims.sims_GR.params), label=f"${qty}(a) = {qty}_\mathrm{{GR}}(a)$", color="red")
+    ax2.plot(np.log10(a_BD), np.log10(q_BD) if logabs else q_BD, label=f"${qty}(a) = {qty}_\mathrm{{BD}}(a)$", color="blue")
+    ax2.plot(np.log10(a_GR), np.log10(q_GR) if logabs else q_GR, label=f"${qty}(a) = {qty}_\mathrm{{GR}}(a)$", color="red")
 
     ax2.set_xlim(-10, 0)
     ax2.set_xticks(np.linspace(-10, 0, 11))
