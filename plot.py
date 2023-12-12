@@ -113,7 +113,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divlin=False, subshot=False):
+def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divide="", subshot=False):
     names = ["PBD", "PGR", "B"]
     def curve_PBD(sims, source, z):
         k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z, hunits=hunits, subshot=subshot)
@@ -122,7 +122,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
         k, P, ΔP = sims.sims_GR.power_spectrum(source=source, z=z, hunits=hunits, subshot=subshot)
         return np.log10(k), np.log10(P), np.log10(P+ΔP)-np.log10(P), np.log10(P)-np.log10(P-ΔP)
     def curve_B(sims, source, z):
-        k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z, hunits=hunits, divlin=divlin, subshot=subshot)
+        k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z, hunits=hunits, divide=divide, subshot=subshot)
         return np.log10(k), B, ΔB, ΔB
     funcs = [curve_PBD, curve_PGR, curve_B]
     xticks = (-5, +1, 1, 0.1) # common
@@ -131,11 +131,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
     xlabel = f"$\lg \left[ {klabel} \\right]$" # common for PBD, PGR, B
     PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"
     PGRlabel = r"P_\mathrm{GR} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{GR} \,/\, \mathrm{Mpc}^3"
-    Blabel = "P_\mathrm{BD} \,/\, P_\mathrm{GR}"
-    if divlin:
-        Blabel = f"({Blabel})\,/\," + r"(P_\mathrm{BD}^\mathrm{lin} \,/\, P_\mathrm{GR}^\mathrm{lin})"
-    elif hunits:
-        Blabel = f"({Blabel})\,/\," + r"(h_\mathrm{GR}/h_\mathrm{BD})^3"
+    Blabel = "B" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "primordial": r"\mathrm{prim}"}[divide])
     ylabels = [f"$\lg\left[ {PBDlabel} \\right]$", f"$\lg\left[ {PGRlabel} \\right]$", f"${Blabel}$"]
 
     for name, func, ylabel, yticks in zip(names, funcs, ylabels, ytickss): # 1) iterate over PBD(k), PGR(k), B(k)
