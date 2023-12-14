@@ -40,42 +40,62 @@ parser.add_argument("--divide", metavar="SOURCE", default="", help="source to di
 parser.add_argument("--subtract-shotnoise", action="store_true", help="subtract shot noise")
 parser.add_argument("--realizations", metavar="N", type=int, default=1, help="number of universe realizations to simulate per model")
 parser.add_argument("--evolution", action="store_true", help="plot evolution of background and perturbation quantities")
-#parser.add_argument("--sample") # TODO: sampling, emulation, ...
+parser.add_argument("--samples", metavar="N", type=int, default=0, help="number of latin hypercube samples to make")
 parser.add_argument("--test", action="store_true", help="run whatever experimental code is in the test section")
 args = parser.parse_args()
 
 class ParameterSpace:
-    def __init__(self, params, seed=1234):
-        # distinguish between fixed and varying parameters
-        # (LHS sampling should be done over the varying parameters to cover the space evenly?)
-        self.params_fixed = {}
-        self.params_varying = {}
-        for param, vals in params.items():
-            if len(vals) == 1:
-                self.params_fixed[param] = vals[0]
-            elif len(vals) > 1:
-                self.params_varying[param] = (min(vals), max(vals))
+    def __init__(self, params):
+        self.params = params
+
+    def combinations(self):
+        def traverse(paramlist, params={}):
+            if len(paramlist) == 0:
+                yield params.copy()
             else:
-                raise("FUCK")
+                param, values = paramlist.popitem() # 1) remove one parameter from list of varying parameters
+                for value in values:
+                    params[param] = value # 2) add it to current parameter map
+                    yield from traverse(paramlist, params)
+                paramlist[param] = values # 3) undo 1)
+        return list(traverse(self.params))
 
-        self.dim_fixed = len(self.params_fixed)
-        self.dim_varying = len(self.params_varying)
+    def sample(self, n=1, seed=1234, bounds=False):
+        paramss = [] # final list of parameter samples to return
 
-        self.sampler = qmc.LatinHypercube(self.dim_varying, seed=seed)
+        # 1) separate fixed and varying parameters
+        fixed, varying = {}, {}
+        for param, vals in self.params.items():
+            if len(vals) == 1:
+                fixed[param] = vals[0]
+            elif len(vals) > 1:
+                varying[param] = (min(vals), max(vals))
+            else:
+                raise(f"Unspecified parameter {param}")
 
-    def bounds_varying_lo(self): return [minmax[0] for minmax in self.params_varying.values()]
-    def bounds_varying_hi(self): return [minmax[1] for minmax in self.params_varying.values()]
+        # 2) sample the varying parameters
+        dim_varying = len(varying)
+        bounds_varying_lo = [minmax[0] for minmax in varying.values()]
+        bounds_varying_hi = [minmax[1] for minmax in varying.values()]
+        sampler = qmc.LatinHypercube(dim_varying, seed=seed)
+        while n > 0:
+            params = sampler.random()[0] # list of random numbers in [0,1) for each varying parameter
+            for i, (lo, hi) in enumerate(zip(bounds_varying_lo, bounds_varying_hi)): # Python dict iteration order is guaranteed to be in same order as insertion
+                params[i] = lo if hi == lo else lo + (hi-lo) * params[i] # map to [lo, hi); or fixed to lo == hi if they are equal (handle this separately to preserve data type)
+            params = dict([(param, value) for param, value in zip(varying.keys(), params)]) # convert to dictionary (e.g. from [0.67, 2.1e-9] to {"h": 0.67, "As": 2.1e-9})
+            paramss.append(params)
+            n -= 1
 
-    def sample(self):
-        samples = self.sampler.random()[0] # in [0,1)
-        for i, (lo, hi) in enumerate(zip(self.bounds_varying_lo(), self.bounds_varying_hi())): # Python dict iteration order is guaranteed to be in same order as insertion
-            samples[i] = lo if hi == lo else lo + (hi-lo) * samples[i] # in [lo, hi); or fixed to lo == hi if they are equal (handle this separately to preserve data type)
-        samples = dict([(name, sample) for name, sample in zip(self.params_varying.keys(), samples)]) # e.g. from [0.67, 2.1e-9] to {"h": 0.67, "As": 2.1e-9}
-        samples |= self.params_fixed # add the fixed parameters
-        return samples
+        # 3) add the fixed parameters
+        for i in range(0, len(paramss)):
+            paramss[i] |= fixed
+        else:
+            return paramss
 
-    def samples(self, n):
-        return [self.sample() for i in range(0, n)]
+    def bounds(self):
+        lo = {param: min(values) for param, values in self.params.items()}
+        hi = {param: max(values) for param, values in self.params.items()}
+        return lo, hi
 
 def θGR_identity(θBD, θBD_all):
     return utils.dictupdate(θBD, remove=["ω", "G0"]) # remove BD-specific parameters
@@ -142,18 +162,20 @@ print("Parameters:")
 for param, values in paramlist.items():
     print(f"{param} = {values} (x{len(values)})")
 
-def genparams(paramlist, params={}):
-    if len(paramlist) == 0:
-        yield params.copy()
-    else:
-        param, values = paramlist.popitem() # 1) remove one parameter from list of varying parameters
-        for value in values:
-            params[param] = value # 2) add it to current parameter map
-            yield from genparams(paramlist, params)
-        paramlist[param] = values # 3) undo 1)
+pspace = ParameterSpace(paramlist)
+if args.samples == 0:
+    paramss = pspace.combinations()
+else:
+    paramss = pspace.sample(args.samples, bounds=False)
 
-print("Iterating over", 'x'.join(str(len(values)) for _, values in paramlist.items() if len(values) > 1), "parameter combinations")
-paramss = list(genparams(paramlist))
+lo, hi = pspace.bounds()
+
+print("Parameters:")
+for params in paramss:
+    print(params)
+
+plot.plot_parameter_samples("plots/parameter_space.pdf", paramss, lo, hi)
+
 varparams = [param for param, vals in paramlist.items() if len(vals)  > 1] # list of varying parameters
 fixparams = [param for param, vals in paramlist.items() if len(vals) == 1] # list of fixed   paramaters
 
@@ -212,9 +234,3 @@ exit()
 if args.test:
     pass
 exit()
-
-# TODO: unfinished shit
-if args.sample:
-    paramspace = ParameterSpace(params_varying)
-    samples = paramspace.samples(500)
-    plot.plot_parameter_samples("plots/parameter_samples.pdf", samples, paramspace.bounds_lo(), paramspace.bounds_hi(), paramspace.param_names)
