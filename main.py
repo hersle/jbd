@@ -46,21 +46,32 @@ args = parser.parse_args()
 
 class ParameterSpace:
     def __init__(self, params, seed=1234):
-        self.param_names = list(params.keys())
-        self.param_bounds = [val if isinstance(val, tuple) else (val, val) for val in params.values()]
-        self.param_bounds_lo = [bounds[0] for bounds in self.param_bounds]
-        self.param_bounds_hi = [bounds[1] for bounds in self.param_bounds]
-        self.dimension = len(self.param_names)
-        self.sampler = qmc.LatinHypercube(self.dimension, seed=seed)
+        # distinguish between fixed and varying parameters
+        # (LHS sampling should be done over the varying parameters to cover the space evenly?)
+        self.params_fixed = {}
+        self.params_varying = {}
+        for param, vals in params.items():
+            if len(vals) == 1:
+                self.params_fixed[param] = vals[0]
+            elif len(vals) > 1:
+                self.params_varying[param] = (min(vals), max(vals))
+            else:
+                raise("FUCK")
 
-    def bounds_lo(self): return dict([(name, lo) for name, lo in zip(self.param_names, self.param_bounds_lo)])
-    def bounds_hi(self): return dict([(name, hi) for name, hi in zip(self.param_names, self.param_bounds_hi)])
+        self.dim_fixed = len(self.params_fixed)
+        self.dim_varying = len(self.params_varying)
+
+        self.sampler = qmc.LatinHypercube(self.dim_varying, seed=seed)
+
+    def bounds_varying_lo(self): return [minmax[0] for minmax in self.params_varying.values()]
+    def bounds_varying_hi(self): return [minmax[1] for minmax in self.params_varying.values()]
 
     def sample(self):
         samples = self.sampler.random()[0] # in [0,1)
-        for i, (lo, hi) in enumerate(zip(self.param_bounds_lo, self.param_bounds_hi)):
+        for i, (lo, hi) in enumerate(zip(self.bounds_varying_lo(), self.bounds_varying_hi())): # Python dict iteration order is guaranteed to be in same order as insertion
             samples[i] = lo if hi == lo else lo + (hi-lo) * samples[i] # in [lo, hi); or fixed to lo == hi if they are equal (handle this separately to preserve data type)
-        samples = dict([(name, sample) for name, sample in zip(self.param_names, samples)]) # e.g. from [0.67, 2.1e-9] to {"h": 0.67, "As": 2.1e-9}
+        samples = dict([(name, sample) for name, sample in zip(self.params_varying.keys(), samples)]) # e.g. from [0.67, 2.1e-9] to {"h": 0.67, "As": 2.1e-9}
+        samples |= self.params_fixed # add the fixed parameters
         return samples
 
     def samples(self, n):
