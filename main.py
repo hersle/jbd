@@ -158,9 +158,6 @@ for param in args.params:
     param = param_value[0]
     values = [int(value) if type(PARAMS[param]["fid"]) == int else float(value) for value in param_value[1].split(',')] if len(param_value) == 2 else [PARAMS[param]["fid"]] # specified or fiducial
     paramlist[param] = values
-print("Parameters:")
-for param, values in paramlist.items():
-    print(f"{param} = {values} (x{len(values)})")
 
 pspace = ParameterSpace(paramlist)
 if args.samples == 0:
@@ -170,14 +167,23 @@ else:
 
 lo, hi = pspace.bounds()
 
-print("Parameters:")
-for params in paramss:
-    print(params)
-
-plot.plot_parameter_samples("plots/parameter_space.pdf", paramss, lo, hi)
-
 varparams = [param for param, vals in paramlist.items() if len(vals)  > 1] # list of varying parameters
 fixparams = [param for param, vals in paramlist.items() if len(vals) == 1] # list of fixed   paramaters
+
+print("Fixed parameters:")
+for param in fixparams:
+    print(f"{param} = {paramlist[param][0]}")
+
+print()
+print("Varying parameters:")
+widths = {param: max([len(str(params[param])) for params in paramss]) for param in varparams}
+print(" ".join(f"{param: <{widths[param]}}" for param in varparams))
+print(" ".join("-" * widths[param] for param in varparams))
+for params in paramss:
+    print(" ".join(f"{value: <{widths[param]}}" for param, value in params.items() if param in varparams))
+
+plot.plot_parameter_samples("plots/parameter_space.pdf", paramss, lo, hi)
+exit()
 
 # Parameter transformation from BD to GR
 θGR = θGR_different_h if args.transform_h else θGR_identity
