@@ -41,6 +41,7 @@ parser.add_argument("--subtract-shotnoise", action="store_true", help="subtract 
 parser.add_argument("--realizations", metavar="N", type=int, default=1, help="number of universe realizations to simulate per model")
 parser.add_argument("--evolution", action="store_true", help="plot evolution of background and perturbation quantities")
 parser.add_argument("--samples", metavar="N", type=int, default=0, help="number of latin hypercube samples to make")
+parser.add_argument("--parameter-space", action="store_true", help="plot (varying) parameter space")
 parser.add_argument("--test", action="store_true", help="run whatever experimental code is in the test section")
 args = parser.parse_args()
 
@@ -182,8 +183,8 @@ print(" ".join("-" * widths[param] for param in varparams))
 for params in paramss:
     print(" ".join(f"{value: <{widths[param]}}" for param, value in params.items() if param in varparams))
 
-plot.plot_parameter_samples("plots/parameter_space.pdf", paramss, lo, hi)
-exit()
+if args.parameter_space:
+    plot.plot_parameter_samples("plots/parameter_space.pdf", paramss, lo, hi)
 
 # Parameter transformation from BD to GR
 θGR = θGR_different_h if args.transform_h else θGR_identity

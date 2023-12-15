@@ -30,22 +30,27 @@ matplotlib.rcParams |= {
 }
 
 PARAM_PLOT_INFO = {
-    "h":      {"label": r"$h$",                                 "format": lambda h:     f"${h}$",           "colorvalue": lambda h:     h},
-    "ωb0":    {"label": r"$\omega_{b0}$",                       "format": lambda ωb0:   f"${ωb0}$",         "colorvalue": lambda ωb0:   ωb0},
-    "ωc0":    {"label": r"$\omega_{c0}$",                       "format": lambda ωc0:   f"${ωc0}$",         "colorvalue": lambda ωc0:   ωc0},
-    "ωm0":    {"label": r"$\omega_{m0}$",                       "format": lambda ωm0:   f"${ωm0}$",         "colorvalue": lambda ωm0:   ωm0},
-    "Lh":     {"label": r"$L / (\mathrm{Mpc}/h)$",              "format": lambda Lh:    f"${Lh:.0f}$",      "colorvalue": lambda Lh:    np.log2(Lh)},
-    "L":      {"label": r"$L /  \mathrm{Mpc}   $",              "format": lambda L:     f"${L:.0f}$",       "colorvalue": lambda L:     np.log2(L)},
-    "Npart":  {"label": r"$N_\mathrm{part}$",                   "format": lambda Npart: f"${Npart}^3$",     "colorvalue": lambda Npart: np.log2(Npart)},
-    "Ncell":  {"label": r"$N_\mathrm{cell}$",                   "format": lambda Ncell: f"${Ncell}^3$",     "colorvalue": lambda Ncell: np.log2(Ncell)},
-    "Nstep":  {"label": r"$N_\mathrm{step}$",                   "format": lambda Nstep: f"${Nstep}$",       "colorvalue": lambda Nstep: Nstep},
-    "zinit":  {"label": r"$z_\mathrm{init}$",                   "format": lambda zinit: f"${zinit:.0f}$",   "colorvalue": lambda zinit: zinit},
-    "ω":      {"label": r"$\omega$",                            "format": lambda ω:     f"${ω:.0f}$",       "colorvalue": lambda ω:     np.log10(ω)},
-    "G0":     {"label": r"$G_0/G$",                             "format": lambda G0:    f"${G0:.02f}$",     "colorvalue": lambda G0:    G0},
-    "As":     {"label": r"$A_s / 10^{-9}$",                     "format": lambda As:    f"${As/1e-9:.1f}$", "colorvalue": lambda As:    As},
-    "ns":     {"label": r"$n_s$",                               "format": lambda ns:    f"${ns}$",          "colorvalue": lambda ns:    ns},
-    "σ8":     {"label": r"$\sigma(R=8\,\mathrm{Mpc}/h,\,z=0)$", "format": lambda σ8:    f"${σ8}$",          "colorvalue": lambda σ8:    σ8},
-    "z":      {"label": r"$z$",                                 "format": lambda z:     f"${z}$",           "colorvalue": lambda z:     np.log10(z+1)},
+    "h":      {"label": r"$h$",                                 "format": lambda h:     f"${h:.2f}$",                  "colorvalue": lambda h:     h},
+    "ωb0":    {"label": r"$\omega_{b0}$",                       "format": lambda ωb0:   f"${ωb0:.2f}$",                "colorvalue": lambda ωb0:   ωb0},
+    "ωc0":    {"label": r"$\omega_{c0}$",                       "format": lambda ωc0:   f"${ωc0:.2f}$",                "colorvalue": lambda ωc0:   ωc0},
+    "ωm0":    {"label": r"$\omega_{m0}$",                       "format": lambda ωm0:   f"${ωm0:.2f}$",                "colorvalue": lambda ωm0:   ωm0},
+    "ωk0":    {"label": r"$\omega_{k0}$",                       "format": lambda ωk0:   f"${ωk0:.2f}$",                "colorvalue": lambda ωk0:   ωk0},
+    "Tγ0":    {"label": r"$T_{\gamma 0}$",                      "format": lambda Tγ0:   f"${Tγ0:.4f}$",                "colorvalue": lambda Tγ0:   Tγ0},
+    "Neff":   {"label": r"$N_\mathrm{eff}$",                    "format": lambda Neff:  f"${Neff:.3f}$",               "colorvalue": lambda Neff:  Neff},
+    "kpivot": {"label": r"$k_\mathrm{pivot}$",                  "format": lambda kpivot:f"${kpivot}$",                 "colorvalue": lambda kpivot:kpivot},
+    "Lh":     {"label": r"$L / (\mathrm{Mpc}/h)$",              "format": lambda Lh:    f"${Lh:.0f}$",                 "colorvalue": lambda Lh:    np.log2(Lh)},
+    "L":      {"label": r"$L /  \mathrm{Mpc}   $",              "format": lambda L:     f"${L:.0f}$",                  "colorvalue": lambda L:     np.log2(L)},
+    "Npart":  {"label": r"$N_\mathrm{part}$",                   "format": lambda Npart: f"${Npart}^3$",                "colorvalue": lambda Npart: np.log2(Npart)},
+    "Ncell":  {"label": r"$N_\mathrm{cell}$",                   "format": lambda Ncell: f"${Ncell}^3$",                "colorvalue": lambda Ncell: np.log2(Ncell)},
+    "Nstep":  {"label": r"$N_\mathrm{step}$",                   "format": lambda Nstep: f"${Nstep}$",                  "colorvalue": lambda Nstep: Nstep},
+    "zinit":  {"label": r"$z_\mathrm{init}$",                   "format": lambda zinit: f"${zinit:.0f}$",              "colorvalue": lambda zinit: zinit},
+    "ω":      {"label": r"$\omega$",                            "format": lambda ω:     f"$10^{{{np.log10(ω):.0f}}}$", "colorvalue": lambda ω:     np.log10(ω)},
+    "lgω":    {"label": r"$\lg\omega$",                         "format": lambda lgω:   f"${lgω:.1f}$",                "colorvalue": lambda ω:     np.log10(ω)},
+    "G0":     {"label": r"$G_0/G$",                             "format": lambda G0:    f"${G0:.02f}$",                "colorvalue": lambda G0:    G0},
+    "As":     {"label": r"$A_s / 10^{-9}$",                     "format": lambda As:    f"${As/1e-9:.1f}$",            "colorvalue": lambda As:    As},
+    "ns":     {"label": r"$n_s$",                               "format": lambda ns:    f"${ns}$",                     "colorvalue": lambda ns:    ns},
+    "σ8":     {"label": r"$\sigma_8$",                          "format": lambda σ8:    f"${σ8}$",                     "colorvalue": lambda σ8:    σ8},
+    "z":      {"label": r"$z$",                                 "format": lambda z:     f"${z}$",                      "colorvalue": lambda z:     np.log10(z+1)},
 }
 
 # linearly look up a color between a list of colors,
@@ -264,19 +269,22 @@ def plot_density_evolution(filename, params0_BD, θGR):
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_parameter_samples(filename, samples, lo, hi, labels):
-    params = list(lo.keys())
-    dimension = len(params)
+def plot_parameter_samples(filename, paramss, lo, hi):
+    params = list(paramss[0].keys())
+    valuess = {name: [values[name] for values in paramss] for name in params}
 
-    fig, axs = plt.subplots(dimension-1, dimension-1, figsize=(6.0, 6.0))
-    #fig = matplotlib.figure.Figure(figsize=(6.0, 6.0))
-    #axs = fig.subplots(dimension-1, dimension-1)
-    for iy in range(1, dimension):
-        paramy = params[iy]
-        sy = [sample[paramy] for sample in samples]
-        for ix in range(0, dimension-1):
-            paramx = params[ix]
-            sx = [sample[paramx] for sample in samples]
+    # remove non-varying parameters
+    for name in params:
+        if np.min(valuess[name]) == np.max(valuess[name]):
+            del valuess[name]
+
+    dimension = len(valuess)
+
+    fig, axs = plt.subplots(dimension-1, dimension-1, figsize=(6.0, 6.0), squeeze=False)
+    for iy, paramy in list(enumerate(valuess))[1:]: # iy = 1, ..., dim-1
+        sy = valuess[paramy]
+        for ix, paramx in list(enumerate(valuess))[:-1]: # ix = 0, ..., dim-2
+            sx = valuess[paramx]
 
             ax = axs[iy-1,ix]
 
@@ -285,8 +293,8 @@ def plot_parameter_samples(filename, samples, lo, hi, labels):
                 ax.set_visible(False) # hide subplot
                 continue
 
-            ax.set_xlabel(param_labels[paramx] if iy == dimension-1 else "")
-            ax.set_ylabel(param_labels[paramy] if ix == 0           else "")
+            ax.set_xlabel(PARAM_PLOT_INFO[paramx]["label"] if iy == dimension-1 else "")
+            ax.set_ylabel(PARAM_PLOT_INFO[paramy]["label"] if ix == 0           else "")
             ax.set_xlim(lo[paramx], hi[paramx]) # [lo, hi]
             ax.set_ylim(lo[paramy], hi[paramy]) # [lo, hi]
             ax.set_xticks([lo[paramx], np.round((lo[paramx]+hi[paramx])/2, 10), hi[paramx]]) # [lo, mid, hi]
@@ -299,9 +307,9 @@ def plot_parameter_samples(filename, samples, lo, hi, labels):
             ax.yaxis.set_label_coords(-0.5, +0.5) # manually align ylabels horizontally (due to ticklabels with different size)
             ax.grid()
 
-            ax.scatter(sx, sy, 2.0, c="black", edgecolors="none")
+            ax.scatter(sx, sy, 5.0, c="black", edgecolors="none")
 
-    fig.suptitle(f"$\\textrm{{${len(samples)}$ Latin hypercube samples}}$")
+    fig.suptitle(f"$\\textrm{{${len(paramss)}$ samples}}$")
     fig.tight_layout(pad=0, rect=(0.02, 0.02, 1.0, 1.0))
     fig.savefig(filename)
     print("Plotted", filename)
