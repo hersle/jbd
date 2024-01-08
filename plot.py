@@ -73,8 +73,8 @@ def ax_set_ylim_nearest(ax, Δy):
     ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/Δy))+1)) # TODO: set minor ticks every 1, 0.1, 0.01 etc. here?
     return ymin, ymax
 
-def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, llabels=None, title=None, xlabel=None, ylabel=None, xticks=None, yticks=None):
-    fig, ax = plt.subplots(figsize=(3.0, 2.7))
+def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, llabels=None, title=None, xlabel=None, ylabel=None, xticks=None, yticks=None, figsize=(3.0, 2.2)):
+    fig, ax = plt.subplots(figsize=figsize)
 
     if not colors: colors = ["black"] * len(curvess)
     if not linestyles: linestyles = ["solid"] * len(curvess[0])
@@ -118,7 +118,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divide="", subshot=False):
+def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divide="", subshot=False, Blims=(0.8, 1.2)):
     names = ["PBD", "PGR", "B"]
     def curve_PBD(sims, source, z):
         k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z, hunits=hunits, subshot=subshot)
@@ -131,7 +131,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
         return np.log10(k), B, ΔB, ΔB
     funcs = [curve_PBD, curve_PGR, curve_B]
     xticks = (-5, +1, 1, 0.1) # common
-    ytickss = [(-6, 5, 1.0, 0.1), (-6, 5, 1.0, 0.1), (0.80, 1.20, 0.10, 0.01)]
+    ytickss = [(-6, 5, 1.0, 0.1), (-6, 5, 1.0, 0.1), (Blims[0], Blims[1], 0.10, 0.01)]
     klabel = r"k / (h/\mathrm{Mpc})" if hunits else r"k \,/\, (1/\mathrm{Mpc})"
     xlabel = f"$\lg \left[ {klabel} \\right]$" # common for PBD, PGR, B
     PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"

@@ -43,6 +43,7 @@ parser.add_argument("--evolution", action="store_true", help="plot evolution of 
 parser.add_argument("--samples", metavar="N", type=int, default=0, help="number of latin hypercube samples to make")
 parser.add_argument("--parameter-space", action="store_true", help="plot (varying) parameter space")
 parser.add_argument("--test", action="store_true", help="run whatever experimental code is in the test section")
+parser.add_argument("--B-lims", help="Bmin,Bmax", default=(0.8, 1.2), nargs=2)
 args = parser.parse_args()
 
 class ParameterSpace:
@@ -197,7 +198,9 @@ if len(args.power) > 0:
     stem = "plots/power_fix_" + '_'.join(fixparams_nondefault) + (f"_vary_{varparam}" if varparam else "")
     sources = args.power
     params0 = {param: PARAMS[param]["fid"] for param in PARAMS}
-    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, hunits=args.h_units, divide=args.divide, subshot=args.subtract_shotnoise)
+
+    Blims = (float(args.B_lims[0]), float(args.B_lims[1]))
+    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, hunits=args.h_units, divide=args.divide, subshot=args.subtract_shotnoise, Blims=Blims)
 
 # Plot evolution of (background) densities
 if args.evolution:
