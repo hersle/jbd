@@ -35,6 +35,7 @@ parser.add_argument("--list-params", action="store_true", help="list parameters 
 parser.add_argument("--params", metavar="PARAM[=VALUES]", nargs="*", help="parameters to fix or vary", default=[])
 parser.add_argument("--transform-h", action="store_true", help="use hGR = hBD * √(ϕini) instead of hGR = hBD")
 parser.add_argument("--power", nargs="*", metavar="SOURCE", default=[], help="plot P(k) and B(k) from sources (class, halofit, cola, ramses)")
+parser.add_argument("--power-stem", default=None)
 parser.add_argument("--h-units", action="store_true", help="plot power and boost with P(k/h)*h^3 instead of P(k)")
 parser.add_argument("--divide", metavar="SOURCE", default="", help="source to divide by")
 parser.add_argument("--subtract-shotnoise", action="store_true", help="subtract shot noise")
@@ -195,7 +196,10 @@ if len(args.power) > 0:
     assert len(varparams) <= 1, "can vary at most one parameter at the time"
     varparam = varparams[0] if len(varparams) == 1 else None
     fixparams_nondefault = sorted(list(set(fixparams) - set(fixparams_default)))
-    stem = "plots/power_fix_" + '_'.join(fixparams_nondefault) + (f"_vary_{varparam}" if varparam else "")
+    if args.power_stem is None:
+        stem = "plots/power_fix_" + '_'.join(fixparams_nondefault) + (f"_vary_{varparam}" if varparam else "") + (f"_div_{args.divide}" if args.divide else "") + ("_transfh" if args.transform_h else "")
+    else:
+        stem = args.power_stem
     sources = args.power
     params0 = {param: PARAMS[param]["fid"] for param in PARAMS}
 
