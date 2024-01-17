@@ -124,6 +124,7 @@ PARAMS = {
     "σ8":        {"fid": 0.80,         "help": "smoothed matter density fluctuation amplitude = σ(R=8 Mpc/h, z=0)"},
 
     "ω":         {"fid": 100.0,        "help": "Brans-Dicke scalar field coupling"},
+    "lgω":       {"fid": 2.0,          "help": "log₁₀(ω)"},
     "G0":        {"fid": 1.00,         "help": "gravitational parameter today / G"},
 
     "zinit":     {"fid": 10.0,         "help": "initial redshift (all N-body simulations)"},

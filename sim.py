@@ -21,6 +21,8 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
     RAMSES2PKEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/RamsesUtils/ramses2pk/ramses2pk"))
 
     def __init__(self, iparams):
+        if "lgω" in iparams:
+            iparams["ω"] = 10 ** iparams.pop("lgω")
         if "seed" not in iparams:
             iparams["seed"] = params2seeds(iparams) # assign a (random) random seed
 
@@ -540,6 +542,8 @@ class BDSimulation(Simulation):
 
 class SimulationGroup:
     def __init__(self, simtype, iparams, nsims, seeds=None):
+        if "lgω" in iparams:
+            iparams["ω"] = 10 ** iparams.pop("lgω")
         if seeds is None:
             seeds = params2seeds(iparams, nsims)
 
@@ -576,6 +580,9 @@ class SimulationGroup:
 
 class SimulationGroupPair:
     def __init__(self, iparams_BD, iparams_BD_to_GR, nsims=1):
+        if "lgω" in iparams_BD:
+            iparams_BD["ω"] = 10 ** iparams_BD.pop("lgω")
+
         seeds = params2seeds(iparams_BD, nsims) # BD parameters is a superset, so use them to make common seeds for BD and GR
 
         self.iparams_BD = iparams_BD
