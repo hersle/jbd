@@ -136,7 +136,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
     xlabel = f"$\lg \left[ {klabel} \\right]$" # common for PBD, PGR, B
     PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"
     PGRlabel = r"P_\mathrm{GR} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{GR} \,/\, \mathrm{Mpc}^3"
-    Blabel = "B" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "primordial": r"\mathrm{prim}"}[divide])
+    Blabel = "B" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "primordial": r"\mathrm{prim}", "scaleindependent": r"\mathrm{scale-independent}"}[divide])
     ylabels = [f"$\lg\left[ {PBDlabel} \\right]$", f"$\lg\left[ {PGRlabel} \\right]$", f"${Blabel}$"]
 
     for name, func, ylabel, yticks in zip(names, funcs, ylabels, ytickss): # 1) iterate over PBD(k), PGR(k), B(k)
@@ -164,9 +164,10 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
             curves, linestyles, llabels = [], [], [] # only want to the last two once
             for source in sources: # 3) iterate over power spectrum source
                 # linestyle and linestyle labels
-                linestyles.append({"class": "solid", "cola": "dashed", "ramses": "dotted", "primordial": "dotted"}[source])
-                llabels.append({"class": r"$\textrm{linear (\textsc{hi_class})}$", "cola": r"$\textrm{non-linear (\textsc{fml/cola})}$", "ramses": r"$\textrm{non-linear (\textsc{ramses})}$", "primordial": r"$\textrm{primordial } A_s^\mathrm{BD} / A_s^\mathrm{GR}$"}[source])
-                curves.append(func(sims, source, z))
+                linestyles.append({"class": "solid", "cola": "dashed", "ramses": "dotted", "primordial": "dotted", "scaleindependent": "dashed"}[source])
+                llabels.append({"class": r"$\textrm{linear}$", "cola": r"$\textrm{quasi-linear}$", "ramses": r"$\textrm{non-linear}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{scale-independent}$"}[source])
+                label = (f"${PARAM_PLOT_INFO[param]['label'][1:-1]} = {PARAM_PLOT_INFO[param]['format'](val)[1:-1]}$") if param else None
+                curves.append(func(sims, source, z) + ({"class": label, "cola": None, "ramses": None, "scaleindependent": None}[source],))
             curvess.append(curves)
 
         title = PARAM_PLOT_INFO[param]["label"] if param else None

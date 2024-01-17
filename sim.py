@@ -413,6 +413,12 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         elif source == "primordial":
             zs = [np.inf]
             filenames = ["class/primordial_Pk.dat"]
+        elif source == "scaleindependent":
+            data = self.read_data("cola/gravitymodel_cola_k1.0.txt", dict=True)
+            a, D = data["a"], data["D1(a,k)"]
+            D_D0 = CubicSpline(np.log(a), D/D[0])(np.log(1 / (z+1)))
+            k, P = self.power_spectrum(z, source="primordial", hunits=hunits, subshot=subshot)
+            return k, P * D_D0**2
         else:
             raise Exception(f"unknown power spectrum source \"{source}\"")
 
