@@ -73,7 +73,7 @@ def ax_set_ylim_nearest(ax, Δy):
     ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/Δy))+1)) # TODO: set minor ticks every 1, 0.1, 0.01 etc. here?
     return ymin, ymax
 
-def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, llabels=None, title=None, xlabel=None, ylabel=None, xticks=None, yticks=None, figsize=(3.0, 2.2)):
+def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, llabels=None, title=None, xlabel=None, ylabel=None, xticks=None, yticks=None, figsize=(3.0, 2.2)): # 1.2 for small figs
     fig, ax = plt.subplots(figsize=figsize)
 
     if not colors: colors = ["black"] * len(curvess)
@@ -81,10 +81,11 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
 
     # Plot the curves; varying color first, and linestyle second
     ax.set_prop_cycle(cycler(color=colors) * cycler(linestyle=linestyles))
-    for curves in curvess:
-        for x, y, Δyhi, Δylo in curves:
-            ax.plot(        x, y,              linewidth=1, alpha=0.5, label=None)
+    for i, curves in enumerate(curvess):
+        for x, y, Δyhi, Δylo, label in curves:
+            ax.plot(        x, y,              linewidth=1, alpha=0.5, label=label)
             ax.fill_between(x, y-Δylo, y+Δyhi, linewidth=0) # error band
+    ax.legend(loc="upper right") #, bbox_to_anchor=(1.00, 0.96))
 
     # Set axis labels and ticks from input ticks = (min, max, step)
     for label, ticks, set_label, set_ticks, set_lim, set_minor_locator in [(xlabel, xticks, ax.set_xlabel, ax.set_xticks, ax.set_xlim, ax.xaxis.set_minor_locator), (ylabel, yticks, ax.set_ylabel, ax.set_yticks, ax.set_ylim, ax.yaxis.set_minor_locator)]:
@@ -97,13 +98,14 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
 
     # Label colors (through colorbar)
     if clabels:
-        cax  = make_axes_locatable(ax).append_axes("top", size="7%", pad="0%") # align colorbar axis with plot
-        cmap = matplotlib.colors.ListedColormap(colors)
-        cbar = plt.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap), cax=cax, orientation="horizontal")
-        cbar.ax.set_title(title)
-        cax.xaxis.set_ticks_position("top")
-        cax.xaxis.set_tick_params(direction="out")
-        cax.xaxis.set_ticks(np.linspace(0.5/len(clabels), 1-0.5/len(clabels), len(clabels)), labels=clabels)
+        pass
+        #cax  = make_axes_locatable(ax).append_axes("top", size="7%", pad="0%") # align colorbar axis with plot
+        #cmap = matplotlib.colors.ListedColormap(colors)
+        #cbar = plt.colorbar(matplotlib.cm.ScalarMappable(cmap=cmap), cax=cax, orientation="horizontal")
+        #cbar.ax.set_title(title)
+        #cax.xaxis.set_ticks_position("top")
+        #cax.xaxis.set_tick_params(direction="out")
+        #cax.xaxis.set_ticks(np.linspace(0.5/len(clabels), 1-0.5/len(clabels), len(clabels)), labels=clabels)
 
     # Label linestyles (through legend)
     if llabels:
@@ -111,7 +113,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
         ax2.get_yaxis().set_visible(False) # make invisible
         for linestyle, label in zip(linestyles, llabels):
             ax2.plot([-8, -8], [0, 1], alpha=0.5, color="black", linestyle=linestyle, linewidth=1, label=label)
-        ax2.legend(loc="lower left", bbox_to_anchor=(-0.02, -0.02))
+        ax2.legend(loc="upper left") #, bbox_to_anchor=(0.00, 0.96))
 
     ax.grid(which="both")
     fig.tight_layout(pad=0)
@@ -131,12 +133,12 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
         return np.log10(k), B, ΔB, ΔB
     funcs = [curve_PBD, curve_PGR, curve_B]
     xticks = (-5, +1, 1, 0.1) # common
-    ytickss = [(-6, 5, 1.0, 0.1), (-6, 5, 1.0, 0.1), (Blims[0], Blims[1], 0.10, 0.01)]
+    ytickss = [(-6, 5, 1.0, 0.1), (-6, 5, 1.0, 0.1), (Blims[0], Blims[1], 10**np.floor(np.log10((Blims[1]-Blims[0]))), 10**(-1+np.floor(np.log10((Blims[1]-Blims[0])))))]
     klabel = r"k / (h/\mathrm{Mpc})" if hunits else r"k \,/\, (1/\mathrm{Mpc})"
     xlabel = f"$\lg \left[ {klabel} \\right]$" # common for PBD, PGR, B
     PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"
     PGRlabel = r"P_\mathrm{GR} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{GR} \,/\, \mathrm{Mpc}^3"
-    Blabel = "B" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "primordial": r"\mathrm{prim}", "scaleindependent": r"\mathrm{scale-independent}"}[divide])
+    Blabel = "B" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "cola": r"\mathrm{cola}", "primordial": r"\mathrm{prim}", "scaleindependent": r"\mathrm{scale-independent}"}[divide])
     ylabels = [f"$\lg\left[ {PBDlabel} \\right]$", f"$\lg\left[ {PGRlabel} \\right]$", f"${Blabel}$"]
 
     for name, func, ylabel, yticks in zip(names, funcs, ylabels, ytickss): # 1) iterate over PBD(k), PGR(k), B(k)
@@ -281,13 +283,16 @@ def plot_parameter_samples(filename, paramss, lo, hi):
 
     dimension = len(valuess)
 
-    fig, axs = plt.subplots(dimension-1, dimension-1, figsize=(6.0, 6.0), squeeze=False)
+    #fig, axs = plt.subplots(dimension-1, dimension-1, figsize=(6.0, 6.0), squeeze=False)
+    fig, axs = plt.subplots(dimension-1, dimension-1, figsize=(2.0*(dimension-1), 2.0*(dimension-1)), squeeze=False)
     for iy, paramy in list(enumerate(valuess))[1:]: # iy = 1, ..., dim-1
         sy = valuess[paramy]
         for ix, paramx in list(enumerate(valuess))[:-1]: # ix = 0, ..., dim-2
             sx = valuess[paramx]
 
             ax = axs[iy-1,ix]
+            ax.set_box_aspect(1)
+            #ax.set_aspect('equal')
 
             # plot faces (p1, p2); but not degenerate faces (p2, p1) or "flat faces" with p1 == p2
             if ix >= iy:
@@ -304,13 +309,13 @@ def plot_parameter_samples(filename, paramss, lo, hi):
             ax.set_yticklabels([f"${ytick}$" if ix == 0           else "" for ytick in ax.get_yticks()], rotation= 0) # rotation=45, ha="right", rotation_mode="anchor") # only on very left
             ax.xaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # minor ticks
             ax.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator(10)) # minor ticks
-            ax.xaxis.set_label_coords(+0.5, -0.5) # manually align xlabels vertically   (due to ticklabels with different size)
-            ax.yaxis.set_label_coords(-0.5, +0.5) # manually align ylabels horizontally (due to ticklabels with different size)
+            #ax.xaxis.set_label_coords(+0.5, -0.5) # manually align xlabels vertically   (due to ticklabels with different size)
+            #ax.yaxis.set_label_coords(-0.5, +0.5) # manually align ylabels horizontally (due to ticklabels with different size)
             ax.grid()
 
             ax.scatter(sx, sy, 5.0, c="black", edgecolors="none")
 
-    fig.suptitle(f"$\\textrm{{${len(paramss)}$ samples}}$")
-    fig.tight_layout(pad=0, rect=(0.02, 0.02, 1.0, 1.0))
+    #fig.suptitle(f"$\\textrm{{${len(paramss)}$ samples}}$", y=1.00)
+    fig.tight_layout(pad=0) #, rect=(0.02, 0.02, 1.0, 1.0))
     fig.savefig(filename)
     print("Plotted", filename)
