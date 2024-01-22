@@ -639,7 +639,7 @@ class SimulationGroupPair:
         #assert np.isclose(ΔB_matrix, ΔB_manual), "error propagation is wrong"
 
         if divide: # TODO: handle ΔB?
-            kdiv, Bdiv, _ = self.power_spectrum_ratio(source=divide, z=z, hunits=hunits, divide="") # don't divide
+            kdiv, Bdiv, _ = self.power_spectrum_ratio(source=divide, z=z, hunits=hunits, divide="", subshot=subshot) # don't divide
             Bdiv = CubicSpline(kdiv, Bdiv, axis=1, extrapolate=False)(k) # interpolate to main source's k
             return k, B/Bdiv, ΔB/Bdiv
         else:
