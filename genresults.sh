@@ -33,3 +33,6 @@
 #./main.py --params lgω=2.0,4.0 σ8 ωb0 z=0 ωm0=0.1,0.2 --samples 100 --parameter-space --power class cola --divide primordial --h-units --subtract-shotnoise --transform-h --B-lims 1.0 1.2 --power-stem plots/sample_z0_divprim
 #./main.py --params lgω=2.0,4.0 σ8 ωb0 z=3 ωm0=0.1,0.2 --samples 100 --parameter-space --power class cola --divide class      --h-units --subtract-shotnoise --transform-h --B-lims 0.9 1.1 --power-stem plots/sample_z3_divclass
 #./main.py --params lgω=2.0,4.0 σ8 ωb0 z=3 ωm0=0.1,0.2 --samples 100 --parameter-space --power class cola --divide primordial --h-units --subtract-shotnoise --transform-h --B-lims 1.0 1.2 --power-stem plots/sample_z3_divprim
+
+# EuclidEmulator2
+./main.py --power class ee2 --h-units --transform-h --params σ8=0.81 ωm0 ωb0 z=0,1.5,3,9 --subtract-shotnoise --divide primordial --B-lims 0.8 1.2 --power-stem plots/ee2

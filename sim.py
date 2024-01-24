@@ -13,12 +13,21 @@ def params2seeds(params, n=None):
     seeds = rng.integers(0, 2**31-1, size=n, dtype=int) # output python (not numpy) ints to make compatible with JSON dict hashing
     return int(seeds) if n is None else [int(seed) for seed in seeds]
 
+# parameter transformations
+def θGR_identity(θBD, θBD_all):
+    return utils.dictupdate(θBD, remove=["ω", "G0"]) # remove BD-specific parameters
+def θGR_different_h(θBD, θBD_all):
+    θGR = θGR_identity(θBD, θBD_all)
+    θGR["h"] = θBD["h"] * np.sqrt(θBD_all["ϕini"]) # ensure similar Hubble evolution (of E=H/H0) during radiation domination
+    return θGR
+
 class Simulation: # TODO: makes more sense to name Model, Cosmology or something similar
     SIMDIR = os.path.expandvars(os.path.expandvars("$DATA/jbdsims/"))
     COLAEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/COLASolver/nbody"))
     CLASSEXEC = os.path.abspath(os.path.expandvars("$HOME/local/hi_class_public/class"))
     RAMSESEXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3d"))
     RAMSES2PKEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/RamsesUtils/ramses2pk/ramses2pk"))
+    EE2EXEC = os.path.abspath(os.path.expandvars("$HOME/local/EuclidEmulator2-pywrapper/ee2.exe"))
 
     def __init__(self, iparams):
         if "lgω" in iparams:
@@ -467,6 +476,43 @@ class GRSimulation(Simulation):
             '' # final newline
         ])
 
+    def run_ee2(self, z=0.0, outfile_stem="BNL"):
+        h = self.params["h"]
+        Ωb0 = self.params["ωb0"] / h**2
+        Ωm0 = self.params["ωm0"] / h**2
+        ns = self.params["ns"]
+        As = self.params["As"]
+
+        self.create_directory("ee2")
+        self.run_command(f"{self.EE2EXEC} -b {Ωb0} -m {Ωm0} -n {ns} -H {h} -A {As} -z {z} -W -1.0 -w 0.0 -s 0.0 -d . -o {outfile_stem}", subdir="ee2/", log="log.txt")
+        outfile = f"ee2/{outfile_stem}0.dat"
+        assert self.file_exists(outfile)
+        return outfile
+
+    def power_spectrum(self, **kwargs):
+        if kwargs["source"] == "ee2":
+            # 1) get B = P / Plin from EE2
+            outfile = self.run_ee2(z=kwargs["z"])
+            k_h, B = self.read_data(outfile) # k/(h/Mpc), P(k)/Plin(k)
+            k = k_h * self.params["h"] # k/(1/Mpc)
+
+            # 2) get Plin from class
+            klin, Plin = self.power_spectrum(**kwargs | {"source": "class", "hunits": False}) # k/(1/Mpc), P/Mpc^3
+
+            # 3a) get P by multiplying Plin * B = P with splined B
+            P = CubicSpline(k, B, axis=1, extrapolate=False)(klin) * Plin # careful with units!
+            k, P = klin[np.isfinite(P)], P[np.isfinite(P)] # remove NaNs because EE2 has a smaller k-range than class
+
+            # 3b) get P by multiplying Plin * B = P with splined Plin
+            #P = B * CubicSpline(klin, Plin, extrapolate=False)(k)
+
+            if kwargs["hunits"]:
+                return k / self.params["h"], P * self.params["h"]**3
+            else:
+                return k, P
+
+        return Simulation.power_spectrum(self, **kwargs)
+
 class BDSimulation(Simulation):
     SIMDIR = Simulation.SIMDIR + "BD/"
     RAMSESEXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3dBD"))
@@ -546,6 +592,31 @@ class BDSimulation(Simulation):
         lines.append("") # final newline
         return '\n'.join(lines)
 
+    def power_spectrum(self, **kwargs):
+        if kwargs["source"] == "ee2":
+            # 1) get B = PBD/PGR ≈ PBDlin/PGRlin from BD+GR simulation pair using class
+            sims = SimulationGroupPair(self.iparams, θGR_different_h)
+            k_h, B, _ = sims.power_spectrum_ratio(**kwargs | {"source": "class", "hunits": True}) # k/h, [PBD(k/h,z)*hBD^3] / [PGR(k/h,z)*hGR^3]
+
+            # 2) get PGR from EE2
+            kGR_h, PGRh3 = sims.sims_GR[0].power_spectrum(**kwargs | {"source": "ee2", "hunits": True}) # kGR/(h/Mpc), PGR/(Mpc/h)^3
+            kBD_h = k_h
+
+            # 3a) get PBD by multiplying PGR*B = PBD with splined B
+            PBDh3 = PGRh3 * CubicSpline(k_h, B, extrapolate=False)(kGR_h)
+            k_h = kGR_h
+
+            # 3b) get PBD by multiplying PGR*B = PBD with splined PGR
+            #PBDh3 = CubicSpline(kGR_h, PGRh3, extrapolate=False)(k_h) * B
+            #k_h, PBDh3 = k_h[np.isfinite(PBDh3)], PBDh3[np.isfinite(PBDh3)] # remove NaNs due to different k-ranges
+
+            if kwargs["hunits"]:
+                return k_h, PBDh3
+            else:
+                return k_h * self.params["h"], PBDh3 / self.params["h"]**3
+
+        return Simulation.power_spectrum(self, **kwargs)
+
 class SimulationGroup:
     def __init__(self, simtype, iparams, nsims, seeds=None):
         if "lgω" in iparams:
@@ -606,7 +677,7 @@ class SimulationGroupPair:
         # Verify that COLA/RAMSES simulations output comparable k-values (k*L should be equal)
         kLBD = kBD * (self.sims_BD.params["Lh" if hunits else "L"])
         kLGR = kGR * (self.sims_GR.params["Lh" if hunits else "L"])
-        assert source in ("class", "primordial") or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
+        assert source in ("class", "primordial", "ee2") or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
 
         # get reference wavenumbers and interpolate P to those values
         kmin = np.maximum(np.min(kBD), np.min(kGR))

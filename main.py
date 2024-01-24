@@ -100,14 +100,6 @@ class ParameterSpace:
         hi = {param: max(values) for param, values in self.params.items()}
         return lo, hi
 
-def θGR_identity(θBD, θBD_all):
-    return utils.dictupdate(θBD, remove=["ω", "G0"]) # remove BD-specific parameters
-
-def θGR_different_h(θBD, θBD_all):
-    θGR = θGR_identity(θBD, θBD_all)
-    θGR["h"] = θBD["h"] * np.sqrt(θBD_all["ϕini"]) # ensure similar Hubble evolution (of E=H/H0) during radiation domination
-    return θGR
-
 # All available parameters and their fiducial/default values
 PARAMS = {
     "h":         {"fid": 0.70,         "help": "reduced Hubble parameter today = H0 / (100 km/(s*Mpc))"},
@@ -190,7 +182,7 @@ if args.parameter_space:
     plot.plot_parameter_samples("plots/parameter_space.pdf", paramss, lo, hi)
 
 # Parameter transformation from BD to GR
-θGR = θGR_different_h if args.transform_h else θGR_identity
+θGR = sim.θGR_different_h if args.transform_h else sim.θGR_identity
 
 # Plot power spectra and boost, if requested
 if len(args.power) > 0:
