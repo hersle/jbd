@@ -120,7 +120,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divide="", subshot=False, Blims=(0.8, 1.2)):
+def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divide="", subshot=False, Blims=(0.8, 1.2), figsize=(3.0, 2.2)):
     names = ["PBD", "PGR", "B"]
     def curve_PBD(sims, source, z):
         k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z, hunits=hunits, subshot=subshot)
@@ -167,13 +167,13 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
             for source in sources: # 3) iterate over power spectrum source
                 # linestyle and linestyle labels
                 linestyles.append({"class": "solid", "cola": "dashed", "ramses": "dotted", "primordial": "dotted", "scaleindependent": "dashed", "ee2": "dashed"}[source])
-                llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{FML/COLASolver}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{scale-independent}$", "ee2": r"$\textsc{EuclidEmulator2}$"}[source])
+                llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{fml/colasolver}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{scale-independent}$", "ee2": r"$\textsc{ee2}$"}[source] + (r" \textrm{(boosted)}" if name == "PBD" and source == "ee2" else ""))
                 label = (f"${PARAM_PLOT_INFO[param]['label'][1:-1]} = {PARAM_PLOT_INFO[param]['format'](val)[1:-1]}$") if param else None
                 curves.append(func(sims, source, z) + ({"class": label, "cola": None, "ramses": None, "scaleindependent": None, "ee2": None}[source],))
             curvess.append(curves)
 
         title = PARAM_PLOT_INFO[param]["label"] if param else None
-        plot_generic(f"{filename_stem}_{name}.pdf", curvess, colors, clabels, linestyles, llabels, title, xlabel, ylabel, xticks, yticks)
+        plot_generic(f"{filename_stem}_{name}.pdf", curvess, colors, clabels, linestyles, llabels, title, xlabel, ylabel, xticks, yticks, figsize=figsize)
 
 def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", ylabel="", logabs=False, Δyrel=None, Δyabs=None):
     sims = sim.SimulationGroupPair(params0_BD, θGR)
