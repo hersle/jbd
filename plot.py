@@ -133,7 +133,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
         return np.log10(k), B, ΔB, ΔB
     funcs = [curve_PBD, curve_PGR, curve_B]
     xticks = (-5, +1, 1, 0.1) # common
-    ytickss = [(-6, 5, 1.0, 0.1), (-6, 5, 1.0, 0.1), (Blims[0], Blims[1], 10**np.floor(np.log10((Blims[1]-Blims[0]))), 10**(-1+np.floor(np.log10((Blims[1]-Blims[0])))))]
+    ytickss = [(-2, 5, 1.0, 0.1), (-2, 5, 1.0, 0.1), (Blims[0], Blims[1], 10**np.floor(np.log10((Blims[1]-Blims[0]))), 10**(-1+np.floor(np.log10((Blims[1]-Blims[0])))))]
     klabel = r"k / (h/\mathrm{Mpc})" if hunits else r"k \,/\, (1/\mathrm{Mpc})"
     xlabel = f"$\lg \left[ {klabel} \\right]$" # common for PBD, PGR, B
     PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"
@@ -166,10 +166,10 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
             curves, linestyles, llabels = [], [], [] # only want to the last two once
             for source in sources: # 3) iterate over power spectrum source
                 # linestyle and linestyle labels
-                linestyles.append({"class": "solid", "cola": "dashed", "ramses": "dotted", "primordial": "dotted", "scaleindependent": "dashed"}[source])
-                llabels.append({"class": r"$\textrm{linear}$", "cola": r"$\textrm{quasi-linear}$", "ramses": r"$\textrm{non-linear}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{scale-independent}$"}[source])
+                linestyles.append({"class": "solid", "cola": "dashed", "ramses": "dotted", "primordial": "dotted", "scaleindependent": "dashed", "ee2": "dashed"}[source])
+                llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{FML/COLASolver}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{scale-independent}$", "ee2": r"$\textsc{EuclidEmulator2}$"}[source])
                 label = (f"${PARAM_PLOT_INFO[param]['label'][1:-1]} = {PARAM_PLOT_INFO[param]['format'](val)[1:-1]}$") if param else None
-                curves.append(func(sims, source, z) + ({"class": label, "cola": None, "ramses": None, "scaleindependent": None}[source],))
+                curves.append(func(sims, source, z) + ({"class": label, "cola": None, "ramses": None, "scaleindependent": None, "ee2": None}[source],))
             curvess.append(curves)
 
         title = PARAM_PLOT_INFO[param]["label"] if param else None
