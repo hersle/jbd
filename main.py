@@ -187,11 +187,10 @@ if args.parameter_space:
 
 # Plot power spectra and boost, if requested
 if len(args.power) > 0:
-    assert len(varparams) <= 1, "can vary at most one parameter at the time"
     varparam = varparams[0] if len(varparams) == 1 else None
     fixparams_nondefault = sorted(list(set(fixparams) - set(fixparams_default)))
     if args.power_stem is None:
-        stem = "plots/power_fix_" + '_'.join(fixparams_nondefault) + (f"_vary_{varparam}" if varparam else "") + (f"_div_{args.divide}" if args.divide else "") + ("_transfh" if args.transform_h else "")
+        stem = "plots/power_fix_" + '_'.join(fixparams_nondefault) + (f"_vary_{'_'.join(varparams)}" if len(varparams) > 0 else "") + (f"_div_{args.divide}" if args.divide else "") + ("_transfh" if args.transform_h else "")
     else:
         stem = args.power_stem
     sources = args.power

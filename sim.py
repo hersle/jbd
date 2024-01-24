@@ -52,7 +52,10 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
     def list(cls):
         for path in os.scandir(cls.SIMDIR):
             iparams = utils.json2dict(utils.read_file(f"{cls.SIMDIR}{path.name}/parameters.json"))
-            cls(iparams)
+            try:
+                cls(iparams)
+            except:
+                print("ERROR")
 
     # compute and return derived parameters
     def derived_parameters(self):
@@ -353,7 +356,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f"levelmin={levelmin}", # min number of refinement levels (if Ncell1D = 2^n, it should be n)
             f"levelmax={levelmax}", # max number of refinement levels (if very high, it will automatically stop refining) # TODO: revise?
             f"npartmax={3*Nparts//2//nproc+1}", # need +1 to avoid crash with 1 process (maybe ramses allocates one dummy particle or something?) # TODO: optimal value? maybe double what would be needed if particles were shared equally across CPUs?
-            f"ngridmax={3*Ncells//2//nproc+1}", # TODO: optimal value?
+            f"ngridmax={4*Ncells//2//nproc+1}", # TODO: optimal value?
             f"nexpand=1", # number of mesh expansions # TODO: ???
             #f"boxlen={self.params['Lh']}", # WARNING: don't set this; something is fucked with RAMSES' units when boxlen != 1.0
             f"/",
@@ -490,6 +493,7 @@ class GRSimulation(Simulation):
         return outfile
 
     def power_spectrum(self, **kwargs):
+        # TODO: prevent running of duplicate sims with different seeds !!!
         if kwargs["source"] == "ee2":
             # 1) get B = P / Plin from EE2
             outfile = self.run_ee2(z=kwargs["z"])
