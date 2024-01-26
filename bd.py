@@ -121,9 +121,9 @@ class GRUniverse:
             "-H", str(self.params["h"]),
             "-A", str(self.params["As"]),
             "-z", str(self.params["z"]),
-            "-W", str(-1.0),
-            "-w", str(0.0),
-            "-s", str(0.0),
+            "-W", str(-1.0), # TODO: add?
+            "-w", str(0.0), # TODO: add?
+            "-s", str(0.0), # TODO: add?
         ], log=f"{DATADIR}/ee2_log.txt")
 
         k_h, B = read_data(f"{DATADIR}/ee2_boost0.dat") # k/(h/Mpc), Pnonlin/Plin
@@ -164,15 +164,11 @@ class BDUniverse(GRUniverse):
             f"Omega_smg = -1", # automatic modified gravity
             f"parameters_smg = NaN, {self.params['ω']}, 1.0, 0.0", # ΩΛ0 (fill with cosmological constant), ω, Φini (arbitrary initial guess), Φ′ini≈0 (fixed)
             f"M_pl_today_smg = {(4+2*self.params['ω'])/(3+2*self.params['ω']) / self.params['G0']}", # overwrites ϕini=1.0 above # see e.g. https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/input.c#L1796
-            f"a_min_stability_test_smg = 1e-10", # BD has early-time instability, so lower tolerance to pass stability checker
+            f"a_min_stability_test_smg = 1e-6", # BD has early-time instability, so lower tolerance to pass stability checker
         ]) + '\n' # final newline
 
-    def boost_nonlinear(self):
-        # define GR-to-BD boost B = PBD/PGR (we found that B ≈ Blin = PBDlin/PGRlin under a parameter transformation)
-        # define GR-linear-to-nonlinear boost BGR = PGR / PGRlin  (computed by e.g. EuclidEmulator2)
-        # then we simply have PBD = B * PGR ≈ PBDlin/PGRlin * BGR * PGRlin = BGR * PBDlin,
-        # where BGR is evaulated in the transformed GR universe!!
-        BD = self # BD universe is this class instance (just rename for symmetry with GR variable)
+    def transformed_GR_universe(self):
+        BD = self # just for clarity; the BD universe is this class instance
         return GRUniverse({ # GR universe with transformed parameters
             "z":   BD.params["z"],
             "ωm0": BD.params["ωm0"],
@@ -180,7 +176,14 @@ class BDUniverse(GRUniverse):
             "h":   BD.params["h"] * np.sqrt(BD.params["ϕini"]), # transformed Hubble parameter!
             "ns":  BD.params["ns"],
             "σ8":  BD.params["σ8"], # same σ8, but different As!
-        }).boost_nonlinear()
+        })
+
+    def boost_nonlinear(self):
+        # define GR-to-BD boost B = PBD/PGR (we found that B ≈ Blin = PBDlin/PGRlin under a parameter transformation)
+        # define GR-linear-to-nonlinear boost BGR = PGR / PGRlin  (computed by e.g. EuclidEmulator2)
+        # then we simply have PBD = B * PGR ≈ PBDlin/PGRlin * BGR * PGRlin = BGR * PBDlin,
+        # where BGR is evaulated in the transformed GR universe!!
+        return self.transformed_GR_universe().boost_nonlinear()
 
 if __name__ == "__main__":
     params = vars(args)
