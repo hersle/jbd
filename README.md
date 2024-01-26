@@ -10,8 +10,8 @@ The script `bd.py` predicts the non-linear Brans-Dicke power spectrum.
 ## Usage
 
 See `./bd.py -h` for instructions.
-For example, to predict
-$P_\mathrm{BD}(k,z=0\,|\,\omega=100, G_0=1, \omega_{m0} = 0.15, \omega_{b0} = 0.02, h = 0.7, A_s = 2, n_s = 1 \cdot 10^{-9}$
+For example, to predict $P_\mathrm{BD}(k,z=0)$ with
+$\omega = 100$, $G_0 = 1$, $\omega_{m0} = 0.15$, $\omega_{b0} = 0.02$, $h = 0.7$, $A_s = 2 \cdot 10^{-9}$ and $n_s = 1$
 and output the results to `output.dat`, run:
 
 ``
