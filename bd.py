@@ -67,7 +67,7 @@ def read_file(filename):
         return file.read()
 
 # read a string like "[prefix][number]" from a file and return number
-# example: if file contains "phi_ini = 1.23", then read_variable(filename, "Omega_Lambda = ") returns 1.23
+# example: if file contains "phi_ini = 1.23", then read_variable(filename, "phi_ini = ") returns 1.23
 def read_variable(filename, prefix):
     regex = prefix + r"([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)"
     matches = re.findall(regex, read_file(filename))
