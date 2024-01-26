@@ -9,8 +9,11 @@ The script `bd.py` predicts the non-linear Brans-Dicke power spectrum.
 
 ## Usage
 
-See `./bd.py -h` for instructions. For example, to 
+See `./bd.py -h` for instructions.
+For example, to predict
+$P_\mathrm{BD}(k,z=0\,|\,\omega=100, G_0=1, \omega_{m0} = 0.15, \omega_{b0} = 0.02, h = 0.7, A_s = 2, n_s = 1 \cdot 10^{-9}$
+and output the results to `output.dat`, run:
 
 ``
-./bd.py -w 100 -G 1 -m 0.15 -b 0.02 -H 0.7 -n 1 -z 0 -A 2.0e-9 --hiclass ~/local/hi_class_public/class --ee2 ~/local/EuclidEmulator2-pywrapper/ee2.exe PBD > output.dat
+./bd.py -w 100 -G 1 -m 0.15 -b 0.02 -H 0.7 -n 1 -z 0 -A 2.0e-9 --hiclass path/to/hiclass/executable --ee2 path/to/EuclidEmulator2/executable PBD > output.dat
 ``
