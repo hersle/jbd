@@ -21,6 +21,9 @@ group = parser.add_mutually_exclusive_group(required=True) # specify As XOR σ8
 group.add_argument("-A", "--As",   metavar="VAL", type=float, default=argparse.SUPPRESS, help="primordial power spectrum amplitude")
 group.add_argument("-8", "--σ8",   metavar="VAL", type=float, default=argparse.SUPPRESS, help="density fluctuation amplitude over 8Mpc/h scale today")
 
+# desired power spectrum
+parser.add_argument("spectrum", metavar="SPECTRUM", type=str, help="desired nonlinear/linear power spectrum PGR/PBD/PGRlin/PBDlin")
+
 # directory and executable paths
 parser.add_argument("--data",    metavar="PATH", default="./",      help="path to working directory for data/log files")
 parser.add_argument("--hiclass", metavar="PATH", default="class",   help="path to hi_class executable")
@@ -202,11 +205,20 @@ class BDUniverse(Universe):
         return self.k, self.P
 
 if __name__ == "__main__":
-    paramsBD = vars(args)
-    BD = BDUniverse(paramsBD)
-    k, P = BD.power_spectrum_nonlinear()
-    assert len(k) == len(P)
+    params = vars(args)
 
+    if args.spectrum == "PBD":
+        k, P = BDUniverse(params).power_spectrum_nonlinear()
+    elif args.spectrum == "PGR":
+        k, P = GRUniverse(params).power_spectrum_nonlinear()
+    elif args.spectrum == "PBDlin":
+        k, P = BDUniverse(params).power_spectrum_linear()
+    elif args.spectrum == "PGRlin":
+        k, P = GRUniverse(params).power_spectrum_linear()
+    else:
+        raise Exception(f"Unrecognized power spectrum {args.spectrum}")
+
+    assert len(k) == len(P)
     print("# k/(1/Mpc)     P/Mpc^3")
     for i in range(0, len(k)):
         print(f"{k[i]:.5e} {P[i]:.5e}")
