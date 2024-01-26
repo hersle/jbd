@@ -31,10 +31,10 @@
 #./main.py --power class cola --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.0 1.2 --params σ8 ωm0 ωb0 ns=0.92,0.96,1.0
 #./main.py --power class cola --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.0 1.2 --params σ8 ωm0 ωb0 h=0.65,0.70,0.73
 
-# paramter space sampling of ω and ωm0
-./main.py --params lgω=2.0,4.0 σ8 ωb0 z=0 ωm0=0.1,0.2 --samples 100 --parameter-space --power class cola --divide class      --h-units --subtract-shotnoise --transform-h --B-lims 0.99 1.01 --power-stem plots/sample_z0_divclass --figsize 3.0 1.2
+# parameter space sampling of ω and ωm0
+#./main.py --params lgω=2.0,4.0 σ8 ωb0 z=0 ωm0=0.1,0.2 --samples 100 --parameter-space --power class cola --divide class      --h-units --subtract-shotnoise --transform-h --B-lims 0.99 1.01 --power-stem plots/sample_z0_divclass --figsize 3.0 1.2
 #./main.py --params lgω=2.0,4.0 σ8 ωb0 z=0 ωm0=0.1,0.2 --samples 100 --parameter-space --power class cola --divide primordial --h-units --subtract-shotnoise --transform-h --B-lims 1.0 1.2 --power-stem plots/sample_z0_divprim
-./main.py --params lgω=2.0,4.0 σ8 ωb0 z=3 ωm0=0.1,0.2 --samples 100 --parameter-space --power class cola --divide class      --h-units --subtract-shotnoise --transform-h --B-lims 0.99 1.01 --power-stem plots/sample_z3_divclass --figsize 3.0 1.2
+#./main.py --params lgω=2.0,4.0 σ8 ωb0 z=3 ωm0=0.1,0.2 --samples 100 --parameter-space --power class cola --divide class      --h-units --subtract-shotnoise --transform-h --B-lims 0.99 1.01 --power-stem plots/sample_z3_divclass --figsize 3.0 1.2
 #./main.py --params lgω=2.0,4.0 σ8 ωb0 z=3 ωm0=0.1,0.2 --samples 100 --parameter-space --power class cola --divide primordial --h-units --subtract-shotnoise --transform-h --B-lims 1.0 1.2 --power-stem plots/sample_z3_divprim
 
 # EuclidEmulator2
