@@ -75,8 +75,7 @@ def read_variable(filename, prefix):
     return float(matches[0][0])
 
 class GRUniverse:
-    klin, Plin = None, None # linear power spectrum
-    k,    P    = None, None # nonlinear power spectrum
+    klin, Plin = None, None # linear power spectrum (saved to avoid repeated calculation after constructor)
 
     def __init__(self, params):
         self.params = params
@@ -113,31 +112,32 @@ class GRUniverse:
             self.Plin = Ph3 / self.params["h"]**3 # P/Mpc^3
         return self.klin, self.Plin
 
+    def boost_nonlinear(self):
+        run_command([
+            EE2EXEC, "-d", DATADIR, "-o", "ee2_boost",
+            "-b", str(self.params["ωb0"] / self.params["h"]**2),
+            "-m", str(self.params["ωm0"] / self.params["h"]**2),
+            "-n", str(self.params["ns"]),
+            "-H", str(self.params["h"]),
+            "-A", str(self.params["As"]),
+            "-z", str(self.params["z"]),
+            "-W", str(-1.0),
+            "-w", str(0.0),
+            "-s", str(0.0),
+        ], log=f"{DATADIR}/ee2_log.txt")
+
+        k_h, B = read_data(f"{DATADIR}/ee2_boost0.dat") # k/(h/Mpc), Pnonlin/Plin
+        k = k_h * self.params["h"] # k/(1/Mpc)
+        return k, B
+        
     def power_spectrum_nonlinear(self):
-        if self.k is None or self.P is None:
-            run_command([
-                EE2EXEC, "-d", DATADIR, "-o", "ee2_boost",
-                "-b", str(self.params["ωb0"] / self.params["h"]**2),
-                "-m", str(self.params["ωm0"] / self.params["h"]**2),
-                "-n", str(self.params["ns"]),
-                "-H", str(self.params["h"]),
-                "-A", str(self.params["As"]),
-                "-z", str(self.params["z"]),
-                "-W", str(-1.0),
-                "-w", str(0.0),
-                "-s", str(0.0),
-            ], log=f"{DATADIR}/ee2_log.txt")
-            outfile = f"{DATADIR}/ee2_boost0.dat"
-
-            k_h, B = read_data(outfile) # k/(h/Mpc), Pnonlin/Plin
-            k = k_h * self.params["h"] # k/(1/Mpc)
-            self.k = self.klin
-            self.P = CubicSpline(k, B, extrapolate=False)(self.klin) * self.Plin
-
-            self.P[self.k < k[0]] = self.Plin[self.k < k[0]] # copy linear spectra for lower k
-            self.k, self.P = self.k[np.isfinite(self.P)], self.P[np.isfinite(self.P)] # remove remaining NaNs, e.g. for higher k
-
-        return self.k, self.P
+        kB, B = self.boost_nonlinear()
+        k = self.klin[self.klin <= kB[-1]] # discard k above boost's k-range
+        P = self.Plin[self.klin <= kB[-1]] # discard k above boost's k-range
+        B = CubicSpline(kB, B, extrapolate=False)(k)
+        B[k < kB[0]] = 1 # take linear spectra for k below boost's k-range
+        P = P * B # linear to nonlinear
+        return k, P
 
     def derived_parameters(self):
         dparams = {}
@@ -167,40 +167,20 @@ class BDUniverse(GRUniverse):
             f"a_min_stability_test_smg = 1e-10", # BD has early-time instability, so lower tolerance to pass stability checker
         ]) + '\n' # final newline
 
-    def power_spectrum_nonlinear(self):
-        if self.k is None or self.P is None:
-            BD = self # this class instance is the BD universe (just for symmetry with GR variable)
-
-            # GR universe with transformed parameters
-            GR = GRUniverse({
-                "z":   BD.params["z"],
-                "ωm0": BD.params["ωm0"],
-                "ωb0": BD.params["ωb0"],
-                "h":   BD.params["h"] * np.sqrt(BD.params["ϕini"]), # transformed Hubble parameter!
-                "ns":  BD.params["ns"],
-                "σ8":  BD.params["σ8"], # same σ8, but different As!
-            })
-
-            # get good handles to all spectra that will be used below
-            kGR,    PGR    = GR.power_spectrum_nonlinear()
-            kGRlin, PGRlin = GR.power_spectrum_linear()
-            kBDlin, PBDlin = BD.power_spectrum_linear()
-            hGR, hBD = GR.params["h"], BD.params["h"]
-
-            kBD = kGR # final k/(1/Mpc) # TODO: what is best choice?
-
-            # calculate non-linear boost B = PBD(k/h)/PGR(k/h) != PBD(k)/PGR(k)
-            # with linear spectra at common k/h = kBD/hBD values
-            PBDlin = CubicSpline(kBDlin/hBD, PBDlin, extrapolate=False)(kBD/hBD) # P(k) -> P(k/h)
-            PGRlin = CubicSpline(kGRlin/hGR, PGRlin, extrapolate=False)(kBD/hBD) # P(k) -> P(k/h)
-            B = PBDlin / PGRlin # PBD(k/h) / PGR(k/h)
-            PBD = B * PGR
-
-            # remove NaNs due to possibly (slightly) different k-ranges
-            self.k = kBD[np.isfinite(PBD)]
-            self.P = PBD[np.isfinite(PBD)]
-
-        return self.k, self.P
+    def boost_nonlinear(self):
+        # define GR-to-BD boost B = PBD/PGR (we found that B ≈ Blin = PBDlin/PGRlin under a parameter transformation)
+        # define GR-linear-to-nonlinear boost BGR = PGR / PGRlin  (computed by e.g. EuclidEmulator2)
+        # then we simply have PBD = B * PGR ≈ PBDlin/PGRlin * BGR * PGRlin = BGR * PBDlin,
+        # where BGR is evaulated in the transformed GR universe!!
+        BD = self # BD universe is this class instance (just rename for symmetry with GR variable)
+        return GRUniverse({ # GR universe with transformed parameters
+            "z":   BD.params["z"],
+            "ωm0": BD.params["ωm0"],
+            "ωb0": BD.params["ωb0"],
+            "h":   BD.params["h"] * np.sqrt(BD.params["ϕini"]), # transformed Hubble parameter!
+            "ns":  BD.params["ns"],
+            "σ8":  BD.params["σ8"], # same σ8, but different As!
+        }).boost_nonlinear()
 
 if __name__ == "__main__":
     params = vars(args)
