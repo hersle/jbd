@@ -74,7 +74,7 @@ def read_variable(filename, prefix):
     assert len(matches) == 1, f"found {len(matches)} != 1 for variable \"{prefix}\" in {filename}"
     return float(matches[0][0])
 
-class Universe:
+class GRUniverse:
     klin, Plin = None, None # linear power spectrum
     k,    P    = None, None # nonlinear power spectrum
 
@@ -113,18 +113,6 @@ class Universe:
             self.Plin = Ph3 / self.params["h"]**3 # P/Mpc^3
         return self.klin, self.Plin
 
-    def derived_parameters(self):
-        dparams = {}
-        if "As" not in self.params:
-            dparams["As"] = read_variable(f"{DATADIR}/class_log.txt", "A_s = ")
-        if "σ8" not in self.params:
-            dparams["σ8"] = read_variable(f"{DATADIR}/class_log.txt", "sigma8=")
-        return dparams
-
-class GRUniverse(Universe):
-    def __init__(self, params):
-        Universe.__init__(self, params)
-
     def power_spectrum_nonlinear(self):
         if self.k is None or self.P is None:
             run_command([
@@ -151,17 +139,25 @@ class GRUniverse(Universe):
 
         return self.k, self.P
 
-class BDUniverse(Universe):
+    def derived_parameters(self):
+        dparams = {}
+        if "As" not in self.params:
+            dparams["As"] = read_variable(f"{DATADIR}/class_log.txt", "A_s = ")
+        if "σ8" not in self.params:
+            dparams["σ8"] = read_variable(f"{DATADIR}/class_log.txt", "sigma8=")
+        return dparams
+
+class BDUniverse(GRUniverse):
     def __init__(self, params):
-        Universe.__init__(self, params)
+        GRUniverse.__init__(self, params)
 
     def derived_parameters(self):
-        return Universe.derived_parameters(self) | {
+        return GRUniverse.derived_parameters(self) | {
             "ϕini": read_variable(f"{DATADIR}/class_log.txt", "phi_ini = "),
         }
 
     def input_class(self):
-        return Universe.input_class(self) + '\n'.join([
+        return GRUniverse.input_class(self) + '\n'.join([
             f"gravity_model = brans_dicke", # select BD gravity
             f"Omega_Lambda = 0", # rather include Λ through potential term (first entry in parameters_smg; should be equivalent)
             f"Omega_fld = 0", # no dark energy fluid
