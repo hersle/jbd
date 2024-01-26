@@ -79,9 +79,10 @@ class GRUniverse:
 
     def __init__(self, params):
         self.params = params
-        self.power_spectrum_linear() # need to run to calculate derived parameters
-        self.params |= self.derived_parameters() # update with parameters derived from running class
+        self.power_spectrum_linear() # need to run hi_class to calculate derived parameters
+        self.params |= self.derived_parameters() # update with parameters derived from running hi_class
 
+    # returns content of input file to run hiclass with
     def input_class(self):
         return '\n'.join([
             # cosmological parameters
@@ -103,6 +104,7 @@ class GRUniverse:
             f"spectra_verbose = 1", # log sigma8
         ]) + '\n' # final newline
 
+    # calculates linear power spectrum from hi_class
     def power_spectrum_linear(self, infile=f"{DATADIR}/class_input.ini", logfile=f"{DATADIR}/class_log.txt"):
         if self.klin is None or self.Plin is None:
             write_file(infile, self.input_class())
@@ -124,6 +126,7 @@ class GRUniverse:
 
         return self.klin, self.Plin
 
+    # calculates factor that multiplies linear power spectrum to give nonlinear power spectrum with EuclidEmulator2
     def boost_nonlinear(self):
         cmd = [
             EE2EXEC, "-d", DATADIR, "-o", "ee2_boost",
@@ -145,6 +148,7 @@ class GRUniverse:
         k = k_h * self.params["h"] # k/(1/Mpc)
         return k, B
         
+    # calculates nonlinear power spectrum by boosting linear power spectrum
     def power_spectrum_nonlinear(self):
         kB, B = self.boost_nonlinear()
         k = self.klin[self.klin <= kB[-1]] # discard k above boost's k-range
@@ -154,6 +158,7 @@ class GRUniverse:
         P = P * B # linear to nonlinear
         return k, P
 
+    # calculates additional (derived) parameters by reading hiclass' log
     def derived_parameters(self):
         dparams = {}
         if "As" not in self.params:
@@ -166,11 +171,7 @@ class BDUniverse(GRUniverse):
     def __init__(self, params):
         GRUniverse.__init__(self, params)
 
-    def derived_parameters(self):
-        return GRUniverse.derived_parameters(self) | {
-            "ϕini": read_variable(f"{DATADIR}/class_log.txt", "phi_ini = "),
-        }
-
+    # extend hiclass input file from GR to BD
     def input_class(self):
         return GRUniverse.input_class(self) + '\n'.join([
             f"gravity_model = brans_dicke", # select BD gravity
@@ -182,6 +183,14 @@ class BDUniverse(GRUniverse):
             f"a_min_stability_test_smg = 1e-6", # BD has early-time instability, so lower tolerance to pass stability checker
         ]) + '\n' # final newline
 
+    # extend derived parameters with ϕini to facilitate BD-to-GR parameter transformation
+    def derived_parameters(self):
+        return GRUniverse.derived_parameters(self) | {
+            "ϕini": read_variable(f"{DATADIR}/class_log.txt", "phi_ini = "),
+        }
+
+    # returns a corresponding GR universe (with different parameters)
+    # such that PBD/PGR ≈ PGRlin/PBDlin
     def transformed_GR_universe(self):
         BD = self # just for clarity; the BD universe is this class instance
         return GRUniverse({ # GR universe with transformed parameters
@@ -193,9 +202,11 @@ class BDUniverse(GRUniverse):
             "σ8":  BD.params["σ8"], # same σ8, but different As!
         })
 
+    # as explained below, the linear-to-nonlinear BD power spectrum boost
+    # is the same boost in a GR universe with transformed parameters
     def boost_nonlinear(self):
         # define GR-to-BD boost B = PBD/PGR (we found that B ≈ Blin = PBDlin/PGRlin under a parameter transformation)
-        # define GR-linear-to-nonlinear boost BGR = PGR / PGRlin  (computed by e.g. EuclidEmulator2)
+        # define GR-linear-to-nonlinear boost BGR = PGR / PGRlin  (computed by EuclidEmulator2)
         # then we simply have PBD = B * PGR ≈ PBDlin/PGRlin * BGR * PGRlin = BGR * PBDlin,
         # where BGR is evaulated in the transformed GR universe!!
         return self.transformed_GR_universe().boost_nonlinear()
