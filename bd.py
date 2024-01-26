@@ -145,7 +145,9 @@ class GRUniverse(Universe):
             k = k_h * self.params["h"] # k/(1/Mpc)
             self.k = self.klin
             self.P = CubicSpline(k, B, extrapolate=False)(self.klin) * self.Plin
-            self.P[np.isnan(self.P)] = self.Plin[np.isnan(self.P)] # copy nans from Plin # TODO: Make sure no high-k nans
+
+            self.P[self.k < k[0]] = self.Plin[self.k < k[0]] # copy linear spectra for lower k
+            self.k, self.P = self.k[np.isfinite(self.P)], self.P[np.isfinite(self.P)] # remove remaining NaNs, e.g. for higher k
 
         return self.k, self.P
 
