@@ -28,6 +28,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
     RAMSESEXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3d"))
     RAMSES2PKEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/RamsesUtils/ramses2pk/ramses2pk"))
     EE2EXEC = os.path.abspath(os.path.expandvars("$HOME/local/EuclidEmulator2-pywrapper/ee2.exe"))
+    BDPYEXEC = os.path.abspath(os.path.expandvars("$HOME/jbd/bd.py"))
 
     def __init__(self, iparams):
         if "lgω" in iparams:
@@ -494,6 +495,7 @@ class GRSimulation(Simulation):
 
     def power_spectrum(self, **kwargs):
         # TODO: prevent running of duplicate sims with different seeds !!!
+        k, P = None, None
         if kwargs["source"] == "ee2":
             # 1) get B = P / Plin from EE2
             outfile = self.run_ee2(z=kwargs["z"])
@@ -510,6 +512,12 @@ class GRSimulation(Simulation):
             # 3b) get P by multiplying Plin * B = P with splined Plin
             #P = B * CubicSpline(klin, Plin, extrapolate=False)(k)
 
+        elif kwargs["source"] == "script":
+            self.create_directory("script")
+            self.run_command(f"{self.BDPYEXEC} -z {kwargs['z']} -w 0 -G 1 -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC} --ee2 {self.EE2EXEC} PGR > P.dat", subdir="script/")
+            k, P = self.read_data("script/P.dat")
+
+        if k is not None and P is not None:
             if kwargs["hunits"]:
                 return k / self.params["h"], P * self.params["h"]**3
             else:
@@ -597,6 +605,8 @@ class BDSimulation(Simulation):
         return '\n'.join(lines)
 
     def power_spectrum(self, **kwargs):
+        k, P = None, None
+
         if kwargs["source"] == "ee2":
             # 1) get B = PBD/PGR ≈ PBDlin/PGRlin from BD+GR simulation pair using class
             sims = SimulationGroupPair(self.iparams, θGR_different_h)
@@ -610,14 +620,23 @@ class BDSimulation(Simulation):
             PBDh3 = PGRh3 * CubicSpline(k_h, B, extrapolate=False)(kGR_h)
             k_h = kGR_h
 
+            P = PBDh3 / self.params["h"]**3
+            k = k_h * self.params["h"]
+
             # 3b) get PBD by multiplying PGR*B = PBD with splined PGR
             #PBDh3 = CubicSpline(kGR_h, PGRh3, extrapolate=False)(k_h) * B
             #k_h, PBDh3 = k_h[np.isfinite(PBDh3)], PBDh3[np.isfinite(PBDh3)] # remove NaNs due to different k-ranges
 
+        elif kwargs["source"] == "script":
+            self.create_directory("script")
+            self.run_command(f"{self.BDPYEXEC} -z {kwargs['z']} -w {self.params['ω']} -G {self.params['G0']} -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC} --ee2 {self.EE2EXEC} PBD > P.dat", subdir="script/")
+            k, P = self.read_data("script/P.dat")
+
+        if k is not None and P is not None:
             if kwargs["hunits"]:
-                return k_h, PBDh3
+                return k / self.params["h"], P * self.params["h"]**3
             else:
-                return k_h * self.params["h"], PBDh3 / self.params["h"]**3
+                return k, P
 
         return Simulation.power_spectrum(self, **kwargs)
 
@@ -681,7 +700,7 @@ class SimulationGroupPair:
         # Verify that COLA/RAMSES simulations output comparable k-values (k*L should be equal)
         kLBD = kBD * (self.sims_BD.params["Lh" if hunits else "L"])
         kLGR = kGR * (self.sims_GR.params["Lh" if hunits else "L"])
-        assert source in ("class", "primordial", "ee2") or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
+        assert source in ("class", "primordial", "ee2", "script") or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
 
         # get reference wavenumbers and interpolate P to those values
         kmin = np.maximum(np.min(kBD), np.min(kGR))
