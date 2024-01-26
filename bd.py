@@ -10,7 +10,7 @@ from scipy.interpolate import CubicSpline
 parser = argparse.ArgumentParser(prog="bd.py", formatter_class=argparse.ArgumentDefaultsHelpFormatter) # suppress unspecified arguments (instead of including them with None values)
 
 # cosmological parameters
-parser.add_argument("-z", "--z",   metavar="VAL", type=float, required=True,            help="redshift") # TODO: take multiple redshifts?
+parser.add_argument("-z",          metavar="VAL", type=float, required=True, nargs="+", help="redshift(s)")
 parser.add_argument("-w", "--ω",   metavar="VAL", type=float, required=True,            help="Brans-Dicke coupling")
 parser.add_argument("-G", "--G0",  metavar="VAL", type=float, required=True, default=1, help="gravitational parameter today in units of Newton's constant [G0/GN]")
 parser.add_argument("-H", "--h",   metavar="VAL", type=float, required=True,            help="reduced Hubble parameter today [H0/(100km/(s*Mpc))]")
@@ -93,7 +93,7 @@ class GRUniverse:
 
             # output control
             f"output = mPk", # output matter power spectrum P(k,z)
-            f"z_pk = {self.params['z']}",
+            f"z_pk = {','.join(str(z) for z in self.params['z'])}",
             f"root = {DATADIR}/class_",
             f"P_k_max_h/Mpc = 20.0",
 
@@ -107,35 +107,50 @@ class GRUniverse:
         if self.klin is None or self.Plin is None:
             write_file(infile, self.input_class())
             run_command([HICLASSEXEC, infile], log=logfile)
-            k_h, Ph3 = read_data(f"{DATADIR}/class_pk.dat") # k/(h/Mpc), P/(Mpc/h)^3
-            self.klin = k_h * self.params["h"] # k/(1/Mpc)
-            self.Plin = Ph3 / self.params["h"]**3 # P/Mpc^3
+
+            self.Plin = []
+            if len(self.params["z"]) == 1: # class behaves differently depending on whether there is one redshift :/
+                k_h, Ph3 = read_data(f"{DATADIR}/class_pk.dat") # k/(h/Mpc), P/(Mpc/h)^3
+                self.klin = k_h * self.params["h"] # k/(1/Mpc)
+                self.Plin.append(Ph3 / self.params["h"]**3) # P/Mpc^3
+            else:
+                for i in range(1, len(self.params["z"])+1):
+                    k_h, Ph3 = read_data(f"{DATADIR}/class_z{i}_pk.dat") # k/(h/Mpc), P/(Mpc/h)^3
+                    assert i == 1 or np.all(self.klin == k_h * self.params["h"]), "hi_class outputs different k at different z"
+                    self.klin = k_h * self.params["h"] # k/(1/Mpc)
+                    self.Plin.append(Ph3 / self.params["h"]**3) # P/Mpc^3
+
+            self.Plin = np.array(self.Plin)
+
         return self.klin, self.Plin
 
     def boost_nonlinear(self):
-        run_command([
+        cmd = [
             EE2EXEC, "-d", DATADIR, "-o", "ee2_boost",
             "-b", str(self.params["ωb0"] / self.params["h"]**2),
             "-m", str(self.params["ωm0"] / self.params["h"]**2),
             "-n", str(self.params["ns"]),
             "-H", str(self.params["h"]),
             "-A", str(self.params["As"]),
-            "-z", str(self.params["z"]),
             "-W", str(-1.0), # TODO: add?
             "-w", str(0.0), # TODO: add?
             "-s", str(0.0), # TODO: add?
-        ], log=f"{DATADIR}/ee2_log.txt")
+        ]
+        for z in self.params["z"]:
+            cmd += ["-z", str(z)]
+        run_command(cmd, log=f"{DATADIR}/ee2_log.txt")
 
-        k_h, B = read_data(f"{DATADIR}/ee2_boost0.dat") # k/(h/Mpc), Pnonlin/Plin
+        data = read_data(f"{DATADIR}/ee2_boost0.dat") # k/(h/Mpc), Pnonlin/Plin
+        k_h, B = data[0], data[1:]
         k = k_h * self.params["h"] # k/(1/Mpc)
         return k, B
         
     def power_spectrum_nonlinear(self):
         kB, B = self.boost_nonlinear()
         k = self.klin[self.klin <= kB[-1]] # discard k above boost's k-range
-        P = self.Plin[self.klin <= kB[-1]] # discard k above boost's k-range
-        B = CubicSpline(kB, B, extrapolate=False)(k)
-        B[k < kB[0]] = 1 # take linear spectra for k below boost's k-range
+        P = self.Plin[:, self.klin <= kB[-1]] # discard k above boost's k-range
+        B = CubicSpline(kB, B, axis=1, extrapolate=False)(k)
+        B[:, k < kB[0]] = 1 # take linear spectra for k below boost's k-range
         P = P * B # linear to nonlinear
         return k, P
 
@@ -187,6 +202,7 @@ class BDUniverse(GRUniverse):
 
 if __name__ == "__main__":
     params = vars(args)
+    params["z"] = sorted(params["z"])
 
     if args.spectrum == "PBD":
         k, P = BDUniverse(params).power_spectrum_nonlinear()
@@ -199,7 +215,7 @@ if __name__ == "__main__":
     else:
         raise Exception(f"Unrecognized power spectrum {args.spectrum}")
 
-    assert len(k) == len(P)
-    print("# k/(1/Mpc)     P/Mpc^3")
+    assert np.shape(k) == np.shape(P)[1:]
+    print("# k/(1/Mpc)           ", " ".join(f"P(k,z={z:.3e})/Mpc^3" for z in params["z"]))
     for i in range(0, len(k)):
-        print(f"{k[i]:.5e} {P[i]:.5e}")
+        print(f"{k[i]:.16e}", " ".join(f"{P:.16e}" for P in P[:,i]))
