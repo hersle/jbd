@@ -21,3 +21,4 @@ predicts the non-linear Brans-Dicke power spectrum $P_\mathrm{BD}(k,z)$ with
 $\omega = 100$, $G_0 = 1$, $\omega_{m0} = 0.15$, $\omega_{b0} = 0.02$, $h = 0.7$, $A_s = 2 \cdot 10^{-9}$ and $n_s = 1$
 at redshifts $z=0,1,2,3$ using the given `hi_class` and `EuclidEmulator2` executables,
 and writes the results to `output.dat`.
+See `bd_example.py` for another example.
