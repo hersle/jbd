@@ -112,15 +112,15 @@ class GRUniverse:
 
             self.Plin = []
             if len(self.params["z"]) == 1: # class behaves differently depending on whether there is one redshift :/
-                k_h, Ph3 = read_data(f"{DATADIR}/class_pk.dat") # k/(h/Mpc), P/(Mpc/h)^3
-                self.klin = k_h * self.params["h"] # k/(1/Mpc)
-                self.Plin.append(Ph3 / self.params["h"]**3) # P/Mpc^3
+                k, P = read_data(f"{DATADIR}/class_pk.dat") # k/(h/Mpc), P/(Mpc/h)^3
+                self.klin = k # k/(h/Mpc)
+                self.Plin.append(P / self.params["h"]**3) # P/Mpc^3
             else:
                 for i in range(1, len(self.params["z"])+1):
-                    k_h, Ph3 = read_data(f"{DATADIR}/class_z{i}_pk.dat") # k/(h/Mpc), P/(Mpc/h)^3
-                    assert i == 1 or np.all(self.klin == k_h * self.params["h"]), "hi_class outputs different k at different z"
-                    self.klin = k_h * self.params["h"] # k/(1/Mpc)
-                    self.Plin.append(Ph3 / self.params["h"]**3) # P/Mpc^3
+                    k, P = read_data(f"{DATADIR}/class_z{i}_pk.dat") # k/(h/Mpc), P/(Mpc/h)^3
+                    assert i == 1 or np.all(self.klin == k), "hi_class outputs different k at different z"
+                    self.klin = k # k/(h/Mpc)
+                    self.Plin.append(P / self.params["h"]**3) # P/Mpc^3
 
             self.Plin = np.array(self.Plin)
 
@@ -130,8 +130,8 @@ class GRUniverse:
     def boost_nonlinear(self):
         cmd = [
             EE2EXEC, "-d", DATADIR, "-o", "ee2_boost",
-            "-b", str(self.params["ωb0"] / self.params["h"]**2),
-            "-m", str(self.params["ωm0"] / self.params["h"]**2),
+            "-b", str(self.params["ωb0"] / self.params["h"]**2), # Ωb0 = ωb0/h^2
+            "-m", str(self.params["ωm0"] / self.params["h"]**2), # Ωm0 = ωm0/h^2
             "-n", str(self.params["ns"]),
             "-H", str(self.params["h"]),
             "-A", str(self.params["As"]),
@@ -144,8 +144,7 @@ class GRUniverse:
         run_command(cmd, log=f"{DATADIR}/ee2_log.txt")
 
         data = read_data(f"{DATADIR}/ee2_boost0.dat") # k/(h/Mpc), Pnonlin/Plin
-        k_h, B = data[0], data[1:]
-        k = k_h * self.params["h"] # k/(1/Mpc)
+        k, B = data[0], data[1:] # k/(h/Mpc)
         return k, B
         
     # calculates nonlinear power spectrum by boosting linear power spectrum
@@ -153,7 +152,7 @@ class GRUniverse:
         kB, B = self.boost_nonlinear()
         k = self.klin[self.klin <= kB[-1]] # discard k above boost's k-range
         P = self.Plin[:, self.klin <= kB[-1]] # discard k above boost's k-range
-        B = CubicSpline(kB, B, axis=1, extrapolate=False)(k)
+        B = CubicSpline(kB, B, axis=1, extrapolate=False)(k) # interpolate B from kB to k
         B[:, k < kB[0]] = 1 # take linear spectra for k below boost's k-range
         P = P * B # linear to nonlinear
         return k, P
@@ -227,6 +226,6 @@ if __name__ == "__main__":
         raise Exception(f"Unrecognized power spectrum {args.spectrum}")
 
     assert np.shape(k) == np.shape(P)[1:]
-    print("# k/(1/Mpc)           ", " ".join(f"P(k,z={z:.3e})/Mpc^3" for z in params["z"]))
+    print("# k/(h/Mpc)           ", " ".join(f"P(k,z={z:.3e})/Mpc^3" for z in params["z"]))
     for i in range(0, len(k)):
         print(f"{k[i]:.16e}", " ".join(f"{P:.16e}" for P in P[:,i]))

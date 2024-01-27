@@ -516,6 +516,7 @@ class GRSimulation(Simulation):
             self.create_directory("script")
             self.run_command(f"{self.BDPYEXEC} -z {kwargs['z']} -w 0 -G 1 -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC} --ee2 {self.EE2EXEC} PGR > P.dat", subdir="script/")
             k, P = self.read_data("script/P.dat")
+            k = k * self.params["h"]
 
         if k is not None and P is not None:
             if kwargs["hunits"]:
@@ -631,6 +632,7 @@ class BDSimulation(Simulation):
             self.create_directory("script")
             self.run_command(f"{self.BDPYEXEC} -z {kwargs['z']} -w {self.params['ω']} -G {self.params['G0']} -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC} --ee2 {self.EE2EXEC} PBD > P.dat", subdir="script/")
             k, P = self.read_data("script/P.dat")
+            k = k * self.params["h"]
 
         if k is not None and P is not None:
             if kwargs["hunits"]:
