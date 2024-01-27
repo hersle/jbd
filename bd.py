@@ -126,8 +126,8 @@ class GRUniverse:
 
         return self.klin, self.Plin
 
-    # calculates factor that multiplies linear power spectrum to give nonlinear power spectrum with EuclidEmulator2
-    def boost_nonlinear(self):
+    # calculates nonlinear power spectrum by boosting linear power spectrum with EuclidEmulator2
+    def power_spectrum_nonlinear(self):
         cmd = [
             EE2EXEC, "-d", DATADIR, "-o", "ee2_boost",
             "-b", str(self.params["ωb0"] / self.params["h"]**2), # Ωb0 = ωb0/h^2
@@ -142,18 +142,13 @@ class GRUniverse:
         for z in self.params["z"]:
             cmd += ["-z", str(z)]
         run_command(cmd, log=f"{DATADIR}/ee2_log.txt")
-
         data = read_data(f"{DATADIR}/ee2_boost0.dat") # k/(h/Mpc), Pnonlin/Plin
-        k, B = data[0], data[1:] # k/(h/Mpc)
-        return k, B
-        
-    # calculates nonlinear power spectrum by boosting linear power spectrum
-    def power_spectrum_nonlinear(self):
-        kB, B = self.boost_nonlinear()
+        kB, B = data[0], data[1:] # k/(h/Mpc)
+
         k = self.klin[self.klin <= kB[-1]] # discard k above boost's k-range
         P = self.Plin[:, self.klin <= kB[-1]] # discard k above boost's k-range
-        B = CubicSpline(kB, B, axis=1, extrapolate=False)(k) # interpolate B from kB to k
-        B[:, k < kB[0]] = 1 # take linear spectra for k below boost's k-range
+        B = CubicSpline(kB, B, axis=1, extrapolate=False)(k) # interpolate B from kB to k (EE2's python wrapper interpolates log(k), log(B), but this seems to have negligible effect)
+        B[:, k < kB[0]] = 1 # take linear spectra for k below boost's k-range (overwrites NaNs)
         P = P * B # linear to nonlinear
         return k, P
 
@@ -201,14 +196,20 @@ class BDUniverse(GRUniverse):
             "σ8":  BD.params["σ8"], # same σ8, but different As!
         })
 
-    # as explained below, the linear-to-nonlinear BD power spectrum boost
-    # is the same boost in a GR universe with transformed parameters
-    def boost_nonlinear(self):
-        # define GR-to-BD boost B = PBD/PGR (we found that B ≈ Blin = PBDlin/PGRlin under a parameter transformation)
-        # define GR-linear-to-nonlinear boost BGR = PGR / PGRlin  (computed by EuclidEmulator2)
-        # then we simply have PBD = B * PGR ≈ PBDlin/PGRlin * BGR * PGRlin = BGR * PBDlin,
-        # where BGR is evaulated in the transformed GR universe!!
-        return self.transformed_GR_universe().boost_nonlinear()
+    # calculates nonlinear power spectrum by boosting that from GR
+    def power_spectrum_nonlinear(self):
+        BD = self # rename just for symmetry with GR variable
+        GR = self.transformed_GR_universe()
+
+        kBD, PBDlin = BD.power_spectrum_linear()
+        kGR, PGRlin = GR.power_spectrum_linear()
+        k,   PGR    = GR.power_spectrum_nonlinear() # these k will be used for output PBD
+
+        PBDlin = CubicSpline(kBD, PBDlin, axis=1, extrapolate=False)(k) # interpolate to output k
+        PGRlin = CubicSpline(kGR, PGRlin, axis=1, extrapolate=False)(k) # interpolate to output k
+        PBD    = PBDlin / PGRlin * PGR # we showed PBD/PGR ≈ PBDlin/PGRlin under parameter transformation
+
+        return k, PBD
 
 if __name__ == "__main__":
     params = vars(args)
