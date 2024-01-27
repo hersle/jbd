@@ -167,7 +167,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
             for source in sources: # 3) iterate over power spectrum source
                 # linestyle and linestyle labels
                 linestyles.append({"class": "solid", "cola": "dashed", "ramses": "dotted", "primordial": "dotted", "scaleindependent": "dashed", "ee2": "dashed", "script": "dotted"}[source])
-                llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{fml/colasolver}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{scale-independent}$", "ee2": r"$\textsc{ee2}$" + (r" \textrm{(boosted)}" if name == "PBD" and source == "ee2" else ""), "script": r"$\textrm{script}$"}[source])
+                llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{fml/colasolver}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{scale-independent}$", "ee2": r"$\textsc{ee2}$" + (r" \textrm{(boosted)}" if name == "PBD" and source == "ee2" else ""), "script": r"$\textsc{bd.py}$"}[source])
                 label = (f"${PARAM_PLOT_INFO[param]['label'][1:-1]} = {PARAM_PLOT_INFO[param]['format'](val)[1:-1]}$") if param else None
                 curves.append(func(sims, source, z) + ({"class": label, "cola": None, "ramses": None, "scaleindependent": None, "ee2": None, "script": None}[source],))
             curvess.append(curves)

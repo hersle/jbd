@@ -1,6 +1,8 @@
 # Non-linear Brans-Dicke power spectrum predictor
 
-The Python script `bd.py` predicts the non-linear Brans-Dicke power spectrum.
+The Python script `bd.py` predicts the non-linear Brans-Dicke power spectrum:
+
+![Brans-Dicke power spectrum plot](PBD.png)
 
 ## Requirements
 
