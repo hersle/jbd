@@ -41,4 +41,4 @@
 #./main.py --power class ee2 --h-units --transform-h --params σ8=0.81 ωm0 ωb0 z=0,1.5,3,9 --subtract-shotnoise --divide primordial --B-lims 0.8 1.2 --power-stem plots/ee2
 
 # test final script
-./main.py --power ee2 script --h-units --transform-h --params σ8=0.81 ωm0 ωb0 z=0,1.5,3 --subtract-shotnoise --divide primordial --B-lims 0.8 1.2 --power-stem plots/script
+#./main.py --power class ee2 script --h-units --transform-h --params σ8=0.81 ωm0 ωb0 z=0,1.5,3 --subtract-shotnoise --divide primordial --B-lims 0.8 1.2 --power-stem plots/script
