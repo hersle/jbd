@@ -105,26 +105,30 @@ class GRUniverse:
         ]) + '\n' # final newline
 
     # calculates linear power spectrum from hi_class
-    def power_spectrum_linear(self, infile=f"{DATADIR}/class_input.ini", logfile=f"{DATADIR}/class_log.txt"):
+    def power_spectrum_linear(self, k=None, infile=f"{DATADIR}/class_input.ini", logfile=f"{DATADIR}/class_log.txt"):
         if self.klin is None or self.Plin is None:
             write_file(infile, self.input_class())
             run_command([HICLASSEXEC, infile], log=logfile)
 
             self.Plin = []
             if len(self.params["z"]) == 1: # class behaves differently depending on whether there is one redshift :/
-                k, P = read_data(f"{DATADIR}/class_pk.dat") # k/(h/Mpc), P/(Mpc/h)^3
-                self.klin = k # k/(h/Mpc)
-                self.Plin.append(P / self.params["h"]**3) # P/Mpc^3
+                klin, Plin = read_data(f"{DATADIR}/class_pk.dat") # k/(h/Mpc), P/(Mpc/h)^3
+                self.klin = klin # k/(h/Mpc)
+                self.Plin.append(Plin / self.params["h"]**3) # P/Mpc^3
             else:
                 for i in range(1, len(self.params["z"])+1):
-                    k, P = read_data(f"{DATADIR}/class_z{i}_pk.dat") # k/(h/Mpc), P/(Mpc/h)^3
-                    assert i == 1 or np.all(self.klin == k), "hi_class outputs different k at different z"
-                    self.klin = k # k/(h/Mpc)
-                    self.Plin.append(P / self.params["h"]**3) # P/Mpc^3
+                    klin, Plin = read_data(f"{DATADIR}/class_z{i}_pk.dat") # k/(h/Mpc), P/(Mpc/h)^3
+                    assert i == 1 or np.all(self.klin == klin), "hi_class outputs different k at different z"
+                    self.klin = klin # k/(h/Mpc)
+                    self.Plin.append(Plin / self.params["h"]**3) # P/Mpc^3
 
             self.Plin = np.array(self.Plin)
 
-        return self.klin, self.Plin
+        if k is None:
+            k, P = self.klin, self.Plin
+        else:
+            P = CubicSpline(self.klin, self.Plin, axis=1, extrapolate=False)(k) # interpolate to requested k-values
+        return k, P
 
     # calculates nonlinear power spectrum by boosting linear power spectrum with EuclidEmulator2
     def power_spectrum_nonlinear(self):
@@ -201,14 +205,11 @@ class BDUniverse(GRUniverse):
         BD = self # rename just for symmetry with GR variable
         GR = self.transformed_GR_universe()
 
-        kBD, PBDlin = BD.power_spectrum_linear()
-        kGR, PGRlin = GR.power_spectrum_linear()
-        k,   PGR    = GR.power_spectrum_nonlinear() # these k will be used for output PBD
+        k, PGR    = GR.power_spectrum_nonlinear()
+        _, PBDlin = BD.power_spectrum_linear(k)
+        _, PGRlin = GR.power_spectrum_linear(k)
 
-        PBDlin = CubicSpline(kBD, PBDlin, axis=1, extrapolate=False)(k) # interpolate to output k
-        PGRlin = CubicSpline(kGR, PGRlin, axis=1, extrapolate=False)(k) # interpolate to output k
-        PBD    = PBDlin / PGRlin * PGR # we showed PBD/PGR ≈ PBDlin/PGRlin under parameter transformation
-
+        PBD = PBDlin / PGRlin * PGR # we showed PBD/PGR ≈ PBDlin/PGRlin under parameter transformation
         return k, PBD
 
 if __name__ == "__main__":
