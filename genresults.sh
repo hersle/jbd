@@ -13,14 +13,14 @@
 #./main.py --power class scaleindependent --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.0 1.2 --params σ8 ωm0 ωb0 z=0,1.5,9,99,999,9899 --power-stem plots/linevo
 
 # ramses comparison
-#./main.py --power class cola ramses --divide cola --h-units --transform-h --subtract-shotnoise --B-lims 0.99 1.01 --figsize 3.0 1.2 --params σ8 ωm0 ωb0 z=3,1.5,0
+./main.py --power class cola ramses --h-units --transform-h --subtract-shotnoise --B-lims 0.9 1.1 --figsize 3.0 1.5 --params σ8 ωm0 ωb0 z=3,1.5,0 --power-stem plots/ramses
 
 # vary computational parameters
-#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.1 1.2 --params σ8 ωm0 ωb0 Npart=256,512,1024
-#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.1 1.2 --params σ8 ωm0 ωb0 Ncell=256,512,1024
-#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.1 1.2 --params σ8 ωm0 ωb0 Nstep=30,300,2000
-#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.1 1.2 --params σ8 ωm0 ωb0 zinit=10,30,50
-#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.1 1.2 --params σ8 ωm0 ωb0 Lh=128,384,640
+./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.9 1.1 --figsize 3.0 1.5 --params σ8 ωm0 ωb0 Npart=256,512,1024 --power-stem plots/Npart
+./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.9 1.1 --figsize 3.0 1.5 --params σ8 ωm0 ωb0 Ncell=256,512,1024 --power-stem plots/Ncell
+./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.9 1.1 --figsize 3.0 1.5 --params σ8 ωm0 ωb0 Nstep=30,300,2000 --power-stem plots/Nstep
+./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.9 1.1 --figsize 3.0 1.5 --params σ8 ωm0 ωb0 zinit=10,30,50 --power-stem plots/zinit
+./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.9 1.1 --figsize 3.0 1.5 --params σ8 ωm0 ωb0 Lh=128,384,640 --power-stem plots/Lh
 
 # vary physical parameters
 #./main.py --power class cola --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.0 1.2 --params σ8 ωm0 ωb0 lgω=2.0,2.5,3.0,4.0
