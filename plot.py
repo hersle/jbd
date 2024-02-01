@@ -81,9 +81,15 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
 
     # Plot the curves; varying color first, and linestyle second
     ax.set_prop_cycle(cycler(color=colors) * cycler(linestyle=linestyles))
+    labels_in_legend = []
     for i, curves in enumerate(curvess):
         for x, y, Δyhi, Δylo, label in curves:
-            ax.plot(        x, y,              linewidth=1, alpha=0.5, label=label)
+            if label in labels_in_legend:
+                plabel = None
+            else:
+                plabel = label
+                labels_in_legend.append(plabel)
+            ax.plot(        x, y,              linewidth=1, alpha=0.5, label=plabel)
             ax.fill_between(x, y-Δylo, y+Δyhi, linewidth=0) # error band
     ax.legend(loc="upper right") #, bbox_to_anchor=(1.00, 0.96))
 
