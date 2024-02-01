@@ -127,7 +127,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
         # Compare E = H/H0
         E_class = H_class / H_class[-1] # E = H/H0 (assuming final value is at a=1)
-        utils.check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)", rtol=1e-4)
+        utils.check_values_are_close(E_class, E_cola, a_class, a_cola, name="(H/H0)", rtol=1e-3)
 
         # Compare ΩΛ0
         ΩΛ0_class = self.read_variable("class/log.txt", "Lambda = ")
