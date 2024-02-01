@@ -30,6 +30,7 @@
 #./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.9 1.1 --figsize 3.0 1.5 --params ωm0 ωb0 σ8=0.75,0.80,0.85 --power-stem plots/σ8
 #./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.9 1.1 --figsize 3.0 1.5 --params σ8 ωm0 ωb0 ns=0.92,0.96,1.0 --power-stem plots/ns
 #./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.9 1.1 --figsize 3.0 1.5 --params σ8 ωm0 ωb0 h=0.65,0.70,0.73 --power-stem plots/h
+#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --divide class --B-lims 0.99 1.01 --figsize 3.0 1.5 --one-by-one --params z=0.0,1.5,3.0 h=0.70,0.65,0.73 ns=1.0,0.96,0.92 G0=1.0,0.95,1.05 σ8=0.80,0.75,0.85 ωm0=0.15,0.10,0.20 ωb0=0.02,0.01,0.03 lgω=2.0,3.0 --power-stem plots/all
 
 # parameter space sampling of ω and ωm0
 #./main.py --params lgω=2.0,4.0 σ8 ωb0 z=0 ωm0=0.1,0.2 --samples 100 --parameter-space --power class cola --divide class      --h-units --subtract-shotnoise --transform-h --B-lims 0.99 1.01 --power-stem plots/sample_z0_divclass --figsize 3.0 1.2

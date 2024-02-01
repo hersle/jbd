@@ -42,6 +42,7 @@ parser.add_argument("--subtract-shotnoise", action="store_true", help="subtract 
 parser.add_argument("--realizations", metavar="N", type=int, default=1, help="number of universe realizations to simulate per model")
 parser.add_argument("--evolution", action="store_true", help="plot evolution of background and perturbation quantities")
 parser.add_argument("--samples", metavar="N", type=int, default=0, help="number of latin hypercube samples to make")
+parser.add_argument("--one-by-one", action="store_true", default=False, help="vary all passed parameters one-by-one from fiducial values")
 parser.add_argument("--parameter-space", action="store_true", help="plot (varying) parameter space")
 parser.add_argument("--test", action="store_true", help="run whatever experimental code is in the test section")
 parser.add_argument("--B-lims", help="Bmin,Bmax", default=(0.8, 1.2), nargs=2)
@@ -63,6 +64,17 @@ class ParameterSpace:
                     yield from traverse(paramlist, params)
                 paramlist[param] = values # 3) undo 1)
         return list(traverse(self.params))
+
+    def combinations_cross(self):
+        paramss = []
+        for z in self.params["z"]:
+            fidparams = {param: values[0] for param, values in self.params.items()} | {"z": z}
+            for param, values in self.params.items():
+                for value in values:
+                    params = fidparams | {param: value}
+                    if params not in paramss:
+                        paramss.append(params)
+        return paramss
 
     def sample(self, n=1, seed=1234, bounds=False):
         paramss = [] # final list of parameter samples to return
@@ -158,7 +170,10 @@ for param in args.params:
 
 pspace = ParameterSpace(paramlist)
 if args.samples == 0:
-    paramss = pspace.combinations()
+    if args.one_by_one:
+        paramss = pspace.combinations_cross()
+    else:
+        paramss = pspace.combinations()
 else:
     paramss = pspace.sample(args.samples, bounds=False)
 
@@ -170,14 +185,10 @@ fixparams = [param for param, vals in paramlist.items() if len(vals) == 1] # lis
 print("Fixed parameters:")
 for param in fixparams:
     print(f"{param} = {paramlist[param][0]}")
-
 print()
 print("Varying parameters:")
-widths = {param: max([len(str(params[param])) for params in paramss]) for param in varparams}
-print(" ".join(f"{param: <{widths[param]}}" for param in varparams))
-print(" ".join("-" * widths[param] for param in varparams))
 for params in paramss:
-    print(" ".join(f"{value: <{widths[param]}}" for param, value in params.items() if param in varparams))
+    print(", ".join(f"{param} = {value}" for param, value in params.items() if param in varparams))
 
 if args.parameter_space:
     plot.plot_parameter_samples("plots/parameter_space.pdf", paramss, lo, hi)
@@ -187,7 +198,7 @@ if args.parameter_space:
 
 # Plot power spectra and boost, if requested
 if len(args.power) > 0:
-    varparam = varparams[0] if len(varparams) == 1 else None
+    varparam = varparams[0] if len(varparams) == 1 else "z"
     fixparams_nondefault = sorted(list(set(fixparams) - set(fixparams_default)))
     if args.power_stem is None:
         stem = "plots/power_fix_" + '_'.join(fixparams_nondefault) + (f"_vary_{'_'.join(varparams)}" if len(varparams) > 0 else "") + (f"_div_{args.divide}" if args.divide else "") + ("_transfh" if args.transform_h else "")
