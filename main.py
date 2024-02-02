@@ -219,6 +219,12 @@ if args.evolution:
 
     def q_from_file(sim, filename, f):
         data = sim.read_data(filename, dict=True)
+        if "z" in data:
+            a = 1 / (data["z"] + 1)
+            data = {param: data[param][a >= 1e-10] for param in data}
+        elif "a" in data:
+            a = data["a"]
+            data = {param: data[param][a >= 1e-10] for param in data}
         return f(data)
 
     def G_G0_BD(sim):
@@ -227,8 +233,8 @@ if args.evolution:
     def G_G0_GR(sim):
         return q_from_file(sim, "class/background.dat", lambda bg: (1 / (bg["z"] + 1), np.ones_like(bg["z"])))
 
-    def H_H0_BD_GR(sim):
-        return q_from_file(sim, "class/background.dat", lambda bg: (1 / (bg["z"] + 1), bg["H [1/Mpc]"] * 2997))
+    def E_BD_GR(sim):
+        return q_from_file(sim, "class/background.dat", lambda bg: (1 / (bg["z"] + 1), bg["H [1/Mpc]"] / bg["H [1/Mpc]"][-1]))
 
     def D_Di_BD_GR(sim):
         return q_from_file(sim, "cola/gravitymodel_cola_k1.0.txt", lambda data: (data["a"], data["D1(a,k)"] / data["D1(a,k)"][0]))
@@ -241,7 +247,7 @@ if args.evolution:
 
     series = [
         ("G", G_G0_BD,    G_G0_GR,    False, "G(a)/G_0",         0.05, 0.05),
-        ("H", H_H0_BD_GR, H_H0_BD_GR, True,  "H(a)/(100\,\mathrm{km}/\mathrm{s}\,\mathrm{Mpc})",         5.0,  0.01),
+        ("E", E_BD_GR,    E_BD_GR,    True,  "E(a)",             5.0,  0.01),
         ("D", D_Di_BD_GR, D_Di_BD_GR, True,  "D(a)/D(10^{-10})", 1.0,  0.1),
         ("f", f_BD_GR,    f_BD_GR,    False, "f(a)",             0.1,  0.01),
     ]
