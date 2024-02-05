@@ -4,10 +4,10 @@
 #./main.py --transform-h --divide primordial --params σ8 ωm0 ωb0 --evolution
 
 # test different parametrizations
-#./main.py --power class cola --h-units --subtract-shotnoise --divide primordial --transform-h --params σ8 ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
-#./main.py --power class cola --h-units --subtract-shotnoise --divide primordial --transform-h --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
-#./main.py --power class cola --h-units --subtract-shotnoise --divide primordial               --params σ8 ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
-#./main.py --power class cola --h-units --subtract-shotnoise --divide primordial               --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
+#./main.py --power class cola --h-units --subtract-shotnoise --transform-h --params σ8 ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
+#./main.py --power class cola --h-units --subtract-shotnoise --transform-h --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
+#./main.py --power class cola --h-units --subtract-shotnoise --params σ8 ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
+#./main.py --power class cola --h-units --subtract-shotnoise --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
 
 # linear evolution
 #./main.py --power class scaleindependent --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.0 1.2 --params σ8 ωm0 ωb0 z=0,1.5,9,99,999,9899 --power-stem plots/linevo --figsize 5.0 2.2
