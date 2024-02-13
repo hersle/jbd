@@ -47,6 +47,7 @@ parser.add_argument("--parameter-space", action="store_true", help="plot (varyin
 parser.add_argument("--test", action="store_true", help="run whatever experimental code is in the test section")
 parser.add_argument("--B-lims", help="Bmin,Bmax", default=(0.8, 1.2), nargs=2)
 parser.add_argument("--figsize", help="width,height", default=(3.0, 2.2), nargs=2)
+parser.add_argument("--legend-location", nargs=2, default=(None, None), help="matplotlib legend location string")
 args = parser.parse_args()
 
 class ParameterSpace:
@@ -209,7 +210,7 @@ if len(args.power) > 0:
 
     Blims = (float(args.B_lims[0]), float(args.B_lims[1]))
     figsize = (float(args.figsize[0]), float(args.figsize[1]))
-    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, hunits=args.h_units, divide=args.divide, subshot=args.subtract_shotnoise, Blims=Blims, figsize=figsize)
+    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, kunits=args.k_units, divide=args.divide, subshot=args.subtract_shotnoise, Blims=Blims, figsize=figsize, leglocs=args.legend_location)
 
 # Plot evolution of (background) densities
 if args.evolution:

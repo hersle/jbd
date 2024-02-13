@@ -74,7 +74,7 @@ def ax_set_ylim_nearest(ax, Δy):
     ax.set_yticks(np.linspace(ymin, ymax, int(np.round((ymax-ymin)/Δy))+1)) # TODO: set minor ticks every 1, 0.1, 0.01 etc. here?
     return ymin, ymax
 
-def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, llabels=None, title=None, xlabel=None, ylabel=None, xticks=None, yticks=None, figsize=(3.0, 2.2)): # 1.2 for small figs
+def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, llabels=None, title=None, xlabel=None, ylabel=None, xticks=None, yticks=None, figsize=(3.0, 2.2), leglocs=(None, None)): # 1.2 for small figs
     fig, ax = plt.subplots(figsize=figsize)
 
     if not colors: colors = ["black"] * len(curvess)
@@ -92,7 +92,8 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
                 labels_in_legend.append(plabel)
             ax.plot(        x, y,              linewidth=1, alpha=0.5, label=plabel)
             ax.fill_between(x, y-Δylo, y+Δyhi, linewidth=0) # error band
-    ax.legend(loc="upper right") # legend inside
+    if leglocs[0] is not None:
+        ax.legend(loc=leglocs[0])
     #ax.legend(loc="lower left", bbox_to_anchor=(1, 0)) # legend outside
 
     # Set axis labels and ticks from input ticks = (min, max, step)
@@ -121,7 +122,8 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
         ax2.get_yaxis().set_visible(False) # make invisible
         for linestyle, label in zip(linestyles, llabels):
             ax2.plot([-8, -8], [0, 1], alpha=0.5, color="black", linestyle=linestyle, linewidth=1, label=label)
-        ax2.legend(loc="upper left") # legend inside
+        if leglocs[1] is not None:
+            ax2.legend(loc=leglocs[1])
         #ax2.legend(loc="upper left", bbox_to_anchor=(1, 1)) # legend outside
 
     ax.grid(which="major")
@@ -129,7 +131,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divide="", subshot=False, Blims=(0.8, 1.2), figsize=(3.0, 2.2)):
+def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, kunits="h", divide="", subshot=False, Blims=(0.8, 1.2), figsize=(3.0, 2.2), leglocs=(None, None)):
     names = ["PBD", "PGR", "B"]
     def curve_PBD(sims, source, z):
         k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z, hunits=hunits, subshot=subshot)
@@ -182,7 +184,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
             curvess.append(curves)
 
         title = PARAM_PLOT_INFO[param]["label"] if param else None
-        plot_generic(f"{filename_stem}_{name}.pdf", curvess, colors, clabels, linestyles, llabels, title, xlabel, ylabel, xticks, yticks, figsize=figsize)
+        plot_generic(f"{filename_stem}_{name}.pdf", curvess, colors, clabels, linestyles, llabels, title, xlabel, ylabel, xticks, yticks, figsize=figsize, leglocs=leglocs)
 
 def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", ylabel="", logabs=False, Δyrel=None, Δyabs=None):
     sims = sim.SimulationGroupPair(params0_BD, θGR)
