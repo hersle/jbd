@@ -459,6 +459,13 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         if not subshot and source in ("cola", "ramses"):
             Ph3 += (self.params["Lh"]/self.params["Npart"])**3 # add shot noise back in
 
+        # cut off ramses at lower k at earlier times
+        if source == "ramses":
+            k_h_nyq = np.pi * self.params["Ncell"] / self.params["Lh"]
+            k_h_max = k_h_nyq/2 if z > 3 else k_h_nyq/2 + 3/2*k_h_nyq * (3-z)/(3-0) # linearly from k(z=3)=knyq/2 to k(z=0)=2*knyq
+            Ph3 = Ph3[k_h <= k_h_max]
+            k_h = k_h[k_h <= k_h_max]
+
         if hunits:
             return k_h, Ph3
         else:
