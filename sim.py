@@ -466,6 +466,13 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             Ph3 = Ph3[k_h <= k_h_max]
             k_h = k_h[k_h <= k_h_max]
 
+        # rescale to linear P
+        if source == "ramses":
+            k_h_lin, Ph3_lin = self.power_spectrum(z=z, source="class") # get linear spectrum
+            factor = CubicSpline(k_h_lin, Ph3_lin, extrapolate=False)(k_h[0]) / Ph3[0]
+            Ph3 *= factor # rescale to fit linear spectrm at smallest k
+            print(f"scaled {source} P(k={k_h[0]} h/Mpc, z={z}) by {factor} to fit linear spectrum")
+
         if hunits:
             return k_h, Ph3
         else:
