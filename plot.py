@@ -21,6 +21,7 @@ matplotlib.rcParams |= {
     "legend.handlelength": 1.5,
     "legend.handletextpad": 0.3,
     "legend.frameon": False,
+    "legend.fontsize": 7,
     "xtick.top": True,
     "ytick.right": True,
     "xtick.direction": "in",
@@ -48,8 +49,8 @@ PARAM_PLOT_INFO = {
     "lgω":    {"label": r"$\lg\omega$",                         "format": lambda lgω:   f"${lgω:.1f}$",                "colorvalue": lambda ω:     np.log10(ω)},
     "G0":     {"label": r"$G_0/G$",                             "format": lambda G0:    f"${G0:.02f}$",                "colorvalue": lambda G0:    G0},
     "As":     {"label": r"$A_s / 10^{-9}$",                     "format": lambda As:    f"${As/1e-9:.1f}$",            "colorvalue": lambda As:    As},
-    "ns":     {"label": r"$n_s$",                               "format": lambda ns:    f"${ns}$",                     "colorvalue": lambda ns:    ns},
-    "σ8":     {"label": r"$\sigma_8$",                          "format": lambda σ8:    f"${σ8}$",                     "colorvalue": lambda σ8:    σ8},
+    "ns":     {"label": r"$n_s$",                               "format": lambda ns:    f"${ns:.2f}$",                 "colorvalue": lambda ns:    ns},
+    "σ8":     {"label": r"$\sigma_8$",                          "format": lambda σ8:    f"${σ8:.2f}$",                 "colorvalue": lambda σ8:    σ8},
     "z":      {"label": r"$z$",                                 "format": lambda z:     f"${z}$",                      "colorvalue": lambda z:     np.log10(z+1)},
 }
 
@@ -91,7 +92,8 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
                 labels_in_legend.append(plabel)
             ax.plot(        x, y,              linewidth=1, alpha=0.5, label=plabel)
             ax.fill_between(x, y-Δylo, y+Δyhi, linewidth=0) # error band
-    ax.legend(loc="upper right") #, bbox_to_anchor=(1.00, 0.96))
+    ax.legend(loc="upper right") # legend inside
+    #ax.legend(loc="lower left", bbox_to_anchor=(1, 0)) # legend outside
 
     # Set axis labels and ticks from input ticks = (min, max, step)
     for label, ticks, set_label, set_ticks, set_lim, set_minor_locator in [(xlabel, xticks, ax.set_xlabel, ax.set_xticks, ax.set_xlim, ax.xaxis.set_minor_locator), (ylabel, yticks, ax.set_ylabel, ax.set_yticks, ax.set_ylim, ax.yaxis.set_minor_locator)]:
@@ -119,9 +121,10 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
         ax2.get_yaxis().set_visible(False) # make invisible
         for linestyle, label in zip(linestyles, llabels):
             ax2.plot([-8, -8], [0, 1], alpha=0.5, color="black", linestyle=linestyle, linewidth=1, label=label)
-        ax2.legend(loc="upper left") #, bbox_to_anchor=(0.00, 0.96))
+        ax2.legend(loc="upper left") # legend inside
+        #ax2.legend(loc="upper left", bbox_to_anchor=(1, 1)) # legend outside
 
-    ax.grid(which="both")
+    ax.grid(which="major")
     fig.tight_layout(pad=0)
     fig.savefig(filename)
     print("Plotted", filename)
@@ -138,8 +141,8 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
         k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z, hunits=hunits, divide=divide, subshot=subshot)
         return np.log10(k), B, ΔB, ΔB
     funcs = [curve_PBD, curve_PGR, curve_B]
-    xticks = (-5, +1, 1, 0.1) # common
-    ytickss = [(-2, 5, 1.0, 0.1), (-2, 5, 1.0, 0.1), (Blims[0], Blims[1], 10**np.floor(np.log10((Blims[1]-Blims[0]))), 10**(-1+np.floor(np.log10((Blims[1]-Blims[0])))))]
+    xticks = (-2, +1, 1, 0.1) # common
+    ytickss = [(-1, 5, 1.0, 0.1), (-1, 5, 1.0, 0.1), (Blims[0], Blims[1], 10**np.floor(np.log10((Blims[1]-Blims[0]))), 10**(-1+np.floor(np.log10((Blims[1]-Blims[0])))))]
     klabel = r"k / (h/\mathrm{Mpc})" if hunits else r"k \,/\, (1/\mathrm{Mpc})"
     xlabel = f"$\lg \left[ {klabel} \\right]$" # common for PBD, PGR, B
     PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"
@@ -173,7 +176,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
             for source in sources: # 3) iterate over power spectrum source
                 # linestyle and linestyle labels
                 linestyles.append({"class": "solid", "cola": "dashed", "ramses": "dotted", "primordial": "dotted", "scaleindependent": "dashed", "ee2": "dashed", "script": "dotted"}[source])
-                llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{fml/colasolver}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{scale-independent}$", "ee2": r"$\textsc{ee2}$" + (r" \textrm{(boosted)}" if name == "PBD" and source == "ee2" else ""), "script": r"$\textsc{bd.py}$"}[source])
+                llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{fml/colasolver}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{growth factor}$", "ee2": r"$\textsc{ee2}$" + (r" \textrm{(boosted)}" if name == "PBD" and source == "ee2" else ""), "script": r"$\textsc{bd.py}$"}[source])
                 label = (f"${PARAM_PLOT_INFO[param]['label'][1:-1]} = {PARAM_PLOT_INFO[param]['format'](val)[1:-1]}$") if param else None
                 curves.append(func(sims, source, z) + ({"class": label, "cola": None, "ramses": None, "scaleindependent": None, "ee2": None, "script": None}[source],))
             curvess.append(curves)

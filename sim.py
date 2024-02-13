@@ -214,7 +214,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
     # dictionary of parameters that should be passed to CLASS
     def input_class(self):
-        zs1 = np.array([9899, 7999, 6999, 5999, 4999, 3999, 3606, 2999, 1999, 999, 899, 799, 699, 599, 499, 399, 299, 199, 99, 9]) # early-time zs (require exact hits when querying these)
+        zs1 = np.array([999, 899, 799, 699, 599, 499, 399, 299, 199, 99, 9]) # early-time zs (require exact hits when querying these)
         zs2 = 1 / np.linspace(1/(3.5+1), 1, 50) - 1 # 50 zs in [3.5, 0] with linear a-spacing (for splining)? # TODO: use class' z_max_pk?
         zs = np.concatenate((zs1, zs2))
         return '\n'.join([
@@ -493,17 +493,17 @@ class GRSimulation(Simulation):
         assert self.file_exists(outfile)
         return outfile
 
-    def power_spectrum(self, **kwargs):
+    def power_spectrum(self, z=0.0, source="class", hunits=True, subshot=False):
         # TODO: prevent running of duplicate sims with different seeds !!!
         k, P = None, None
-        if kwargs["source"] == "ee2":
+        if source == "ee2":
             # 1) get B = P / Plin from EE2
-            outfile = self.run_ee2(z=kwargs["z"])
+            outfile = self.run_ee2(z=z)
             k_h, B = self.read_data(outfile) # k/(h/Mpc), P(k)/Plin(k)
             k = k_h * self.params["h"] # k/(1/Mpc)
 
             # 2) get Plin from class
-            klin, Plin = self.power_spectrum(**kwargs | {"source": "class", "hunits": False}) # k/(1/Mpc), P/Mpc^3
+            klin, Plin = self.power_spectrum(z=z, source="class", hunits=False, subshot=subshot) # k/(1/Mpc), P/Mpc^3
 
             # 3a) get P by multiplying Plin * B = P with splined B
             P = CubicSpline(k, B, axis=1, extrapolate=False)(klin) * Plin # careful with units!
@@ -512,19 +512,19 @@ class GRSimulation(Simulation):
             # 3b) get P by multiplying Plin * B = P with splined Plin
             #P = B * CubicSpline(klin, Plin, extrapolate=False)(k)
 
-        elif kwargs["source"] == "script":
+        elif source == "script":
             self.create_directory("script")
-            self.run_command(f"{self.BDPYEXEC} -z {kwargs['z']} -w 0 -G 1 -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC} --ee2 {self.EE2EXEC} --output power.dat PGR", subdir="script/")
+            self.run_command(f"{self.BDPYEXEC} -z {z} -w 0 -G 1 -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC} --ee2 {self.EE2EXEC} --output power.dat PGR", subdir="script/")
             k, P = self.read_data("script/power.dat")
             k = k * self.params["h"]
 
         if k is not None and P is not None:
-            if kwargs["hunits"]:
+            if hunits:
                 return k / self.params["h"], P * self.params["h"]**3
             else:
                 return k, P
 
-        return Simulation.power_spectrum(self, **kwargs)
+        return Simulation.power_spectrum(self, z=z, source=source, hunits=hunits, subshot=subshot)
 
 class BDSimulation(Simulation):
     SIMDIR = Simulation.SIMDIR + "BD/"
@@ -605,16 +605,16 @@ class BDSimulation(Simulation):
         lines.append("") # final newline
         return '\n'.join(lines)
 
-    def power_spectrum(self, **kwargs):
+    def power_spectrum(self, z=0.0, source="class", hunits=True, subshot=False):
         k, P = None, None
 
-        if kwargs["source"] == "ee2":
+        if source == "ee2":
             # 1) get B = PBD/PGR ≈ PBDlin/PGRlin from BD+GR simulation pair using class
             sims = SimulationGroupPair(self.iparams, θGR_different_h)
-            k_h, B, _ = sims.power_spectrum_ratio(**kwargs | {"source": "class", "hunits": True}) # k/h, [PBD(k/h,z)*hBD^3] / [PGR(k/h,z)*hGR^3]
+            k_h, B, _ = sims.power_spectrum_ratio(z=z, source="class", hunits=True, subshot=subshot) # k/h, [PBD(k/h,z)*hBD^3] / [PGR(k/h,z)*hGR^3]
 
             # 2) get PGR from EE2
-            kGR_h, PGRh3 = sims.sims_GR[0].power_spectrum(**kwargs | {"source": "ee2", "hunits": True}) # kGR/(h/Mpc), PGR/(Mpc/h)^3
+            kGR_h, PGRh3 = sims.sims_GR[0].power_spectrum(z=z, source="ee2", hunits=True, subshot=subshot) # kGR/(h/Mpc), PGR/(Mpc/h)^3
             kBD_h = k_h
 
             # 3a) get PBD by multiplying PGR*B = PBD with splined B
@@ -628,19 +628,19 @@ class BDSimulation(Simulation):
             #PBDh3 = CubicSpline(kGR_h, PGRh3, extrapolate=False)(k_h) * B
             #k_h, PBDh3 = k_h[np.isfinite(PBDh3)], PBDh3[np.isfinite(PBDh3)] # remove NaNs due to different k-ranges
 
-        elif kwargs["source"] == "script":
+        elif source == "script":
             self.create_directory("script")
-            self.run_command(f"{self.BDPYEXEC} -z {kwargs['z']} -w {self.params['ω']} -G {self.params['G0']} -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC} --ee2 {self.EE2EXEC} --output power.dat PBD", subdir="script/")
+            self.run_command(f"{self.BDPYEXEC} -z {z} -w {self.params['ω']} -G {self.params['G0']} -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC} --ee2 {self.EE2EXEC} --output power.dat PBD", subdir="script/")
             k, P = self.read_data("script/power.dat")
             k = k * self.params["h"]
 
         if k is not None and P is not None:
-            if kwargs["hunits"]:
+            if hunits:
                 return k / self.params["h"], P * self.params["h"]**3
             else:
                 return k, P
 
-        return Simulation.power_spectrum(self, **kwargs)
+        return Simulation.power_spectrum(self, z=z, source=source, hunits=hunits, subshot=subshot)
 
 class SimulationGroup:
     def __init__(self, simtype, iparams, nsims, seeds=None):
