@@ -131,7 +131,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, kunits="h", divide="", subshot=False, Blims=(0.8, 1.2), figsize=(3.0, 2.2), leglocs=(None, None)):
+def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divide="", subshot=False, Blims=(0.8, 1.2), figsize=(3.0, 2.2), leglocs=(None, None)):
     names = ["PBD", "PGR", "B"]
     def curve_PBD(sims, source, z):
         k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z, hunits=hunits, subshot=subshot)

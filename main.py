@@ -210,7 +210,7 @@ if len(args.power) > 0:
 
     Blims = (float(args.B_lims[0]), float(args.B_lims[1]))
     figsize = (float(args.figsize[0]), float(args.figsize[1]))
-    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, kunits=args.k_units, divide=args.divide, subshot=args.subtract_shotnoise, Blims=Blims, figsize=figsize, leglocs=args.legend_location)
+    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, hunits=args.h_units, divide=args.divide, subshot=args.subtract_shotnoise, Blims=Blims, figsize=figsize, leglocs=args.legend_location)
 
 # Plot evolution of (background) densities
 if args.evolution:
