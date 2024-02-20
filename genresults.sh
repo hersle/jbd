@@ -6,14 +6,14 @@
 # test different parametrizations
 #./main.py --power class cola --h-units --subtract-shotnoise --transform-h --params σ8 ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
 #./main.py --power class cola --h-units --subtract-shotnoise --transform-h --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
-#./main.py --power class cola --h-units --subtract-shotnoise --params σ8 ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
-#./main.py --power class cola --h-units --subtract-shotnoise --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
+#./main.py --power class cola --h-units --subtract-shotnoise               --params σ8 ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
+#./main.py --power class cola --h-units --subtract-shotnoise               --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3
 
 # linear evolution
 #./main.py --power class scaleindependent --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.0 1.2 --params σ8 ωm0 ωb0 z=0,1.5,9,99,999 --power-stem plots/linevo --figsize 5.0 2.2
 
 # ramses comparison
-#./main.py --power class cola ramses --h-units --transform-h --subtract-shotnoise --B-lims 0.9 1.1 --figsize 3.0 2.2 --params σ8 ωm0 ωb0 z=3,1.5,0 --power-stem plots/ramses
+#./main.py --power class cola ramses --h-units --transform-h --subtract-shotnoise --B-lims 0.9 1.1 --figsize 3.0 2.2 --params σ8 ωm0 ωb0 z=3,1.5,0 --power-stem plots/ramses --legend-location "upper right" "upper left"
 
 # vary computational parameters
 #./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.0 1.5 --params σ8 ωm0 ωb0 Npart=256,512,1024 --power-stem plots/Npart

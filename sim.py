@@ -214,7 +214,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
     # dictionary of parameters that should be passed to CLASS
     def input_class(self):
-        zs1 = np.array([999, 899, 799, 699, 599, 499, 399, 299, 199, 99, 9]) # early-time zs (require exact hits when querying these)
+        zs1 = np.array([999, 899, 799, 699, 599, 499, 399, 299, 199, 99, 10, 9, 8, 7, 6, 5, 4]) # early-time zs (require exact hits when querying these)
         zs2 = 1 / np.linspace(1/(3.5+1), 1, 50) - 1 # 50 zs in [3.5, 0] with linear a-spacing (for splining)? # TODO: use class' z_max_pk?
         zs = np.concatenate((zs1, zs2))
         return '\n'.join([
@@ -407,7 +407,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             snapnum = 1
             while True:
                 level = int(np.log2(self.params["Npart"])) # coarsest AMR grid level
-                level += 2 # enhance P(k) computation by 2 levels (e.g. N = 256 -> 256*2^2 = 1024)
+                level += 1 # enhance P(k) computation by 1 level (e.g. N = 256 -> 256*2^1 = 512)
                 snapdir = f"ramses/output_{snapnum:05d}"
                 info_filename = f"{snapdir}/info_{snapnum:05d}.txt"
                 pofk_filename = f"{snapdir}/pofk_fml_level{level}.dat"
@@ -461,7 +461,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
         # cut off ramses at lower k at earlier times
         if source == "ramses":
-            k_h_nyq = np.pi * self.params["Ncell"] / self.params["Lh"]
+            k_h_nyq = np.pi * self.params["Ncell"] / self.params["Lh"] # Nyquist frequency
             k_h_max = k_h_nyq/2 if z > 3 else k_h_nyq/2 + 3/2*k_h_nyq * (3-z)/(3-0) # linearly from k(z=3)=knyq/2 to k(z=0)=2*knyq
             Ph3 = Ph3[k_h <= k_h_max]
             k_h = k_h[k_h <= k_h_max]
@@ -737,7 +737,7 @@ class SimulationGroupPair:
         # boost error (propagate from errors in PBD and PGR)
         PBD = np.mean(PBDs, axis=1) # average over simulations
         PGR = np.mean(PGRs, axis=1) # average over simulations
-        dB_dPBD =      1 / PGR    # dB/dPBD evaluated at means
+        dB_dPBD =    1 / PGR    # dB/dPBD evaluated at means
         dB_dPGR = -PBD / PGR**2 # dB/dPGR evaluated at means
         ΔB = np.array([utils.propagate_error([dB_dPBD[ik], dB_dPGR[ik]], [PBDs[ik], PGRs[ik]]) for ik in range(0, len(k))])
 

@@ -47,7 +47,7 @@ PARAM_PLOT_INFO = {
     "zinit":  {"label": r"$z_\mathrm{init}$",                   "format": lambda zinit: f"${zinit:.0f}$",              "colorvalue": lambda zinit: zinit},
     "ω":      {"label": r"$\omega$",                            "format": lambda ω:     f"$10^{{{np.log10(ω):.0f}}}$", "colorvalue": lambda ω:     np.log10(ω)},
     "lgω":    {"label": r"$\lg\omega$",                         "format": lambda lgω:   f"${lgω:.1f}$",                "colorvalue": lambda ω:     np.log10(ω)},
-    "G0":     {"label": r"$G_0/G$",                             "format": lambda G0:    f"${G0:.02f}$",                "colorvalue": lambda G0:    G0},
+    "G0":     {"label": r"$G_{m0}/G$",                          "format": lambda G0:    f"${G0:.02f}$",                "colorvalue": lambda G0:    G0},
     "As":     {"label": r"$A_s / 10^{-9}$",                     "format": lambda As:    f"${As/1e-9:.1f}$",            "colorvalue": lambda As:    As},
     "ns":     {"label": r"$n_s$",                               "format": lambda ns:    f"${ns:.2f}$",                 "colorvalue": lambda ns:    ns},
     "σ8":     {"label": r"$\sigma_8$",                          "format": lambda σ8:    f"${σ8:.2f}$",                 "colorvalue": lambda σ8:    σ8},
@@ -90,7 +90,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
             else:
                 plabel = label
                 labels_in_legend.append(plabel)
-            ax.plot(        x, y,              linewidth=1, alpha=0.5, label=plabel)
+            ax.plot(        x, y,              linewidth=1, alpha=0.6, label=plabel)
             ax.fill_between(x, y-Δylo, y+Δyhi, linewidth=0) # error band
     if leglocs[0] is not None:
         ax.legend(loc=leglocs[0])
@@ -144,12 +144,12 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
         return np.log10(k), B, ΔB, ΔB
     funcs = [curve_PBD, curve_PGR, curve_B]
     xticks = (-2, +1, 1, 0.1) # common
-    ytickss = [(-1, 5, 1.0, 0.1), (-1, 5, 1.0, 0.1), (Blims[0], Blims[1], 10**np.floor(np.log10((Blims[1]-Blims[0]))), 10**(-1+np.floor(np.log10((Blims[1]-Blims[0])))))]
+    ytickss = [(0, 5, 1.0, 0.1), (0, 5, 1.0, 0.1), (Blims[0], Blims[1], 10**np.floor(np.log10((Blims[1]-Blims[0]))) * (1/2 if str(Blims[1])[-1] == "5" else 1), 10**(-1+np.floor(np.log10((Blims[1]-Blims[0])))))]
     klabel = r"k / (h/\mathrm{Mpc})" if hunits else r"k \,/\, (1/\mathrm{Mpc})"
     xlabel = f"$\lg \left[ {klabel} \\right]$" # common for PBD, PGR, B
     PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"
     PGRlabel = r"P_\mathrm{GR} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{GR} \,/\, \mathrm{Mpc}^3"
-    Blabel = "B" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "cola": r"\mathrm{cola}", "primordial": r"\mathrm{prim}", "scaleindependent": r"\mathrm{scale-independent}"}[divide])
+    Blabel = "B_h" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "cola": r"\mathrm{cola}", "primordial": r"\mathrm{prim}", "scaleindependent": r"\mathrm{scale-independent}"}[divide])
     ylabels = [f"$\lg\left[ {PBDlabel} \\right]$", f"$\lg\left[ {PGRlabel} \\right]$", f"${Blabel}$"]
 
     for name, func, ylabel, yticks in zip(names, funcs, ylabels, ytickss): # 1) iterate over PBD(k), PGR(k), B(k)
@@ -178,7 +178,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
             for source in sources: # 3) iterate over power spectrum source
                 # linestyle and linestyle labels
                 linestyles.append({"class": "solid", "cola": "dashed", "ramses": "dotted", "primordial": "dotted", "scaleindependent": "dashed", "ee2": "dashed", "script": "dotted"}[source])
-                llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{fml/colasolver}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{growth factor}$", "ee2": r"$\textsc{ee2}$" + (r" \textrm{(boosted)}" if name == "PBD" and source == "ee2" else ""), "script": r"$\textsc{bd.py}$"}[source])
+                llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{fml/cola}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{growth factor}$", "ee2": r"$\textsc{ee2}$" + (r" \textrm{(boosted)}" if name == "PBD" and source == "ee2" else ""), "script": r"$\textsc{bd.py}$"}[source])
                 label = (f"${PARAM_PLOT_INFO[param]['label'][1:-1]} = {PARAM_PLOT_INFO[param]['format'](val)[1:-1]}$") if param else None
                 curves.append(func(sims, source, z) + ({"class": label, "cola": None, "ramses": None, "scaleindependent": None, "ee2": None, "script": None}[source],))
             curvess.append(curves)
