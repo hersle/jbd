@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import numpy as np
 from scipy.interpolate import CubicSpline
+import matplotlib.pyplot as plt
 
 def params2seeds(params, n=None):
     rng = np.random.default_rng(int(utils.hashdict(params), 16)) # deterministic random number generator from simulation parameters
@@ -444,6 +445,17 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         k_h = self.read_data(filenames[0], cols=(0,))[0]
         assert np.all(self.read_data(filename, cols=(0,))[0] == k_h for filename in filenames), "P(k,z) files have different k"
         Ph3s = [self.read_data(filename, cols=(1,))[0] for filename in filenames] # indexed like Ph3s[iz][ik]
+
+        # plot P(k, z)
+        #fig, ax = plt.subplots(subplot_kw={"projection": "3d"})
+        #X, Y, Z = np.array(np.log10(k_h)), np.array(zs), np.log10(np.array(Ph3s))
+        #X, Y = np.meshgrid(X, Y)
+        #ax.plot_surface(X, Y, Z)
+        #ax.set_xlim(-2, 1)
+        #ax.set_ylim(0, 10)
+        #ax.set_zlim(-1, 4)
+        #fig.savefig(f"test_{source}.png")
+        #print("plotted", f"test_{source}.png")
 
         if len(z_filename_pairs) == 1: # require exact hit for high z
             Ph3 = Ph3s[0]
