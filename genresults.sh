@@ -45,4 +45,5 @@
 #./main.py --power class ee2 script --h-units --transform-h --params σ8=0.81 ωm0 ωb0 z=0,1.5,3 --subtract-shotnoise --divide primordial --B-lims 0.8 1.2 --power-stem plots/script
 
 # test hmcode
-./main.py --power ee2 hmcode --h-units --transform-h --params σ8=0.81 ωm0 ωb0 z=0,1.5,3 --subtract-shotnoise --B-lims 0.9 1.1 --power-stem plots/hmcode
+./main.py --power hmcode        --h-units --transform-h --params σ8=0.81 ωm0 ωb0 z=0,1.5,3 --subtract-shotnoise --B-lims 0.9 1.1 --power-stem plots/hmcode1 # --legend-location "upper right" "upper left"
+./main.py --power script hmcode --h-units --transform-h --params σ8=0.81 ωm0 ωb0 z=0,1.5,3 --subtract-shotnoise --B-lims 0.9 1.1 --power-stem plots/hmcode2 --legend-location "upper right" "upper left"

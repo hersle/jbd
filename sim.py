@@ -25,8 +25,9 @@ def θGR_different_h(θBD, θBD_all):
 class Simulation: # TODO: makes more sense to name Model, Cosmology or something similar
     SIMDIR = os.path.expandvars(os.path.expandvars("$DATA/jbdsims/"))
     COLAEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/COLASolver/nbody"))
-    CLASSEXEC = os.path.abspath(os.path.expandvars("$HOME/local/hi_class_public/class")) # without working "non linear = hmcode"
-    #CLASSEXEC = "/mn/stornext/u3/hansw/Herman/HIClassHansWorkingh/class" # with working "non linear = hmcode"
+    CLASSEXEC_STABLE = os.path.abspath(os.path.expandvars("$HOME/local/hi_class_public/class")) # without working "non linear = hmcode"
+    CLASSEXEC_HMCODE = "/mn/stornext/u3/hansw/Herman/HIClassHansWorkingh/class" # with working "non linear = hmcode"
+    CLASSEXEC = CLASSEXEC_STABLE #CLASSEXEC_HMCODE
     RAMSESEXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3d"))
     RAMSES2PKEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/RamsesUtils/ramses2pk/ramses2pk"))
     EE2EXEC = os.path.abspath(os.path.expandvars("$HOME/local/EuclidEmulator2-pywrapper/ee2.exe"))
@@ -248,6 +249,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f"perturbations_verbose = 2",
             f"spectra_verbose = 2",
             f"output_verbose = 2",
+            f"nonlinear_verbose = 1", # needed by CLASSEXEC_HMCODE
             f"", # final newline
         ])
 
@@ -538,7 +540,7 @@ class GRSimulation(Simulation):
 
         elif source == "script":
             self.create_directory("script")
-            self.run_command(f"{self.BDPYEXEC} -z {z} -w 0 -G 1 -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC} --ee2 {self.EE2EXEC} --output power.dat PGR", subdir="script/")
+            self.run_command(f"{self.BDPYEXEC} -z {z} -w 0 -G 1 -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC_STABLE} --ee2 {self.EE2EXEC} --output power.dat PGR", subdir="script/")
             k, P = self.read_data("script/power.dat")
             k = k * self.params["h"]
 
@@ -654,7 +656,7 @@ class BDSimulation(Simulation):
 
         elif source == "script":
             self.create_directory("script")
-            self.run_command(f"{self.BDPYEXEC} -z {z} -w {self.params['ω']} -G {self.params['G0']} -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC} --ee2 {self.EE2EXEC} --output power.dat PBD", subdir="script/")
+            self.run_command(f"{self.BDPYEXEC} -z {z} -w {self.params['ω']} -G {self.params['G0']} -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC_STABLE} --ee2 {self.EE2EXEC} --output power.dat PBD", subdir="script/")
             k, P = self.read_data("script/power.dat")
             k = k * self.params["h"]
 
@@ -720,36 +722,41 @@ class SimulationGroupPair:
         self.nsims = nsims
 
     def power_spectrum_ratio(self, z=0.0, source="class", hunits=False, divide="", subshot=False):
-        kBD, PBDs = self.sims_BD.power_spectra(z=z, source=source, hunits=hunits, subshot=subshot) # kBD / (hBD/Mpc), PBD / (Mpc/hBD)^3
-        kGR, PGRs = self.sims_GR.power_spectra(z=z, source=source, hunits=hunits, subshot=subshot) # kGR / (hGR/Mpc), PGR / (Mpc/hGR)^3
+        k1, P1s = self.sims_BD.power_spectra(z=z, source=source, hunits=hunits, subshot=subshot) # kBD / (hBD/Mpc), PBD / (Mpc/hBD)^3
+        k2, P2s = self.sims_GR.power_spectra(z=z, source=source, hunits=hunits, subshot=subshot) # kGR / (hGR/Mpc), PGR / (Mpc/hGR)^3
+
+        # uncomment to compare hmcode with class (also uncomment relevant plotting labels in plot.py)
+        # TODO: will not work because ee2 calls this recursively? but not script?
+        #k1, P1s = self.sims_BD.power_spectra(z=z, source="script", hunits=hunits)
+        #k2, P2s = self.sims_BD.power_spectra(z=z, source="hmcode", hunits=hunits)
 
         # Verify that COLA/RAMSES simulations output comparable k-values (k*L should be equal)
-        kLBD = kBD * (self.sims_BD.params["Lh" if hunits else "L"])
-        kLGR = kGR * (self.sims_GR.params["Lh" if hunits else "L"])
-        assert source in ("class", "hmcode", "primordial", "ee2", "script") or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
+        kL1 = k1 * (self.sims_BD.params["Lh" if hunits else "L"])
+        kL2 = k2 * (self.sims_GR.params["Lh" if hunits else "L"])
+        assert source in ("class", "hmcode", "primordial", "ee2", "script") or np.all(np.isclose(kL1, kL2)), "weird k-values"
 
         # get reference wavenumbers and interpolate P to those values
-        kmin = np.maximum(np.min(kBD), np.min(kGR))
-        kmax = np.minimum(np.max(kBD), np.max(kGR))
-        k = np.unique(np.concatenate((kBD[np.logical_and(kBD >= kmin, kBD <= kmax)], kGR[np.logical_and(kGR >= kmin, kGR <= kmax)]))) # all k-values in range spanned by both BD and GR
-        PGRs = CubicSpline(kGR, PGRs, axis=1, extrapolate=False)(k) # interpolate PGR(k/hGR) to PGR(k/h)
-        PBDs = CubicSpline(kBD, PBDs, axis=1, extrapolate=False)(k) # interpolate PBD(k/hBD) to PBD(k/h)
+        kmin = np.maximum(np.min(k1), np.min(k2))
+        kmax = np.minimum(np.max(k1), np.max(k2))
+        k = np.unique(np.concatenate((k1[np.logical_and(k1 >= kmin, k1 <= kmax)], k2[np.logical_and(k2 >= kmin, k2 <= kmax)]))) # all k-values in range spanned by both BD and GR
+        P1s = CubicSpline(k1, P1s, axis=1, extrapolate=False)(k) # interpolate P1(k/hBD) to P1(k/h)
+        P2s = CubicSpline(k2, P2s, axis=1, extrapolate=False)(k) # interpolate P2(k/hGR) to P2(k/h)
 
         # from a statistical viewpoint,
         # we view P(k) as a random variable with samples from each simulation,
         # so it is more natural to index Ps[ik] == Ps[ik,:]
-        PBDs = np.transpose(PBDs)
-        PGRs = np.transpose(PGRs)
+        P1s = np.transpose(P1s)
+        P2s = np.transpose(P2s)
 
         # boost (of means)
-        B = np.mean(PBDs/PGRs, axis=1)
+        B = np.mean(P1s/P2s, axis=1)
 
-        # boost error (propagate from errors in PBD and PGR)
-        PBD = np.mean(PBDs, axis=1) # average over simulations
-        PGR = np.mean(PGRs, axis=1) # average over simulations
-        dB_dPBD =    1 / PGR    # dB/dPBD evaluated at means
-        dB_dPGR = -PBD / PGR**2 # dB/dPGR evaluated at means
-        ΔB = np.array([utils.propagate_error([dB_dPBD[ik], dB_dPGR[ik]], [PBDs[ik], PGRs[ik]]) for ik in range(0, len(k))])
+        # boost error (propagate from errors in P1 and P2)
+        P1 = np.mean(P1s, axis=1) # average over simulations
+        P2 = np.mean(P2s, axis=1) # average over simulations
+        dB_dP1 =   1 / P2    # dB/dP1 evaluated at means
+        dB_dP2 = -P1 / P2**2  # dB/dP2 evaluated at means
+        ΔB = np.array([utils.propagate_error([dB_dP1[ik], dB_dP2[ik]], [P1s[ik], P2s[ik]]) for ik in range(0, len(k))])
 
         # uncomment to compare matrix error propagation to manual expression (for one k value, to check it is correct)
         # (see formula for f=A/B at https://en.wikipedia.org/wiki/Propagation_of_uncertainty#Example_formulae)

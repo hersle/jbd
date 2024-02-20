@@ -149,7 +149,9 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
     xlabel = f"$\lg \left[ {klabel} \\right]$" # common for PBD, PGR, B
     PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"
     PGRlabel = r"P_\mathrm{GR} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{GR} \,/\, \mathrm{Mpc}^3"
-    Blabel = "B_h" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "cola": r"\mathrm{cola}", "primordial": r"\mathrm{prim}", "scaleindependent": r"\mathrm{scale-independent}"}[divide])
+    #Blabel = "B" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "cola": r"\mathrm{cola}", "primordial": r"\mathrm{prim}", "scaleindependent": r"\mathrm{scale-independent}"}[divide])
+    Blabel = r"(P_\mathrm{BD} h_\mathrm{BD}^3) / (P_\mathrm{GR} h_\mathrm{GR}^3)"
+    #Blabel = r"P_\mathrm{BD}^\textsc{bd.py} / P_\mathrm{BD}^\textsc{hmcode}"
     ylabels = [f"$\lg\left[ {PBDlabel} \\right]$", f"$\lg\left[ {PGRlabel} \\right]$", f"${Blabel}$"]
 
     for name, func, ylabel, yticks in zip(names, funcs, ylabels, ytickss): # 1) iterate over PBD(k), PGR(k), B(k)
