@@ -25,7 +25,8 @@ def θGR_different_h(θBD, θBD_all):
 class Simulation: # TODO: makes more sense to name Model, Cosmology or something similar
     SIMDIR = os.path.expandvars(os.path.expandvars("$DATA/jbdsims/"))
     COLAEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/COLASolver/nbody"))
-    CLASSEXEC = os.path.abspath(os.path.expandvars("$HOME/local/hi_class_public/class"))
+    CLASSEXEC = os.path.abspath(os.path.expandvars("$HOME/local/hi_class_public/class")) # without working "non linear = hmcode"
+    #CLASSEXEC = "/mn/stornext/u3/hansw/Herman/HIClassHansWorkingh/class" # with working "non linear = hmcode"
     RAMSESEXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3d"))
     RAMSES2PKEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/RamsesUtils/ramses2pk/ramses2pk"))
     EE2EXEC = os.path.abspath(os.path.expandvars("$HOME/local/EuclidEmulator2-pywrapper/ee2.exe"))
@@ -233,7 +234,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
 
             # output control
             f"output = mPk", # output matter power spectrum P(k,z)
-            f"non linear = halofit", # also estimate non-linear P(k,z) from halo modelling
+            f"non linear = hmcode", # also estimate non-linear P(k,z) from halo modelling
             f"z_pk = {', '.join(str(np.round(z, 5)) for z in zs)}",
             f"write background = yes",
             f"write primordial = yes",
@@ -380,11 +381,11 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             self.run_command(f"{self.RAMSESEXEC} input.nml", subdir="ramses/", np=np, log="log.txt")
 
     def power_spectrum(self, z=0.0, source="class", hunits=True, subshot=False):
-        if source == "class":
+        if source in ("class", "hmcode"):
             self.run_class()
             zs, filenames, n = [], [], 1
             while True:
-                filename = f"class/z{n}_pk.dat"
+                filename = f"class/z{n}_pk" + {"class": "", "hmcode": "_nl"}[source] + ".dat"
                 if self.file_exists(filename):
                     zf = self.read_variable(filename, "redshift z=")
                     if (z <= 3.5 and zf <= 3.5) or (z > 3.5 and zf == z): # require exact hit for high z
@@ -395,9 +396,6 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
                 else:
                     break
                 n += 1
-        elif source == "halofit":
-            self.run_class()
-            filenames = [f"class/z{n+1}_pk_nl.dat" for n in range(0, len(zs))]
         elif source == "cola":
             self.run_cola(np=32)
             filenames = self.glob("cola/pofk_cola_cb_z*.txt")
@@ -728,7 +726,7 @@ class SimulationGroupPair:
         # Verify that COLA/RAMSES simulations output comparable k-values (k*L should be equal)
         kLBD = kBD * (self.sims_BD.params["Lh" if hunits else "L"])
         kLGR = kGR * (self.sims_GR.params["Lh" if hunits else "L"])
-        assert source in ("class", "primordial", "ee2", "script") or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
+        assert source in ("class", "hmcode", "primordial", "ee2", "script") or np.all(np.isclose(kLBD, kLGR)), "weird k-values"
 
         # get reference wavenumbers and interpolate P to those values
         kmin = np.maximum(np.min(kBD), np.min(kGR))
