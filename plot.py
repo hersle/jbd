@@ -174,13 +174,13 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
             sims = sim.SimulationGroupPair(params, θGR, nsims)
 
             # curves, linestyles and their labels
-            curves, linestyles, llabels = [], [], [] # only want to the last two once
+            curves = []
+            linestyles = ["solid", "dashed", "dotted"][:len(sources)]
+            llabels = []
             for source in sources: # 3) iterate over power spectrum source
-                # linestyle and linestyle labels
-                linestyles.append({"class": "solid", "cola": "dashed", "ramses": "dotted", "primordial": "dotted", "scaleindependent": "dashed", "ee2": "dashed", "script": "dotted", "hmcode": "dashed"}[source]) # TODO: set sequentially from input
                 llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{fml/cola}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{growth factor}$", "ee2": r"$\textsc{ee2}$" + (r" \textrm{(boosted)}" if name != "PGR" and source == "ee2" else ""), "script": r"$\textsc{bd.py}$", "hmcode": r"$\textsc{hmcode}$"}[source])
                 label = (f"${PARAM_PLOT_INFO[param]['label'][1:-1]} = {PARAM_PLOT_INFO[param]['format'](val)[1:-1]}$") if param else None
-                curves.append(func(sims, source, z) + ({"class": label, "cola": None, "ramses": None, "scaleindependent": None, "ee2": None, "script": None, "hmcode": None}[source],))
+                curves.append(func(sims, source, z) + (label if source == sources[0] else None,))
             curvess.append(curves)
 
         title = PARAM_PLOT_INFO[param]["label"] if param else None
