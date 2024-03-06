@@ -96,7 +96,8 @@ class GRUniverse:
             # log verbosity (increase integers to make more talkative)
             f"input_verbose = 1", # log A_s
             f"background_verbose = 3", # log phi_ini and phi_0 (needed in BD)
-            f"spectra_verbose = 1", # log sigma8
+            f"spectra_verbose = 1", # log sigma8 (in hiclass public stable v2.0)
+            f"nonlinear_verbose = 1", # log sigma8 (in more recent private hiclass versions)
         ]) + '\n' # final newline
 
     # calculates linear power spectrum from hi_class
