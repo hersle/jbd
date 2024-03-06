@@ -11,13 +11,13 @@ from scipy.interpolate import CubicSpline
 parser = argparse.ArgumentParser(prog="bd.py", formatter_class=argparse.ArgumentDefaultsHelpFormatter) # suppress unspecified arguments (instead of including them with None values)
 
 # cosmological parameters
-parser.add_argument("-z",          metavar="VAL", type=float, required=True, nargs="+", help="redshift(s)")
-parser.add_argument("-w", "--ω",   metavar="VAL", type=float, required=True,            help="Brans-Dicke coupling")
-parser.add_argument("-G", "--G0",  metavar="VAL", type=float, required=True, default=1, help="gravitational parameter today in units of Newton's constant [G0/GN]")
-parser.add_argument("-H", "--h",   metavar="VAL", type=float, required=True,            help="reduced Hubble parameter today [H0/(100km/(s*Mpc))]")
-parser.add_argument("-m", "--ωm0", metavar="VAL", type=float, required=True,            help="physical matter density parameter today [ρm0*h^2/(3*H0^2/8*π*GN)]")
-parser.add_argument("-b", "--ωb0", metavar="VAL", type=float, required=True,            help="physical baryon density parameter today [ρb0*h^2/(3*H0^2/8*π*GN)]")
-parser.add_argument("-n", "--ns",  metavar="VAL", type=float, required=True,            help="primordial power spectrum spectral index")
+parser.add_argument("-z",          metavar="VAL", type=float, default=[0], nargs="+",    help="redshift(s)")
+parser.add_argument("-w", "--ω",   metavar="VAL", type=float, default=argparse.SUPPRESS, help="Brans-Dicke coupling")
+parser.add_argument("-G", "--G0",  metavar="VAL", type=float, default=1,                 help="gravitational parameter today in units of Newton's constant [G0/GN]")
+parser.add_argument("-H", "--h",   metavar="VAL", type=float, required=True,             help="reduced Hubble parameter today [H0/(100km/(s*Mpc))]")
+parser.add_argument("-m", "--ωm0", metavar="VAL", type=float, required=True,             help="physical matter density parameter today [Ωm0*h^2 = ρm0*h^2/(3*H0^2/8*π*GN)]")
+parser.add_argument("-b", "--ωb0", metavar="VAL", type=float, required=True,             help="physical baryon density parameter today [Ωb0*h^2 = ρb0*h^2/(3*H0^2/8*π*GN)]")
+parser.add_argument("-n", "--ns",  metavar="VAL", type=float, required=True,             help="primordial power spectrum spectral index")
 group = parser.add_mutually_exclusive_group(required=True) # specify As XOR σ8
 group.add_argument("-A", "--As",   metavar="VAL", type=float, default=argparse.SUPPRESS, help="primordial power spectrum amplitude")
 group.add_argument("-8", "--σ8",   metavar="VAL", type=float, default=argparse.SUPPRESS, help="density fluctuation amplitude over 8Mpc/h scale today")
@@ -38,14 +38,24 @@ args = parser.parse_args()
 def run_command(cmd, log=None):
     if args.verbose:
         print(f"Running command {cmd}") # user wants to see what is run
-    run = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8") # combine stderr -> stdout
-    if run.returncode != 0:
-        print(run.stdout) # print output
-        run.check_returncode() # then raise exception
-    if args.verbose:
-        print(run.stdout) # user wants to see output
-    if log:
-        write_file(log, run.stdout) # log outpuit to file
+    try:
+        run = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, encoding="utf-8") # combine stderr -> stdout
+        if run.returncode != 0:
+            print(run.stdout) # print output
+            run.check_returncode() # then raise exception
+        if args.verbose:
+            print(run.stdout) # user wants to see output
+        if log:
+            write_file(log, run.stdout) # log output to file
+    except Exception as err:
+        raise RuntimeError("\n".join([
+            f"Failed to run command {cmd}. Suggestions:",
+            f"- Ensure class (hiclass) is in your PATH or passed with --hiclass",
+            f"- Try the public/stable hiclass version v2.0: https://github.com/miguelzuma/hi_class_public/tree/v2.0",
+            f"- Ensure ee2.exe is in your PATH or passed with --ee2",
+            f"- Ensure ee2.exe finds its data file ee2_bindata.dat",
+            f"- Select parameters to ee2.exe does not go out of bounds"
+        ])) from err
 
 # read tabular data from a file
 def read_data(filename):
@@ -66,7 +76,12 @@ def read_file(filename):
 def read_variable(filename, prefix):
     regex = prefix + r"([-+]?[0-9]*\.?[0-9]+([eE][-+]?[0-9]+)?)" # the latter matches a number
     matches = re.findall(regex, read_file(filename))
-    assert len(matches) == 1, f"found {len(matches)} != 1 for variable \"{prefix}\" in {filename}"
+    if len(matches) != 1:
+        raise RuntimeError("\n".join([
+            f"Did not find exactly one \"{prefix}\" followed by a number in {filename}. Suggestions:",
+            f"- Increase the verbosity of hiclass' output in the input_class()",
+            f"- Try the public/stable hiclass version v2.0: https://github.com/miguelzuma/hi_class_public/tree/v2.0",
+        ]))
     return float(matches[0][0])
 
 class GRUniverse:
@@ -215,6 +230,14 @@ class BDUniverse(GRUniverse):
 if __name__ == "__main__":
     params = vars(args)
     params["z"] = sorted(params["z"])
+
+    # check validity of input arguments
+    if args.spectrum.startswith("PBD") and "ω" not in params:
+        parser.error("BD requires ω")
+    if args.spectrum == "PBD" and params["ω"] < 100:
+        parser.error("non-linear BD only accurate for ω >= 100 (remove this check if you want to proceed)")
+    if args.spectrum.startswith("PGR") and ("ω" in params or params["G0"] != 1):
+        parser.error("GR does not have parameter ω or G0 != 1")
 
     if args.spectrum == "PBD":
         k, P = BDUniverse(params).power_spectrum_nonlinear()
