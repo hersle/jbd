@@ -20,7 +20,7 @@ parser.add_argument("-b", "--ωb0", metavar="VAL", type=float, required=True,   
 parser.add_argument("-n", "--ns",  metavar="VAL", type=float, required=True,             help="primordial power spectrum spectral index")
 group = parser.add_mutually_exclusive_group(required=True) # specify As XOR σ8
 group.add_argument("-A", "--As",   metavar="VAL", type=float, default=argparse.SUPPRESS, help="primordial power spectrum amplitude")
-group.add_argument("-8", "--σ8",   metavar="VAL", type=float, default=argparse.SUPPRESS, help="density fluctuation amplitude over 8Mpc/h scale today")
+#group.add_argument("-8", "--σ8",   metavar="VAL", type=float, default=argparse.SUPPRESS, help="density fluctuation amplitude over 8Mpc/h scale today") # TODO: add
 
 # directory and executable paths, verbosity and output file
 parser.add_argument("--data",    metavar="PATH", default=".",       help="working directory for intermediate data/log files")
