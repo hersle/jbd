@@ -4,10 +4,10 @@
 #./main.py --transform-h --divide primordial --params σ8 ωm0 ωb0 --evolution
 
 # test different parametrizations
-#./main.py --power class cola --h-units --subtract-shotnoise --transform-h --params σ8 ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3 --legend-location "upper right" "upper left" --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}"
-#./main.py --power class cola --h-units --subtract-shotnoise --transform-h --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3 --legend-location "upper right" "upper left" --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}"
-#./main.py --power class cola --h-units --subtract-shotnoise               --params σ8 ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3 --legend-location "upper right" "upper left" --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}"
-#./main.py --power class cola --h-units --subtract-shotnoise               --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3 --legend-location "upper right" "upper left" --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}"
+#./main.py --power class cola --h-units --subtract-shotnoise --transform-h --params σ8 ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3 --legend-location "upper right" "upper left" --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/s8_h2phi
+#./main.py --power class cola --h-units --subtract-shotnoise --transform-h --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3 --legend-location "upper right" "upper left" --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/As_h2phi
+#./main.py --power class cola --h-units --subtract-shotnoise               --params σ8 ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3 --legend-location "upper right" "upper left" --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/s8_h
+#./main.py --power class cola --h-units --subtract-shotnoise               --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3 --legend-location "upper right" "upper left" --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/As_h
 
 # linear evolution
 #./main.py --power class scaleindependent --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.0 1.20 --params σ8 ωm0 ωb0 z=0,1.5,9,99,999 --power-stem plots/linevo --figsize 3.5 2.8 --legend-location "upper right" "upper left"
@@ -24,11 +24,11 @@
 #./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params σ8 ωm0 ωb0 Lh=128,384,640 --power-stem plots/Lh --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}"  --legend-location "upper right" "upper left"
 
 # vary physical parameters
-#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params σ8 ωm0 ωb0 ω=100.0,500.0,1000.0 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/ω --legend-location "upper right" "upper left"
+#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params σ8 ωm0 ωb0 ω=100.0,500.0,1000.0 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/w --legend-location "upper right" "upper left"
 #./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params σ8 ωm0 ωb0 G0=0.95,1.0,1.05 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/G --legend-location "upper right" "upper left"
-#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params σ8 ωb0 ωm0=0.10,0.15,0.20 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/ωm0 --legend-location "upper right" "upper left"
-#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params σ8 ωm0 ωb0=0.01,0.02,0.03 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/ωb0 --legend-location "upper right" "upper left"
-#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params ωm0 ωb0 σ8=0.75,0.80,0.85 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/σ8 --legend-location "upper right" "upper left"
+#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params σ8 ωb0 ωm0=0.10,0.15,0.20 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/wm0 --legend-location "upper right" "upper left"
+#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params σ8 ωm0 ωb0=0.01,0.02,0.03 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/wb0 --legend-location "upper right" "upper left"
+#./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params ωm0 ωb0 σ8=0.75,0.80,0.85 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/s8 --legend-location "upper right" "upper left"
 #./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params σ8 ωm0 ωb0 ns=0.92,0.96,1.0 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/ns --legend-location "upper right" "upper left"
 #./main.py --power class cola --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 1.5 --params σ8 ωm0 ωb0 h=0.65,0.70,0.73 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/h --legend-location "upper right" "upper left"
 #./main.py --power       cola --h-units --transform-h --subtract-shotnoise --divide class --B-lims 0.98 1.02 --figsize 3.5 1.5 --one-by-one --Blabel "B_\mathrm{COLA} / B_\mathrm{linear}" --params z=0.0,1.5,3.0 h=0.70,0.65,0.73 ns=1.0,0.96,0.92 G0=1.0,0.95,1.05 σ8=0.80,0.75,0.85 ωm0=0.15,0.10,0.20 ωb0=0.02,0.01,0.03 ω=100.0,500.0,1000.0 --power-stem plots/all --legend-location "upper left" ""
