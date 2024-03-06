@@ -45,8 +45,8 @@ PARAM_PLOT_INFO = {
     "Ncell":  {"label": r"$N_\mathrm{cell}$",                   "format": lambda Ncell: f"${Ncell}^3$",                "colorvalue": lambda Ncell: np.log2(Ncell)},
     "Nstep":  {"label": r"$N_\mathrm{step}$",                   "format": lambda Nstep: f"${Nstep}$",                  "colorvalue": lambda Nstep: Nstep},
     "zinit":  {"label": r"$z_\mathrm{init}$",                   "format": lambda zinit: f"${zinit:.0f}$",              "colorvalue": lambda zinit: zinit},
-    "ω":      {"label": r"$\omega$",                            "format": lambda ω:     f"$10^{{{np.log10(ω):.0f}}}$", "colorvalue": lambda ω:     np.log10(ω)},
-    "lgω":    {"label": r"$\lg\omega$",                         "format": lambda lgω:   f"${lgω:.1f}$",                "colorvalue": lambda ω:     np.log10(ω)},
+    "ω":      {"label": r"$\omega$",                            "format": lambda ω:     f"${ω:.0f}$",                  "colorvalue": lambda ω:     np.log10(ω)},
+    "lgω":    {"label": r"$\lg\omega$",                         "format": lambda lgω:   f"${lgω:.0f}$",                "colorvalue": lambda lgω:   lgω},
     "G0":     {"label": r"$G_{m0}/G$",                          "format": lambda G0:    f"${G0:.02f}$",                "colorvalue": lambda G0:    G0},
     "As":     {"label": r"$A_s / 10^{-9}$",                     "format": lambda As:    f"${As/1e-9:.1f}$",            "colorvalue": lambda As:    As},
     "ns":     {"label": r"$n_s$",                               "format": lambda ns:    f"${ns:.2f}$",                 "colorvalue": lambda ns:    ns},
@@ -131,7 +131,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divide="", subshot=False, Blims=(0.8, 1.2), figsize=(3.0, 2.2), leglocs=(None, None)):
+def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divide="", subshot=False, Blims=(0.8, 1.2), figsize=(3.0, 2.2), leglocs=(None, None), Blabel=""):
     names = ["PBD", "PGR", "B"]
     def curve_PBD(sims, source, z):
         k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z, hunits=hunits, subshot=subshot)
@@ -150,7 +150,8 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
     PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"
     PGRlabel = r"P_\mathrm{GR} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{GR} \,/\, \mathrm{Mpc}^3"
     #Blabel = "B" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "cola": r"\mathrm{cola}", "primordial": r"\mathrm{prim}", "scaleindependent": r"\mathrm{scale-independent}"}[divide])
-    Blabel = r"(P_\mathrm{BD} h_\mathrm{BD}^3) / (P_\mathrm{GR} h_\mathrm{GR}^3)"
+    #Blabel = r"(P_\mathrm{BD} h_\mathrm{BD}^3) / (P_\mathrm{GR} h_\mathrm{GR}^3)"
+    #Blabel = r"B_\textsc{cola} / B_\textsc{ramses}"
     #Blabel = r"P_\mathrm{BD}^\textsc{bd.py} / P_\mathrm{BD}^\textsc{hmcode}"
     ylabels = [f"$\lg\left[ {PBDlabel} \\right]$", f"$\lg\left[ {PGRlabel} \\right]$", f"${Blabel}$"]
 
@@ -201,7 +202,7 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
     aeq_BD = 1 / (simBD.read_variable("class/log.txt", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
     aeq_GR = 1 / (simGR.read_variable("class/log.txt", "radiation/matter equality at z = ") + 1) # = 1 / (z + 1)
 
-    fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': (1, 1.618)}, figsize=(3.0, 3.5), sharex=True)
+    fig, (ax1, ax2) = plt.subplots(2, 1, gridspec_kw={'height_ratios': (1, 1.618)}, figsize=(3.5, 3.5), sharex=True)
     ax2.set_xlabel(r"$\lg a$")
     ax2.set_ylabel(f"$\lg[{ylabel}]$" if logabs else f"${ylabel}$")
 

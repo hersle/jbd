@@ -27,7 +27,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
     COLAEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/COLASolver/nbody"))
     CLASSEXEC_STABLE = os.path.abspath(os.path.expandvars("$HOME/local/hi_class_public/class")) # without working "non linear = hmcode"
     CLASSEXEC_HMCODE = "/mn/stornext/u3/hansw/Herman/HIClassHansWorkingh/class" # with working "non linear = hmcode"
-    CLASSEXEC = CLASSEXEC_STABLE #CLASSEXEC_HMCODE
+    CLASSEXEC = CLASSEXEC_HMCODE #CLASSEXEC_HMCODE
     RAMSESEXEC = os.path.abspath(os.path.expandvars("$HOME/local/Ramses/bin/ramses3d"))
     RAMSES2PKEXEC = os.path.abspath(os.path.expandvars("$HOME/local/FML/FML/RamsesUtils/ramses2pk/ramses2pk"))
     EE2EXEC = os.path.abspath(os.path.expandvars("$HOME/local/EuclidEmulator2-pywrapper/ee2.exe"))
@@ -231,7 +231,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             f"A_s = {self.params['As']}",
             f"n_s = {self.params['ns']}",
             f"k_pivot = {self.params['kpivot']}",
-            f"YHe = 0.25",
+            #f"YHe = 0.25",
 
             # output control
             f"output = mPk", # output matter power spectrum P(k,z)
@@ -408,7 +408,7 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
             snapnum = 1
             while True:
                 level = int(np.log2(self.params["Npart"])) # coarsest AMR grid level
-                level += 1 # enhance P(k) computation by 1 level (e.g. N = 256 -> 256*2^1 = 512)
+                level += 2 # enhance P(k) computation by 1 level (e.g. N = 256 -> 256*2^1 = 512)
                 snapdir = f"ramses/output_{snapnum:05d}"
                 info_filename = f"{snapdir}/info_{snapnum:05d}.txt"
                 pofk_filename = f"{snapdir}/pofk_fml_level{level}.dat"
@@ -474,12 +474,19 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         # cut off ramses at lower k at earlier times
         if source == "ramses":
             k_h_nyq = np.pi * self.params["Ncell"] / self.params["Lh"] # Nyquist frequency
-            k_h_max = k_h_nyq/2 if z > 3 else k_h_nyq/2 + 3/2*k_h_nyq * (3-z)/(3-0) # linearly from k(z=3)=knyq/2 to k(z=0)=2*knyq
+            k_h_max = k_h_nyq / 2
+            if z >= 3:
+                k_h_max *= 1
+            elif z >= 1.5:
+                k_h_max *= 2
+            elif z >= 0.0:
+                k_h_max *= 4
+            #k_h_max = k_h_nyq/2 if z > 3 else k_h_nyq/2 + 3/2*k_h_nyq * (3-z)/(3-0) # linearly from k(z=3)=knyq/2 to k(z=0)=2*knyq
             Ph3 = Ph3[k_h <= k_h_max]
             k_h = k_h[k_h <= k_h_max]
 
         # rescale to linear P
-        if source == "ramses":
+        if source in ("ramses", "cola"):
             k_h_lin, Ph3_lin = self.power_spectrum(z=z, source="class") # get linear spectrum
             factor = CubicSpline(k_h_lin, Ph3_lin, extrapolate=False)(k_h[0]) / Ph3[0]
             Ph3 *= factor # rescale to fit linear spectrm at smallest k
@@ -575,7 +582,7 @@ class BDSimulation(Simulation):
             f"Omega_smg = -1", # automatic modified gravity
             f"parameters_smg = NaN, {self.params['ω']}, 1.0, 0.0", # ΩΛ0 (fill with cosmological constant), ω, Φini (arbitrary initial guess), Φ′ini≈0 (fixed)
             f"M_pl_today_smg = {(4+2*self.params['ω'])/(3+2*self.params['ω']) / self.params['G0']}", # see https://github.com/HAWinther/hi_class_pub_devel/blob/3160be0e0482ac2284c20b8878d9a81efdf09f2a/gravity_smg/gravity_models_smg.c#L462
-            f"a_min_stability_test_smg = 1e-6", # BD has early-time instability, so lower tolerance to pass stability checker
+            f"a_min_stability_test_smg = 1e-2", # BD has early-time instability, so lower tolerance to pass stability checker
             f"output_background_smg = 2", # >= 2 needed to output phi to background table (https://github.com/miguelzuma/hi_class_public/blob/16ae0f6ccfcee513146ec36b690678f34fb687f4/source/background.c#L3031)
             f"" # final newline
         ])

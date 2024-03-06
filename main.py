@@ -46,8 +46,9 @@ parser.add_argument("--one-by-one", action="store_true", default=False, help="va
 parser.add_argument("--parameter-space", action="store_true", help="plot (varying) parameter space")
 parser.add_argument("--test", action="store_true", help="run whatever experimental code is in the test section")
 parser.add_argument("--B-lims", help="Bmin,Bmax", default=(0.8, 1.2), nargs=2)
-parser.add_argument("--figsize", help="width,height", default=(3.0, 2.2), nargs=2)
+parser.add_argument("--figsize", help="width,height", default=(3.5, 2.2), nargs=2)
 parser.add_argument("--legend-location", nargs=2, default=(None, None), help="matplotlib legend location string")
+parser.add_argument("--Blabel", default="B", help="ylabel for boost plot")
 args = parser.parse_args()
 
 class ParameterSpace:
@@ -130,7 +131,7 @@ PARAMS = {
     "σ8":        {"fid": 0.80,         "help": "smoothed matter density fluctuation amplitude = σ(R=8 Mpc/h, z=0)"},
 
     "ω":         {"fid": 100.0,        "help": "Brans-Dicke scalar field coupling"},
-    "lgω":       {"fid": 2.0,          "help": "log₁₀(ω)"},
+    #"lgω":       {"fid": 2.0,          "help": "log₁₀(ω)"},
     "G0":        {"fid": 1.00,         "help": "gravitational parameter today / G"},
 
     "zinit":     {"fid": 10.0,         "help": "initial redshift (all N-body simulations)"},
@@ -210,7 +211,9 @@ if len(args.power) > 0:
 
     Blims = (float(args.B_lims[0]), float(args.B_lims[1]))
     figsize = (float(args.figsize[0]), float(args.figsize[1]))
-    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, hunits=args.h_units, divide=args.divide, subshot=args.subtract_shotnoise, Blims=Blims, figsize=figsize, leglocs=args.legend_location)
+    leglocs = args.legend_location
+    leglocs = [legloc if legloc != "" else None for legloc in leglocs]
+    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, hunits=args.h_units, divide=args.divide, subshot=args.subtract_shotnoise, Blims=Blims, figsize=figsize, leglocs=leglocs, Blabel=args.Blabel)
 
 # Plot evolution of (background) densities
 if args.evolution:
