@@ -47,5 +47,5 @@
 
 # test hmcode
 #./main.py --power hmcode              --h-units --transform-h --params ω=100 σ8=0.82 ωm0 ωb0 z=0,1.5,3 --subtract-shotnoise --B-lims 0.9 1.1 --power-stem plots/hmcode1 # --legend-location "upper right" "upper left"
-#./main.py --power script hmcode class --h-units --transform-h --params ω=100 σ8=0.82 ωm0 ωb0 z=0,1.5,3 --subtract-shotnoise --B-lims 0.9 1.1 --power-stem plots/hmcode2 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --legend-location "upper right" "lower left"
+#./main.py --power script hmcode cola  --h-units --transform-h --params ω=100 σ8=0.82 ωm0 ωb0 z=0,1.5,3 --subtract-shotnoise --B-lims 0.9 1.1 --power-stem plots/hmcode2 --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --legend-location "upper right" "lower left"
 #./main.py --power script hmcode class --h-units --transform-h --params ω=1e8 σ8=0.82 ωm0 ωb0 z=0,1.5,3 --subtract-shotnoise --B-lims 0.9 1.1 --power-stem plots/hmcode2_100000000 --legend-location "upper right" "lower left" --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --legend-location "upper right" "lower left"
