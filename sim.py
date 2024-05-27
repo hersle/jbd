@@ -547,7 +547,7 @@ class GRSimulation(Simulation):
 
         elif source == "script":
             self.create_directory("script")
-            self.run_command(f"{self.BDPYEXEC} -z {z} -w 0 -G 1 -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC_STABLE} --ee2 {self.EE2EXEC} --output power.dat PGR", subdir="script/")
+            self.run_command(f"{self.BDPYEXEC} -z {z} -G 1 -H {self.params['h']} -m {self.params['ωm0']} -b {self.params['ωb0']} -n {self.params['ns']} -A {self.params['As']} --hiclass {self.CLASSEXEC_STABLE} --ee2 {self.EE2EXEC} --output power.dat PGR", subdir="script/")
             k, P = self.read_data("script/power.dat")
             k = k * self.params["h"]
 
