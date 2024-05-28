@@ -38,6 +38,7 @@ parser.add_argument("--power", nargs="*", metavar="SOURCE", default=[], help="pl
 parser.add_argument("--power-stem", default=None)
 parser.add_argument("--h-units", action="store_true", help="plot power and boost with P(k/h)*h^3 instead of P(k)")
 parser.add_argument("--divide", metavar="SOURCE", default="", help="source to divide by")
+parser.add_argument("--dividez", metavar="SOURCE", default=None, help="redshift of source divide")
 parser.add_argument("--subtract-shotnoise", action="store_true", help="subtract shot noise")
 parser.add_argument("--realizations", metavar="N", type=int, default=1, help="number of universe realizations to simulate per model")
 parser.add_argument("--evolution", action="store_true", help="plot evolution of background and perturbation quantities")
@@ -213,7 +214,8 @@ if len(args.power) > 0:
     figsize = (float(args.figsize[0]), float(args.figsize[1]))
     leglocs = args.legend_location
     leglocs = [legloc if legloc != "" else None for legloc in leglocs]
-    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, hunits=args.h_units, divide=args.divide, subshot=args.subtract_shotnoise, Blims=Blims, figsize=figsize, leglocs=leglocs, Blabel=args.Blabel)
+    dividez = float(args.dividez) if args.dividez is not None else None
+    plot.plot_power(stem, params0, paramss, varparam, θGR, nsims=args.realizations, sources=sources, hunits=args.h_units, divide=args.divide, dividez=dividez, subshot=args.subtract_shotnoise, Blims=Blims, figsize=figsize, leglocs=leglocs, Blabel=args.Blabel)
 
 # Plot evolution of (background) densities
 if args.evolution:

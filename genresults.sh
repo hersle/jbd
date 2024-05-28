@@ -10,7 +10,7 @@
 #./main.py --power class cola --h-units --subtract-shotnoise               --params As ωm0 ωb0 z=0,1.5,3.0 --B-lims 0.9 1.3 --legend-location "upper right" "upper left" --Blabel "B / (h_\mathrm{BD}/h_\mathrm{GR})^{-3}" --power-stem plots/As_h
 
 # linear evolution
-#./main.py --power class scaleindependent --h-units --transform-h --subtract-shotnoise --divide primordial --B-lims 1.0 1.20 --params σ8 ωm0 ωb0 z=0,1.5,9,99,999 --power-stem plots/linevo --figsize 3.5 2.8 --legend-location "upper right" "upper left"
+#./main.py --power class growth --h-units --transform-h --subtract-shotnoise --dividez 999.0 --B-lims 0.95 1.20 --params σ8 ωm0 ωb0 z=0,1.5,9,99,999 --power-stem plots/linevo --Blabel "B(k,z) / B(k,999)" --figsize 3.5 2.3 --legend-location "upper right" "upper left"
 
 # ramses comparison
 #./main.py --power class cola ramses --h-units --transform-h --subtract-shotnoise --B-lims 0.98 1.02 --figsize 3.5 2.2 --params σ8 ωm0 ωb0 z=3,1.5,0 --power-stem plots/ramses --legend-location "upper right" "lower left"

@@ -427,10 +427,12 @@ class Simulation: # TODO: makes more sense to name Model, Cosmology or something
         elif source == "primordial":
             zs = [np.inf]
             filenames = ["class/primordial_Pk.dat"]
-        elif source == "scaleindependent":
+        elif source == "growth":
             data = self.read_data("cola/gravitymodel_cola_k1.0.txt", dict=True)
-            a, D = data["a"], data["D1(a,k)"]
-            D_D0 = CubicSpline(np.log(a), D/D[0])(np.log(1 / (z+1)))
+            a, D = data["a"], data["D1(a,k)"] # D already normalized so it is 1 today
+            D = CubicSpline(np.log(a), D)
+            D0 = D(0.0) # normalize to 1 today (probably already done in the data, but whatever)
+            D_D0 = D(np.log(1 / (z+1))) / D0
             k, P = self.power_spectrum(z, source="primordial", hunits=hunits, subshot=subshot)
             return k, P * D_D0**2
         else:
@@ -728,7 +730,7 @@ class SimulationGroupPair:
 
         self.nsims = nsims
 
-    def power_spectrum_ratio(self, z=0.0, source="class", hunits=False, divide="", subshot=False):
+    def power_spectrum_ratio(self, z=0.0, source="class", hunits=False, divide="", dividez=None, subshot=False):
         k1, P1s = self.sims_BD.power_spectra(z=z, source=source, hunits=hunits, subshot=subshot) # kBD / (hBD/Mpc), PBD / (Mpc/hBD)^3
         k2, P2s = self.sims_GR.power_spectra(z=z, source=source, hunits=hunits, subshot=subshot) # kGR / (hGR/Mpc), PGR / (Mpc/hGR)^3
 
@@ -772,8 +774,10 @@ class SimulationGroupPair:
         #ΔB_manual = B[0] * np.sqrt(σsq[0,0]/PBD[0]**2 + σsq[1,1]/PGR[0]**2 - 2*σsq[0,1]/(PBD[0]*PGR[0]))
         #assert np.isclose(ΔB_matrix, ΔB_manual), "error propagation is wrong"
 
-        if divide: # TODO: handle ΔB?
-            kdiv, Bdiv, _ = self.power_spectrum_ratio(source=divide, z=z, hunits=hunits, divide="", subshot=subshot) # don't divide
+        if divide != "" or dividez is not None: # TODO: handle ΔB?
+            z = dividez if dividez is not None else z
+            source = divide if divide else source
+            kdiv, Bdiv, _ = self.power_spectrum_ratio(source=source, z=z, hunits=hunits, divide="", subshot=subshot) # don't divide
             Bdiv = CubicSpline(kdiv, Bdiv, axis=1, extrapolate=False)(k) # interpolate to main source's k
             return k, B/Bdiv, ΔB/Bdiv
         else:

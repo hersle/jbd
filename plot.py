@@ -101,8 +101,8 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
         set_label(label)
         if ticks is not None:
             min, max, stepmajor, stepminor = ticks
-            set_ticks(np.linspace(min, max, int(np.round((max - min) / stepmajor)) + 1))
             set_lim(min, max)
+            set_ticks(np.linspace(min, max, int(np.round((max - min) / stepmajor)) + 1))
             set_minor_locator(matplotlib.ticker.AutoMinorLocator(int(np.round(stepmajor/stepminor))))
 
     # Label colors (through colorbar)
@@ -131,7 +131,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
     fig.savefig(filename)
     print("Plotted", filename)
 
-def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divide="", subshot=False, Blims=(0.8, 1.2), figsize=(3.0, 2.2), leglocs=(None, None), Blabel=""):
+def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1, hunits=True, divide="", dividez=None, subshot=False, Blims=(0.8, 1.2), figsize=(3.0, 2.2), leglocs=(None, None), Blabel=""):
     names = ["PBD", "PGR", "B"]
     def curve_PBD(sims, source, z):
         k, P, ΔP = sims.sims_BD.power_spectrum(source=source, z=z, hunits=hunits, subshot=subshot)
@@ -140,16 +140,16 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
         k, P, ΔP = sims.sims_GR.power_spectrum(source=source, z=z, hunits=hunits, subshot=subshot)
         return np.log10(k), np.log10(P), np.log10(P+ΔP)-np.log10(P), np.log10(P)-np.log10(P-ΔP)
     def curve_B(sims, source, z):
-        k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z, hunits=hunits, divide=divide, subshot=subshot)
+        k, B, ΔB = sims.power_spectrum_ratio(source=source, z=z, hunits=hunits, divide=divide, dividez=dividez, subshot=subshot)
         return np.log10(k), B, ΔB, ΔB
     funcs = [curve_PBD, curve_PGR, curve_B]
     xticks = (-2, +1, 1, 0.1) # common
-    ytickss = [(0, 5, 1.0, 0.1), (0, 5, 1.0, 0.1), (Blims[0], Blims[1], 10**np.floor(np.log10((Blims[1]-Blims[0]))) * (1/2 if str(Blims[1])[-1] == "5" else 1), 10**(-1+np.floor(np.log10((Blims[1]-Blims[0])))))]
+    ytickss = [(0, 5, 1.0, 0.1), (0, 5, 1.0, 0.1), (Blims[0], Blims[1], 10**np.floor(np.log10((Blims[1]-Blims[0]))) * (1/2 if (str(Blims[0])[-1] == "5" or str(Blims[1])[-1] == "5") else 1), 10**(-1+np.floor(np.log10((Blims[1]-Blims[0])))))]
     klabel = r"k / (h/\mathrm{Mpc})" if hunits else r"k \,/\, (1/\mathrm{Mpc})"
     xlabel = f"$\lg \left[ {klabel} \\right]$" # common for PBD, PGR, B
     PBDlabel = r"P_\mathrm{BD} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{BD} \,/\, \mathrm{Mpc}^3"
     PGRlabel = r"P_\mathrm{GR} \,/\, (\mathrm{Mpc}/h)^3" if hunits else "P_\mathrm{GR} \,/\, \mathrm{Mpc}^3"
-    #Blabel = "B" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "cola": r"\mathrm{cola}", "primordial": r"\mathrm{prim}", "scaleindependent": r"\mathrm{scale-independent}"}[divide])
+    #Blabel = "B" if not divide else ("B / B_" + {"class": r"\mathrm{lin}", "cola": r"\mathrm{cola}", "primordial": r"\mathrm{prim}", "growth": r"\mathrm{scale-independent}"}[divide])
     #Blabel = r"(P_\mathrm{BD} h_\mathrm{BD}^3) / (P_\mathrm{GR} h_\mathrm{GR}^3)"
     #Blabel = r"B_\textsc{cola} / B_\textsc{ramses}"
     #Blabel = r"P_\mathrm{BD}^\textsc{bd.py} / P_\mathrm{BD}^\textsc{hmcode}"
@@ -181,7 +181,7 @@ def plot_power(filename_stem, params0, paramss, param, θGR, sources=[], nsims=1
             linestyles = ["solid", "dashed", "dotted"][:len(sources)]
             llabels = []
             for source in sources: # 3) iterate over power spectrum source
-                llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{fml/cola}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "scaleindependent": r"$\textrm{growth factor}$", "ee2": r"$\textsc{ee2}$" + (r" \textrm{(boosted)}" if name != "PGR" and source == "ee2" else ""), "script": r"$\textsc{bd.py}$", "hmcode": r"$\textsc{hmcode}$"}[source])
+                llabels.append({"class": r"$\textsc{hi_class}$", "cola": r"$\textsc{fml/cola}$", "ramses": r"$\textsc{ramses}$", "primordial": r"$\textrm{primordial}$", "growth": r"$\textrm{growth factor}$", "ee2": r"$\textsc{ee2}$" + (r" \textrm{(boosted)}" if name != "PGR" and source == "ee2" else ""), "script": r"$\textsc{bd.py}$", "hmcode": r"$\textsc{hmcode}$"}[source])
                 label = (f"${PARAM_PLOT_INFO[param]['label'][1:-1]} = {PARAM_PLOT_INFO[param]['format'](val)[1:-1]}$") if param else None
                 curves.append(func(sims, source, z) + (label if source == sources[0] else None,))
             curvess.append(curves)
