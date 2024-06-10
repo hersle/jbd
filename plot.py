@@ -126,7 +126,7 @@ def plot_generic(filename, curvess, colors=None, clabels=None, linestyles=None, 
             ax2.legend(loc=leglocs[1])
         #ax2.legend(loc="upper left", bbox_to_anchor=(1, 1)) # legend outside
 
-    ax.grid(which="major")
+    #ax.grid(which="major")
     fig.tight_layout(pad=0)
     fig.savefig(filename)
     print("Plotted", filename)
@@ -236,8 +236,8 @@ def plot_quantity_evolution(filename, params0_BD, qty_BD, qty_GR, θGR, qty="", 
     ax1.yaxis.set_label_coords(-0.15, 0.5) # manually position to align for different invocations of this function
     ax2.yaxis.set_label_coords(-0.15, 0.5) # manually position to align for different invocations of this function
 
-    ax1.grid(which="both")
-    ax2.grid(which="both")
+    #ax1.grid(which="both")
+    #ax2.grid(which="both")
 
     ax2.legend()
     fig.subplots_adjust(left=0.17, right=0.99, bottom=0.10, top=0.98, hspace=0.1) # trial and error to get consistent plot layout...
